@@ -1,0 +1,285 @@
+<!--
+  F3 Bedrock Monthly Challenge — PWA Icon Generator
+  ==================================================
+  This is a developer utility file. Open it in any browser, click the Download
+  buttons, and place the resulting PNG files in public/icons/.
+
+  Required output files:
+    - icon-192.png       → public/icons/icon-192.png
+    - icon-512.png       → public/icons/icon-512.png
+    - apple-touch-icon.png → public/icons/apple-touch-icon.png
+
+  This file itself does NOT need to be deployed. It can be gitignored or kept
+  as a reference. The PNGs it produces are what the app needs.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>F3 Icon Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #09090b;
+      color: #f4f4f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    header {
+      max-width: 700px;
+      margin: 0 auto 2.5rem;
+      border-left: 3px solid #f97316;
+      padding-left: 1rem;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #f97316;
+      margin-bottom: 0.4rem;
+    }
+
+    header p {
+      font-size: 0.9rem;
+      color: #a1a1aa;
+      line-height: 1.6;
+    }
+
+    .steps {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: #d4d4d8;
+      line-height: 1.8;
+    }
+
+    .steps ol { padding-left: 1.25rem; }
+
+    .steps code {
+      background: #27272a;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 0.8rem;
+      color: #f97316;
+    }
+
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2rem;
+      max-width: 700px;
+      margin: 0 auto;
+      justify-content: flex-start;
+    }
+
+    .icon-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .icon-card h2 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #a1a1aa;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .canvas-wrap {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #3f3f46;
+    }
+
+    /* Scale large canvases down for display without affecting download quality */
+    .canvas-wrap canvas {
+      display: block;
+      max-width: 192px;
+      max-height: 192px;
+      width: auto;
+      height: auto;
+    }
+
+    button {
+      background: #f97316;
+      color: #09090b;
+      border: none;
+      border-radius: 6px;
+      padding: 0.45rem 1.1rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      letter-spacing: 0.02em;
+    }
+
+    button:hover { background: #fb923c; }
+
+    .filename {
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 0.75rem;
+      color: #71717a;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>F3 Bedrock — PWA Icon Generator</h1>
+  <p>Developer utility. Renders icons via Canvas and lets you download the PNGs.</p>
+  <div class="steps">
+    <ol>
+      <li>Open this file in any modern browser.</li>
+      <li>Click <strong>Download</strong> for each icon.</li>
+      <li>Place the downloaded files in <code>public/icons/</code>.</li>
+      <li>This <code>generate-icons.html</code> file does not need to be deployed.</li>
+    </ol>
+  </div>
+</header>
+
+<div class="grid" id="grid"></div>
+
+<script>
+  const ICONS = [
+    { size: 192, filename: 'icon-192.png',        label: '192 × 192' },
+    { size: 512, filename: 'icon-512.png',        label: '512 × 512' },
+    { size: 180, filename: 'apple-touch-icon.png', label: '180 × 180  (Apple Touch)' },
+  ];
+
+  // ── Drawing ────────────────────────────────────────────────────────────────
+
+  /**
+   * Draw the F3 Bedrock icon onto a canvas.
+   * Design: dark background, orange shield, bold white "F3".
+   */
+  function drawIcon(canvas, size) {
+    const ctx = canvas.getContext('2d');
+    canvas.width  = size;
+    canvas.height = size;
+
+    const cx = size / 2;
+    const cy = size / 2;
+
+    // Background
+    ctx.fillStyle = '#09090b';
+    ctx.fillRect(0, 0, size, size);
+
+    // Shield path (centered, proportional to canvas size)
+    const sw = size * 0.58;   // shield width
+    const sh = size * 0.68;   // shield height
+    const sx = cx - sw / 2;
+    const sy = cy - sh / 2 - size * 0.02; // nudge slightly up so text sits well
+
+    drawShield(ctx, sx, sy, sw, sh);
+    ctx.fillStyle = '#f97316';
+    ctx.fill();
+
+    // Subtle inner shadow / depth on the shield
+    drawShield(ctx, sx, sy, sw, sh);
+    const grad = ctx.createLinearGradient(sx, sy, sx, sy + sh);
+    grad.addColorStop(0,   'rgba(255,255,255,0.12)');
+    grad.addColorStop(0.5, 'rgba(255,255,255,0)');
+    grad.addColorStop(1,   'rgba(0,0,0,0.18)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // "F3" text
+    const fontSize = Math.round(size * 0.28);
+    ctx.font        = `900 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
+    ctx.fillStyle   = '#ffffff';
+    ctx.textAlign   = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Slight drop shadow for legibility
+    ctx.shadowColor   = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur    = size * 0.025;
+    ctx.shadowOffsetY = size * 0.01;
+
+    ctx.fillText('F3', cx, sy + sh * 0.47);
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur  = 0;
+  }
+
+  /**
+   * Trace a classic heraldic shield shape.
+   * Origin (x, y) is top-left of the bounding box, w × h.
+   */
+  function drawShield(ctx, x, y, w, h) {
+    const r = w * 0.14; // corner radius for top corners
+    const midX = x + w / 2;
+
+    ctx.beginPath();
+
+    // Top-left corner (rounded)
+    ctx.moveTo(x + r, y);
+    // Top edge
+    ctx.lineTo(x + w - r, y);
+    // Top-right corner (rounded)
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    // Right side — straight down to ~65% height
+    ctx.lineTo(x + w, y + h * 0.58);
+    // Curve to bottom point
+    ctx.quadraticCurveTo(x + w, y + h, midX, y + h);
+    // Curve up from bottom point
+    ctx.quadraticCurveTo(x, y + h, x, y + h * 0.58);
+    // Left side
+    ctx.lineTo(x, y + r);
+    // Top-left corner (rounded)
+    ctx.arcTo(x, y, x + r, y, r);
+
+    ctx.closePath();
+  }
+
+  // ── Build UI ───────────────────────────────────────────────────────────────
+
+  const grid = document.getElementById('grid');
+
+  ICONS.forEach(({ size, filename, label }) => {
+    const canvas = document.createElement('canvas');
+    drawIcon(canvas, size);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'canvas-wrap';
+    wrap.appendChild(canvas);
+
+    const btn = document.createElement('button');
+    btn.textContent = 'Download';
+    btn.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.download = filename;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    });
+
+    const fnLabel = document.createElement('div');
+    fnLabel.className = 'filename';
+    fnLabel.textContent = filename;
+
+    const h2 = document.createElement('h2');
+    h2.textContent = label;
+
+    const card = document.createElement('div');
+    card.className = 'icon-card';
+    card.append(h2, wrap, fnLabel, btn);
+
+    grid.appendChild(card);
+  });
+</script>
+
+</body>
+</html>

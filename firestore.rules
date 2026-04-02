@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users: trust-based, no auth required
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Daily logs: readable and writable by all (trust-based)
+    match /dailyLogs/{logId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Feed: readable and writable by all, but hard deletes are blocked
+    // Use soft-delete pattern: set { deleted: true } instead of deleting docs
+    match /feed/{postId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if false;
+    }
+
+    // Participation: readable and writable by all (trust-based)
+    match /participation/{participationId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Notifications: readable and writable by all (no auth to scope by userId)
+    match /notifications/{userId}/items/{notifId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Notification log: readable for debugging, written only by Cloud Functions
+    match /notificationLog/{logId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

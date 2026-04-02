@@ -1,65 +1,483 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { useUser } from '@/contexts/UserContext'
+import {
+  subscribeToDailyLog,
+  upsertDailyLog,
+  getParticipation,
+  upsertParticipation,
+  dailyLogId,
+  getUserChallengeLogs,
+  updateUser,
+} from '@/lib/firestore'
+import {
+  getCurrentChallenge,
+  getDailyTarget,
+  getTodayPT,
+  getDayNumber,
+  getTotalDays,
+  getChallengeDates,
+} from '@/lib/challenges'
+import { monthProgress, generateId, cn } from '@/lib/utils'
+import { ProgressBar } from '@/components/ui/ProgressBar'
+import { Button } from '@/components/ui/Button'
+import { DailyLogCard } from '@/components/daily/DailyLogCard'
+import { DailyExerciseCard } from '@/components/daily/DailyExerciseCard'
+import { LogDayModal } from '@/components/daily/LogDayModal'
+import { MakeupDayPicker } from '@/components/daily/MakeupDayPicker'
+import { CalloutModal } from '@/components/daily/CalloutModal'
+import type {
+  DailyLog,
+  ChallengeParticipation,
+  CompletionFraction,
+  ExerciseLog,
+} from '@/types'
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function snapFraction(val: number): CompletionFraction {
+  if (val >= 1)    return 1
+  if (val >= 0.75) return 0.75
+  if (val >= 0.5)  return 0.5
+  if (val >= 0.25) return 0.25
+  return 0
+}
+
+function computeOverallFraction(
+  fractions: Record<string, CompletionFraction>,
+  exerciseIds: string[]
+): CompletionFraction {
+  if (exerciseIds.length === 0) return 0
+  const sum = exerciseIds.reduce((acc, id) => acc + (fractions[id] ?? 0), 0)
+  return snapFraction(sum / exerciseIds.length)
+}
+
+// ─── Loading Spinner ──────────────────────────────────────────────────────────
+
+function Spinner() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="flex items-center justify-center min-h-dvh">
+      <svg className="animate-spin w-8 h-8 text-orange-500" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
     </div>
-  );
+  )
+}
+
+// ─── No Active Challenge ──────────────────────────────────────────────────────
+
+function NoChallengeView() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-dvh px-6 text-center gap-4">
+      <div className="text-5xl">🏋️</div>
+      <h1 className="text-2xl font-bold text-white">No Active Challenge</h1>
+      <p className="text-zinc-400 text-sm max-w-xs">
+        There&apos;s no challenge running right now. Check back soon — the next one will be here before you know it.
+      </p>
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export default function HomePage() {
+  const router = useRouter()
+  const { currentUser, allUsers, loading: userLoading } = useUser()
+
+  const today = getTodayPT()
+  const challenge = getCurrentChallenge()
+
+  // Daily log (real-time)
+  const [todayLog, setTodayLog] = useState<DailyLog | null>(null)
+
+  // Participation
+  const [participation, setParticipation] = useState<ChallengeParticipation | null>(null)
+
+  // Past incomplete logs (for makeup)
+  const [allLogs, setAllLogs] = useState<DailyLog[]>([])
+
+  // Exercise fractions for quick-tap (mirrors today's log state)
+  const [quickFractions, setQuickFractions] = useState<Record<string, CompletionFraction>>({})
+
+  // Modal state
+  const [logModalOpen, setLogModalOpen] = useState(false)
+  const [calloutOpen, setCalloutOpen] = useState(false)
+
+  // Saving state for quick-tap debounce
+  const [quickSaving, setQuickSaving] = useState(false)
+
+  // ── Redirect if no user ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!userLoading && !currentUser) {
+      router.replace('/onboarding')
+    }
+  }, [userLoading, currentUser, router])
+
+  // ── Subscribe to today's log ────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!currentUser || !challenge) return
+
+    const unsub = subscribeToDailyLog(currentUser.id, today, log => {
+      setTodayLog(log)
+      if (log) {
+        const map: Record<string, CompletionFraction> = {}
+        for (const el of log.exerciseLogs) {
+          const f = el.targetReps > 0 ? el.completedReps / el.targetReps : 0
+          map[el.exerciseId] = snapFraction(f)
+        }
+        setQuickFractions(map)
+      }
+    })
+    return unsub
+  }, [currentUser, challenge, today])
+
+  // ── Load participation ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!currentUser || !challenge) return
+    getParticipation(currentUser.id, challenge.id).then(setParticipation)
+  }, [currentUser, challenge])
+
+  // ── Load all challenge logs for makeup picker ───────────────────────────
+
+  useEffect(() => {
+    if (!currentUser || !challenge) return
+    getUserChallengeLogs(currentUser.id, challenge.id).then(setAllLogs)
+  }, [currentUser, challenge])
+
+  // ── Save a log ──────────────────────────────────────────────────────────
+
+  const saveLog = useCallback(
+    async (
+      date: string,
+      exerciseFractions: Record<string, CompletionFraction>,
+      notes: string,
+      modificationNote: string,
+      isMakeUp: boolean
+    ) => {
+      if (!currentUser || !challenge) return
+
+      const target = getDailyTarget(challenge, date)
+      if (!target) return
+
+      const exerciseIds = target.exercises.map(e => e.exercise.id)
+      const overallFraction = computeOverallFraction(exerciseFractions, exerciseIds)
+
+      const exerciseLogs: ExerciseLog[] = target.exercises.map(({ exercise, reps }) => ({
+        exerciseId: exercise.id,
+        targetReps: reps,
+        completedReps: Math.round(reps * (exerciseFractions[exercise.id] ?? 0)),
+      }))
+
+      const existingLog = allLogs.find(l => l.date === date) ?? (date === today ? todayLog : null)
+
+      const log: DailyLog = {
+        id: dailyLogId(currentUser.id, date),
+        userId: currentUser.id,
+        challengeId: challenge.id,
+        date,
+        completionFraction: overallFraction,
+        exerciseLogs,
+        isMakeUp,
+        notes: notes || undefined,
+        modificationNote: modificationNote || undefined,
+        loggedAt: existingLog?.loggedAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      await upsertDailyLog(log)
+
+      // Update allLogs cache
+      setAllLogs(prev => {
+        const without = prev.filter(l => l.id !== log.id)
+        return [...without, log].sort((a, b) => a.date.localeCompare(b.date))
+      })
+
+      // Update streak
+      const completedDates = [
+        ...new Set([
+          ...allLogs.filter(l => l.completionFraction >= 1).map(l => l.date),
+          ...(overallFraction >= 1 ? [date] : []),
+        ]),
+      ].sort()
+
+      if (completedDates.length > 0) {
+        let streak = 0
+        const todayDate = getTodayPT()
+        let check = todayDate
+
+        while (completedDates.includes(check)) {
+          streak++
+          const d = new Date(check + 'T00:00:00')
+          d.setDate(d.getDate() - 1)
+          check = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+        }
+
+        if (streak !== currentUser.currentStreak) {
+          await updateUser(currentUser.id, {
+            currentStreak: streak,
+            longestStreak: Math.max(currentUser.longestStreak ?? 0, streak),
+          })
+        }
+      }
+    },
+    [currentUser, challenge, allLogs, todayLog, today]
+  )
+
+  const saveTodayLog = useCallback(
+    (
+      fractions: Record<string, CompletionFraction>,
+      notes: string,
+      modificationNote: string,
+      isMakeUp: boolean
+    ) => saveLog(today, fractions, notes, modificationNote, isMakeUp),
+    [saveLog, today]
+  )
+
+  // ── Quick-tap handler (immediate save) ─────────────────────────────────
+
+  const handleQuickFraction = useCallback(
+    async (exerciseId: string, fraction: CompletionFraction) => {
+      if (!challenge) return
+      const newFractions: Record<string, CompletionFraction> = {
+        ...quickFractions,
+        [exerciseId]: fraction,
+      }
+      setQuickFractions(newFractions)
+
+      if (quickSaving) return
+      setQuickSaving(true)
+      try {
+        await saveTodayLog(newFractions, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false)
+      } finally {
+        setQuickSaving(false)
+      }
+    },
+    [quickFractions, quickSaving, saveTodayLog, todayLog, challenge]
+  )
+
+  // ── Rejoin challenge ────────────────────────────────────────────────────
+
+  async function handleRejoin() {
+    if (!currentUser || !challenge || !participation) return
+    const updated: ChallengeParticipation = {
+      ...participation,
+      status: 'active',
+      optOutReason: undefined,
+      updatedAt: new Date().toISOString(),
+    }
+    await upsertParticipation(updated)
+    setParticipation(updated)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  if (userLoading) return <Spinner />
+  if (!currentUser) return null // redirect in progress
+
+  if (!challenge) return <NoChallengeView />
+
+  const target = getDailyTarget(challenge, today)
+  if (!target) return <NoChallengeView />
+
+  const dayNumber   = getDayNumber(challenge, today) ?? 1
+  const totalDays   = getTotalDays(challenge)
+  const progress    = monthProgress(challenge.startDate, challenge.endDate)
+  const exerciseIds = challenge.exercises.map(e => e.id)
+
+  // Makeup: past days with fraction < 1
+  const allDates = getChallengeDates(challenge)
+  const logsMap  = Object.fromEntries(allLogs.map(l => [l.date, l]))
+  const incompletePastDates = allDates.filter(d => {
+    if (d >= today) return false
+    const log = logsMap[d]
+    return !log || log.completionFraction < 1
+  })
+
+  const todayFraction = todayLog?.completionFraction ?? 0
+  const isDayDone     = todayFraction >= 1
+  const streak        = currentUser.currentStreak ?? 0
+
+  return (
+    <div className="min-h-dvh bg-[#09090b]">
+      <div className="max-w-lg mx-auto px-4 pt-6 pb-nav space-y-4">
+
+        {/* ── Participation status banners ── */}
+        {participation?.status === 'opted-out' && (
+          <div className="bg-red-900/30 border border-red-800 rounded-2xl p-4 flex items-start gap-3">
+            <span className="text-red-400 mt-0.5">⚠️</span>
+            <div className="flex-1">
+              <p className="text-red-300 text-sm font-medium">
+                You&apos;ve opted out
+                {participation.optOutReason ? `: ${participation.optOutReason}` : '.'}
+              </p>
+              <button
+                onClick={handleRejoin}
+                className="mt-1 text-sm text-orange-400 underline hover:text-orange-300 font-medium"
+              >
+                Want back in? Rejoin →
+              </button>
+            </div>
+          </div>
+        )}
+        {participation?.status === 'modifying' && participation.modificationNote && (
+          <div className="bg-amber-900/20 border border-amber-800/50 rounded-2xl p-3">
+            <p className="text-amber-400 text-sm">
+              <span className="font-semibold">Modifying:</span>{' '}
+              {participation.modificationNote}
+            </p>
+          </div>
+        )}
+
+        {/* ── Challenge header ── */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-400 text-xs font-semibold uppercase tracking-widest">
+                {challenge.hashtag}
+              </p>
+              <h1 className="text-2xl font-extrabold text-white leading-tight">
+                {challenge.name}
+              </h1>
+            </div>
+            {/* Streak badge */}
+            <div className={cn(
+              'flex flex-col items-center justify-center rounded-2xl px-3 py-2',
+              streak > 0 ? 'bg-orange-500/15 border border-orange-500/30' : 'bg-zinc-900 border border-zinc-800'
+            )}>
+              <span className="text-xl leading-none">{streak > 0 ? '🔥' : '💤'}</span>
+              <span className={cn('text-xs font-bold mt-0.5', streak > 0 ? 'text-orange-400' : 'text-zinc-500')}>
+                {streak}d
+              </span>
+            </div>
+          </div>
+          <p className="text-zinc-500 text-sm">{challenge.tagline}</p>
+        </div>
+
+        {/* ── Monthly progress ── */}
+        <ProgressBar
+          value={progress}
+          label={`Day ${dayNumber} of ${totalDays}`}
+          sublabel={`${progress}% through`}
+          color="orange"
+        />
+
+        {/* ── Day completion status (prominent) ── */}
+        <div
+          className={cn(
+            'rounded-2xl px-4 py-3 border flex items-center gap-3',
+            isDayDone
+              ? 'bg-green-950/40 border-green-800/60'
+              : 'bg-zinc-900 border-zinc-800'
+          )}
+        >
+          <div className={cn(
+            'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
+            isDayDone ? 'bg-green-500/25' : 'bg-zinc-800'
+          )}>
+            {isDayDone ? (
+              <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className={cn('font-bold text-sm', isDayDone ? 'text-green-300' : 'text-white')}>
+              {isDayDone
+                ? 'Today is done — CRUSH IT PAX!'
+                : todayFraction > 0
+                ? 'Keep going — you\'re making progress!'
+                : 'Ready to get after it?'}
+            </p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {target.totalReps} total reps · {target.exercises.length} exercises · {target.repsPerExercise} each
+            </p>
+          </div>
+        </div>
+
+        {/* ── Summary log card ── */}
+        <DailyLogCard
+          log={todayLog}
+          target={target}
+          onOpenLog={() => setLogModalOpen(true)}
+        />
+
+        {/* ── Quick-tap exercise cards ── */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider px-1">
+            Quick Tap
+          </p>
+          {target.exercises.map(({ exercise, reps }) => (
+            <DailyExerciseCard
+              key={exercise.id}
+              exerciseId={exercise.id}
+              name={exercise.name}
+              targetReps={reps}
+              fraction={quickFractions[exercise.id] ?? 0}
+              onChange={handleQuickFraction}
+              disabled={quickSaving}
+            />
+          ))}
+        </div>
+
+        {/* ── Makeup section ── */}
+        {incompletePastDates.length > 0 && (
+          <div className="pt-2">
+            <MakeupDayPicker
+              challenge={challenge}
+              incompleteDates={incompletePastDates}
+              logs={logsMap}
+              onSave={(date, fractions, notes, modNote, isMakeUp) =>
+                saveLog(date, fractions, notes, modNote, isMakeUp)
+              }
+            />
+          </div>
+        )}
+
+        {/* ── Call out button ── */}
+        <div className="pt-1">
+          <Button
+            variant="secondary"
+            size="lg"
+            fullWidth
+            onClick={() => setCalloutOpen(true)}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+            </svg>
+            Call Out a PAX
+          </Button>
+        </div>
+
+      </div>
+
+      {/* ── Log day modal ── */}
+      <LogDayModal
+        open={logModalOpen}
+        onClose={() => setLogModalOpen(false)}
+        target={target}
+        existingLog={todayLog}
+        onSave={saveTodayLog}
+        isMakeUp={false}
+      />
+
+      {/* ── Callout modal ── */}
+      <CalloutModal
+        open={calloutOpen}
+        onClose={() => setCalloutOpen(false)}
+        currentUser={currentUser}
+        allUsers={allUsers}
+        challengeId={challenge.id}
+      />
+    </div>
+  )
 }
