@@ -2,6 +2,11 @@
 // This file must be at the root of the public directory.
 // Config values are injected at runtime via the /api/sw-config endpoint.
 
+// Required for Chrome's PWA install prompt — without a fetch handler Chrome
+// will not consider this a qualifying service worker for installability.
+self.addEventListener('fetch', () => {})
+
+
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js')
 
