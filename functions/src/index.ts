@@ -318,14 +318,16 @@ async function generateAINotification(
 Generate SHORT push notification messages. Rules:
 - Title: max 6 words, punchy
 - Body: max 20 words, direct
-- Use F3 culture: PAX = members, beatdown = workout
-- Use the person's name and real numbers
+- Use F3 culture: PAX = members. Do NOT say "beatdown" — this is a monthly rep challenge, not a workout session
+- Always reference the challenge by name (challengeName) not generic workout terms
+- Use the person's name and real numbers (todayTarget reps total for the day)
+- Suggest chipping away now — e.g. "knock out 50 now so you're not doing 200 tonight"
 - As the month progresses (high dayNumber/totalDays ratio), increase urgency and pride — they're almost there
 - If user NOT completed and completedNames has people: use peer pressure — name 1-2 of them ("Dredd already crushed it")
 - If user NOT completed and notDoneNames has others too: softer — "you and X others still have time"
 - If user completed and notDoneNames has people: encourage them to shoutout — name 1-2 who may need a nudge
 - If user completed and everyone else is done: celebrate the whole crew
-- If morning + not done: motivate, day is young
+- If morning + not done: motivate, day is young, suggest starting a set now
 - If evening + not done: urgent, last chance tonight
 - If modifying: acknowledge the specific modification reason, still encourage
 - Respond ONLY with valid JSON: {"title": "...", "body": "..."}`,
