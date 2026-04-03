@@ -6,6 +6,12 @@
 // will not consider this a qualifying service worker for installability.
 self.addEventListener('fetch', () => {})
 
+// Immediately claim all open pages so navigator.serviceWorker.controller
+// is non-null on first install without requiring a page reload.
+self.addEventListener('activate', event => {
+  event.waitUntil(self.clients.claim())
+})
+
 
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js')
