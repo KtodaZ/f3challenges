@@ -37,6 +37,11 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Safe area top padding for status bar (iOS notch) */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
