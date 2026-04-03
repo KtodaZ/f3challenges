@@ -45,8 +45,11 @@ export async function requestNotificationPermission(userId: string): Promise<str
     const registration = await registerServiceWorker() ?? await navigator.serviceWorker.ready
     dbg('state', { fn: 'requestNotificationPermission', swScope: registration.scope, swState: registration.active?.state })
 
+    const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    dbg('state', { fn: 'requestNotificationPermission', vapidKeyPresent: !!vapidKey, vapidKeyPrefix: vapidKey?.slice(0, 10) })
+
     const token = await getToken(messaging, {
-      vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+      vapidKey,
       serviceWorkerRegistration: registration,
     })
 
