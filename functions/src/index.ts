@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import OpenAI from "openai";
 
@@ -492,3 +493,24 @@ export const sendScheduledNotifications = onSchedule(
     console.log(`[notify] ── run complete ──`);
   }
 );
+
+// ---------------------------------------------------------------------------
+// sendTestPush — manual HTTP trigger for testing push delivery
+// Usage: curl -X POST <url> -H "Content-Type: application/json" \
+//          -d '{"userId":"<id>","title":"Test","body":"Hello"}'
+// ---------------------------------------------------------------------------
+export const sendTestPush = onRequest(async (req, res) => {
+  if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+  const { userId, title = "Test notification", body = "Push is working!" } = req.body ?? {};
+  if (!userId) { res.status(400).json({ error: "userId required" }); return; }
+
+  const userSnap = await admin.firestore().doc(`users/${userId}`).get();
+  if (!userSnap.exists) { res.status(404).json({ error: "User not found" }); return; }
+
+  const user = { id: userSnap.id, ...(userSnap.data() as { displayName: string; fcmTokens?: string[] }) };
+  if (!user.fcmTokens?.length) { res.status(400).json({ error: `${user.displayName} has no fcmTokens` }); return; }
+
+  await sendPushNotification(user.id, user.fcmTokens, title, body, "/");
+  res.json({ ok: true, sentTo: user.displayName, tokenCount: user.fcmTokens.length, title, body });
+});
