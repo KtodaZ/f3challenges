@@ -9,6 +9,7 @@ import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 
 interface Props {
   onNext: (prefs: NotificationPreferences) => void
+  existingPrefs?: NotificationPreferences
 }
 
 interface WindowRow {
@@ -24,8 +25,8 @@ const WINDOWS: WindowRow[] = [
   { key: 'weeklyRecap', label: 'Weekly recap',        description: 'Sunday summary of the week' },
 ]
 
-export function NotificationsStep({ onNext }: Props) {
-  const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFS)
+export function NotificationsStep({ onNext, existingPrefs }: Props) {
+  const [prefs, setPrefs] = useState<NotificationPreferences>(existingPrefs ?? DEFAULT_NOTIFICATION_PREFS)
 
   function toggleWindow(key: WindowRow['key']) {
     setPrefs(prev => ({

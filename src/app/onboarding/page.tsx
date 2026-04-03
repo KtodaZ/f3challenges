@@ -93,6 +93,7 @@ function OnboardingInner() {
         )}
         {currentStep === 'past-challenges' && (
           <PastChallengesStep
+            existingBadges={currentUser?.badges}
             onNext={(badges) => {
               setEarnedBadges(badges)
               nextStep('past-challenges')
@@ -101,6 +102,7 @@ function OnboardingInner() {
         )}
         {currentStep === 'notifications' && (
           <NotificationsStep
+            existingPrefs={currentUser?.notificationPreferences}
             onNext={(prefs) => {
               setNotifPrefs(prefs)
               nextStep('notifications')

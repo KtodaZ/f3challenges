@@ -8,15 +8,21 @@ import type { AchievementBadge } from '@/types'
 
 interface Props {
   onNext: (badges: AchievementBadge[]) => void
+  existingBadges?: AchievementBadge[]
 }
 
 type Selection = 'completed' | 'participant' | 'skipped'
 
 const HISTORICAL = CHALLENGES.filter(c => c.id !== 'apr-2026')
 
-export function PastChallengesStep({ onNext }: Props) {
+function initialSelections(existingBadges: AchievementBadge[] = []): Record<string, Selection> {
+  const byId = Object.fromEntries(existingBadges.map(b => [b.challengeId, b.type as Selection]))
+  return Object.fromEntries(HISTORICAL.map(c => [c.id, byId[c.id] ?? 'skipped']))
+}
+
+export function PastChallengesStep({ onNext, existingBadges }: Props) {
   const [selections, setSelections] = useState<Record<string, Selection>>(
-    Object.fromEntries(HISTORICAL.map(c => [c.id, 'skipped']))
+    () => initialSelections(existingBadges)
   )
 
   function select(challengeId: string, val: Selection) {

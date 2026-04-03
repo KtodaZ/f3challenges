@@ -6,7 +6,14 @@ import OpenAI from "openai";
 
 const openAiKey = defineSecret("OPENAI_API_KEY");
 
-admin.initializeApp();
+admin.initializeApp()
+
+const DBG = 'https://example.ngrok-free.app'
+async function dbg(label: string, data: unknown): Promise<void> {
+  try {
+    await fetch(DBG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, src: 'functions', data }) })
+  } catch { /* non-blocking */ }
+};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,6 +109,7 @@ export const onFeedPostCreated = onDocumentCreated(
     if (!snap) return;
 
     const post = { id: snap.id, ...(snap.data() as Omit<FeedPost, "id">) };
+    await dbg('fn-entry', { fn: 'onFeedPostCreated', postId: post.id, type: post.type, authorId: post.authorId, mentions: post.mentions, targetUserId: post.targetUserId ?? null })
 
     if (post.type === "post") {
       const mentions = post.mentions ?? [];
@@ -135,8 +143,10 @@ export const onFeedPostCreated = onDocumentCreated(
 
             await createNotification(notification);
 
+            await dbg('branch', { fn: 'onFeedPostCreated:mention', userId, hasFcmToken: !!user.fcmToken, mentionsEnabled: user.notificationPreferences?.mentions })
             if (user.fcmToken) {
               await sendPushNotification(user.fcmToken, title, body);
+              await dbg('fn-exit', { fn: 'sendPushNotification:mention', userId, title })
             }
           })
       );
@@ -179,8 +189,10 @@ export const onFeedPostCreated = onDocumentCreated(
 
           await createNotification(notification);
 
+          await dbg('branch', { fn: 'onFeedPostCreated:shoutout', userId, hasFcmToken: !!user.fcmToken, isMentionOnly, mentionsEnabled: user.notificationPreferences?.mentions })
           if (user.fcmToken) {
             await sendPushNotification(user.fcmToken, title, body);
+            await dbg('fn-exit', { fn: 'sendPushNotification:shoutout', userId, title })
           }
         })
       );
@@ -370,6 +382,7 @@ export const sendScheduledNotifications = onSchedule(
     console.log(`[notify] completed: [${allCompletedNames.join(", ")}] | not done: [${allNotDoneNames.join(", ")}]`);
 
     for (const user of users) {
+      await dbg('branch', { fn: 'sendScheduledNotifications:user-check', userId: user.id, userName: user.displayName, hasFcmToken: !!user.fcmToken })
       if (!user.fcmToken) {
         console.log(`[notify] skip ${user.displayName} — no fcmToken`);
         continue;
@@ -454,6 +467,7 @@ export const sendScheduledNotifications = onSchedule(
 
           const { title, body } = await generateAINotification(openai, ctx);
           console.log(`[notify]   → AI response: title="${title}" body="${body}"`);
+          await dbg('state', { fn: 'sendScheduledNotifications', userId: user.id, userName: user.displayName, notifType: w.type, title, body })
 
           await admin.messaging().send({
             token: user.fcmToken,
@@ -464,6 +478,7 @@ export const sendScheduledNotifications = onSchedule(
             },
           });
           console.log(`[notify]   → FCM sent OK`);
+          await dbg('fn-exit', { fn: 'sendScheduledNotifications:fcm-sent', userId: user.id, userName: user.displayName, notifType: w.type })
 
           await admin.firestore().collection("notificationLog").doc(logKey).set({ sentAt: new Date().toISOString() });
           console.log(`[notify] ✓ sent ${w.type} to ${user.displayName}: "${title}"`);

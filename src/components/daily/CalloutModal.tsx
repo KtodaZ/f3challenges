@@ -19,6 +19,11 @@ interface CalloutModalProps {
   defaultTarget?: User | null
 }
 
+const DBG = 'https://example.ngrok-free.app'
+function dbg(label: string, data: unknown) {
+  fetch(DBG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, src: 'CalloutModal', data }) }).catch(() => {})
+}
+
 export function CalloutModal({
   open,
   onClose,
@@ -88,7 +93,9 @@ export function CalloutModal({
         createdAt: new Date().toISOString(),
         deleted: false,
       }
+      dbg('fn-entry', { fn: 'handlePost', targetUser: targetUser?.displayName, mentionIds, postId: post.id, contentSnippet: post.content.slice(0, 60) })
       await createFeedPost(post)
+      dbg('fn-exit', { fn: 'handlePost', postId: post.id, status: 'written to Firestore' })
       setDone(true)
       setTimeout(() => {
         setDone(false)
