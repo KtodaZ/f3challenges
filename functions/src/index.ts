@@ -276,6 +276,8 @@ async function generateAINotification(
     groupCompletedCount: number; groupTotalCount: number; userStreak: number;
     participationStatus: string; notificationType: string;
     weeklyCompletedDays?: number;
+    completedNames?: string[];   // PAX who have finished today
+    notDoneNames?: string[];     // PAX who haven't finished today
   }
 ): Promise<{ title: string; body: string }> {
   try {
@@ -293,10 +295,13 @@ Generate SHORT push notification messages. Rules:
 - Use F3 culture: PAX = members, beatdown = workout
 - Use the person's name and real numbers
 - As the month progresses (high dayNumber/totalDays ratio), increase urgency and pride — they're almost there
-- If user completed: encourage shoutouts to others who haven't
+- If user NOT completed and completedNames has people: use peer pressure — name 1-2 of them ("Dredd already crushed it")
+- If user NOT completed and notDoneNames has others too: softer — "you and X others still have time"
+- If user completed and notDoneNames has people: encourage them to shoutout — name 1-2 who may need a nudge
+- If user completed and everyone else is done: celebrate the whole crew
 - If morning + not done: motivate, day is young
 - If evening + not done: urgent, last chance tonight
-- If modifying: acknowledge modification, still encourage
+- If modifying: acknowledge the specific modification reason, still encourage
 - Respond ONLY with valid JSON: {"title": "...", "body": "..."}`,
         },
         { role: "user", content: JSON.stringify(ctx) },
@@ -341,6 +346,18 @@ export const sendScheduledNotifications = onSchedule(
       .get();
     const groupCompleted = todayLogsSnap.docs.filter(d => (d.data() as DailyLog).completionFraction >= 1).length;
 
+    // Build name lookup for peer pressure messaging
+    const userById = new Map(users.map(u => [u.id, u.displayName]));
+    const completedUserIds = new Set(
+      todayLogsSnap.docs
+        .filter(d => (d.data() as DailyLog).completionFraction >= 1)
+        .map(d => (d.data() as DailyLog).userId)
+    );
+    const allCompletedNames = [...completedUserIds].map(id => userById.get(id) ?? "").filter(Boolean);
+    const allNotDoneNames = users
+      .filter(u => !completedUserIds.has(u.id))
+      .map(u => u.displayName);
+
     for (const user of users) {
       if (!user.fcmToken) continue;
       const prefs = user.notificationPreferences;
@@ -375,19 +392,23 @@ export const sendScheduledNotifications = onSchedule(
         if (statusStr === "modifying" && part?.modificationNote) statusStr = `modifying: ${part.modificationNote}`;
 
         try {
+          const userCompleted = (userLog?.completionFraction ?? 0) >= 1;
           const { title, body } = await generateAINotification(openai, {
             userName:            user.displayName,
             challengeName:       challenge.name,
             dayNumber,
             totalDays,
             todayTarget:         todayReps,
-            userCompleted:       (userLog?.completionFraction ?? 0) >= 1,
+            userCompleted,
             completionFraction:  userLog?.completionFraction ?? 0,
             groupCompletedCount: groupCompleted,
             groupTotalCount:     users.length,
             userStreak:          (user as { currentStreak?: number }).currentStreak ?? 0,
             participationStatus: statusStr,
             notificationType:    w.type,
+            // Peer pressure: exclude the user themselves from each list
+            completedNames: allCompletedNames.filter(n => n !== user.displayName).slice(0, 3),
+            notDoneNames:   allNotDoneNames.filter(n => n !== user.displayName).slice(0, 3),
           });
 
           await admin.messaging().send({

@@ -94,13 +94,11 @@ export function NotificationDrawer({
           'sm:right-0 sm:top-0 sm:left-auto sm:w-80',
           'bg-zinc-900 border-t sm:border-t-0 sm:border-l border-zinc-800',
           'z-50 flex flex-col',
-          'max-h-[80dvh] sm:max-h-full',
+          'max-h-[80dvh] sm:max-h-full sm:h-full',
           'transition-transform duration-300 ease-in-out',
-          // Mobile: slide up/down
-          open ? 'translate-y-0' : 'translate-y-full',
-          // Desktop: slide in/out from right (override mobile transform)
-          'sm:translate-y-0',
-          open ? 'sm:translate-x-0' : 'sm:translate-x-full',
+          open
+            ? 'translate-y-0 sm:translate-x-0'
+            : 'translate-y-full sm:translate-y-0 sm:translate-x-full pointer-events-none',
         )}
       >
         {/* Drag handle (mobile only) */}
