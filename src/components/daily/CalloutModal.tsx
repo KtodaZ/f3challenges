@@ -19,6 +19,8 @@ interface CalloutModalProps {
   defaultTarget?: User | null
   /** Pre-fill the message content when the modal opens. */
   defaultContent?: string
+  /** Called after a post is successfully created, with the target user id if any. */
+  onPosted?: (targetUserId: string | null) => void
 }
 
 const DBG = 'https://example.ngrok-free.app'
@@ -34,6 +36,7 @@ export function CalloutModal({
   challengeId,
   defaultTarget,
   defaultContent,
+  onPosted,
 }: CalloutModalProps) {
   const [targetUser, setTargetUser] = useState<User | null>(defaultTarget ?? null)
   const [content, setContent] = useState('')
@@ -100,6 +103,7 @@ export function CalloutModal({
       dbg('fn-entry', { fn: 'handlePost', targetUser: targetUser?.displayName, mentionIds, postId: post.id, contentSnippet: post.content.slice(0, 60) })
       await createFeedPost(post)
       dbg('fn-exit', { fn: 'handlePost', postId: post.id, status: 'written to Firestore' })
+      onPosted?.(targetUser?.id ?? null)
       setDone(true)
       setTimeout(() => {
         setDone(false)

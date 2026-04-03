@@ -579,7 +579,7 @@ export default function HomePage() {
                         </span>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
-                            onClick={() => quickEncourage([u])}
+                            onClick={() => openCalloutFor(u, `Get after it @${u.displayName}! 💪 ${challenge.hashtag}`)}
                             disabled={sent}
                             className={cn(
                               'px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors',
@@ -589,13 +589,6 @@ export default function HomePage() {
                             )}
                           >
                             {sent ? '✓ Sent' : '👊 Encourage'}
-                          </button>
-                          <button
-                            onClick={() => openCalloutFor(u)}
-                            className="px-2 py-1.5 rounded-xl text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
-                            title="Custom message"
-                          >
-                            ✏️
                           </button>
                         </div>
                       </div>
@@ -672,6 +665,11 @@ export default function HomePage() {
           setCalloutOpen(false)
           setCalloutTarget(null)
           setCalloutDefaultContent(undefined)
+        }}
+        onPosted={targetUserId => {
+          if (targetUserId) {
+            setEncouragedIds(prev => new Set([...prev, targetUserId]))
+          }
         }}
         currentUser={currentUser}
         allUsers={allUsers}
