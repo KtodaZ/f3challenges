@@ -335,7 +335,8 @@ Generate SHORT push notification messages. Rules:
     });
     const parsed = JSON.parse(res.choices[0].message.content ?? "{}");
     return { title: parsed.title ?? "F3 Bedrock", body: parsed.body ?? "Time to get after it." };
-  } catch {
+  } catch (err) {
+    console.error("[AI] generateAINotification failed:", err);
     return { title: "F3 Bedrock", body: "Time to get after it, PAX." };
   }
 }
@@ -556,7 +557,9 @@ export const sendTestPush = onRequest(
       const completedNames = [...completedIds].map(id => userById.get(id) ?? "").filter(n => n && n !== user.displayName).slice(0, 3);
       const notDoneNames   = usersSnap.docs.map(d => d.data() as User).filter(u => u.id !== userId && !completedIds.has(u.id)).map(u => u.displayName).slice(0, 3);
 
-      const openai = new OpenAI({ apiKey: openAiKey.value() });
+      const apiKey = openAiKey.value();
+      console.log(`[sendTestPush] openAiKey present=${!!apiKey} length=${apiKey?.length ?? 0}`);
+      const openai = new OpenAI({ apiKey });
       const result = await generateAINotification(openai, {
         userName: user.displayName, challengeName: challenge.name,
         dayNumber, totalDays, todayTarget: todayReps,
