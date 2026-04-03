@@ -237,6 +237,7 @@ interface NotifPrefs {
 interface DailyLog {
   completionFraction: number;
   date: string;
+  userId: string;
 }
 
 interface ChallengeParticipation {
