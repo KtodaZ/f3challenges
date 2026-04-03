@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { onMessage } from 'firebase/messaging'
 import { toast } from 'sonner'
 import { getMessagingInstance } from '@/lib/firebase'
-import { sendFCMConfigToServiceWorker, requestNotificationPermission } from '@/lib/fcm'
+import { sendFCMConfigToServiceWorker, requestNotificationPermission, registerServiceWorker } from '@/lib/fcm'
 
 export interface UseFCMReturn {
   permissionStatus: NotificationPermission | 'unsupported'
@@ -22,8 +22,9 @@ export function useFCM(): UseFCMReturn {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    // Initialize SW with Firebase config
-    sendFCMConfigToServiceWorker()
+    // Register SW explicitly so Chrome sees it for PWA install prompt,
+    // then send Firebase config to it.
+    registerServiceWorker().then(() => sendFCMConfigToServiceWorker())
 
     // Register foreground message handler
     let unsubscribe: (() => void) | undefined

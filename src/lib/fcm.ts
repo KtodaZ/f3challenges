@@ -7,6 +7,18 @@ import { getMessagingInstance } from './firebase'
  * Requests notification permission, retrieves the FCM token, and registers it
  * with the backend. Returns the token on success, null on failure or denial.
  */
+export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null
+  try {
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    console.log('[SW] registered:', registration.scope)
+    return registration
+  } catch (err) {
+    console.error('[SW] registration failed:', err)
+    return null
+  }
+}
+
 export async function requestNotificationPermission(userId: string): Promise<string | null> {
   if (typeof window === 'undefined') return null
 
@@ -17,7 +29,7 @@ export async function requestNotificationPermission(userId: string): Promise<str
   if (!messaging) return null
 
   try {
-    const registration = await navigator.serviceWorker.ready
+    const registration = await registerServiceWorker() ?? await navigator.serviceWorker.ready
 
     const token = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
