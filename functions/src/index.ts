@@ -368,7 +368,7 @@ export const sendScheduledNotifications = onSchedule(
     const totalDays  = getTotalDays(challenge.startDate, challenge.endDate);
     const todayReps  = dayNumber * challenge.dailyMultiplier;
 
-    const openai = new OpenAI({ apiKey: openAiKey.value() });
+    const openai = new OpenAI({ apiKey: openAiKey.value().trim() });
 
     const usersSnap = await admin.firestore().collection("users").get();
     const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User & { notificationPreferences: NotifPrefs; currentStreak?: number }));
@@ -557,9 +557,7 @@ export const sendTestPush = onRequest(
       const completedNames = [...completedIds].map(id => userById.get(id) ?? "").filter(n => n && n !== user.displayName).slice(0, 3);
       const notDoneNames   = usersSnap.docs.map(d => d.data() as User).filter(u => u.id !== userId && !completedIds.has(u.id)).map(u => u.displayName).slice(0, 3);
 
-      const apiKey = openAiKey.value();
-      console.log(`[sendTestPush] openAiKey present=${!!apiKey} length=${apiKey?.length ?? 0}`);
-      const openai = new OpenAI({ apiKey });
+      const openai = new OpenAI({ apiKey: openAiKey.value().trim() });
       const result = await generateAINotification(openai, {
         userName: user.displayName, challengeName: challenge.name,
         dayNumber, totalDays, todayTarget: todayReps,
