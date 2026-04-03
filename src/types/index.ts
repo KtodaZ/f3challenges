@@ -61,7 +61,7 @@ export interface User {
   id: string
   displayName: string // F3 name
   createdAt: string   // ISO
-  fcmToken?: string
+  fcmTokens?: string[]
   notificationPreferences: NotificationPreferences
   badges: AchievementBadge[]
   currentStreak: number

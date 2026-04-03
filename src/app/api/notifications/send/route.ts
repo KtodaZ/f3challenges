@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb, adminMessaging } from '@/lib/firebase-admin'
+import { FieldValue } from 'firebase-admin/firestore'
 import { generateNotificationMessage } from '@/lib/openai'
 import { getCurrentChallenge, getDailyTarget, getTodayPT, getDayNumber, getTotalDays } from '@/lib/challenges'
 import type { User, DailyLog, ChallengeParticipation } from '@/types'
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
   const results: string[] = []
 
   for (const user of users) {
-    if (!user.fcmToken) continue
+    if (!user.fcmTokens?.length) continue
     const prefs = user.notificationPreferences
     if (!prefs) continue
 
@@ -114,18 +115,30 @@ export async function GET(req: NextRequest) {
           weeklyTotalDays,
         })
 
-        await adminMessaging.send({
-          token: user.fcmToken,
-          notification: { title, body },
-          webpush: {
-            notification: {
-              icon: '/icons/icon-192.png',
-              badge: '/icons/icon-192.png',
-              vibrate: [200, 100, 200],
-            },
-            fcmOptions: { link: '/' },
-          },
-        })
+        for (const token of user.fcmTokens!) {
+          try {
+            await adminMessaging.send({
+              token,
+              notification: { title, body },
+              webpush: {
+                notification: {
+                  icon: '/icons/icon-192.png',
+                  badge: '/icons/icon-192.png',
+                  vibrate: [200, 100, 200],
+                },
+                fcmOptions: { link: '/' },
+              },
+            })
+          } catch (tokenErr: any) {
+            if (tokenErr?.code === 'messaging/registration-token-not-registered') {
+              await adminDb.collection('users').doc(user.id!).update({
+                fcmTokens: FieldValue.arrayRemove(token),
+              })
+            } else {
+              throw tokenErr
+            }
+          }
+        }
 
         // Mark as sent
         await adminDb.collection('notificationLog').doc(logKey).set({ sentAt: new Date().toISOString() })

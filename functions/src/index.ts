@@ -34,7 +34,7 @@ interface FeedPost {
 interface User {
   id: string;
   displayName: string;
-  fcmToken?: string;
+  fcmTokens?: string[];
   notificationPreferences: {
     mentions: boolean;
   };
@@ -71,20 +71,31 @@ async function getUser(userId: string): Promise<User | null> {
 }
 
 async function sendPushNotification(
-  fcmToken: string,
+  userId: string,
+  tokens: string[],
   title: string,
-  body: string
+  body: string,
+  link = "/feed"
 ): Promise<void> {
-  try {
-    await admin.messaging().send({
-      token: fcmToken,
-      notification: { title, body },
-      webpush: {
-        fcmOptions: { link: "/feed" },
-      },
-    });
-  } catch (err) {
-    console.error("FCM send failed:", err);
+  for (const token of tokens) {
+    try {
+      await admin.messaging().send({
+        token,
+        notification: { title, body },
+        webpush: {
+          notification: { icon: "/icons/icon-192.png", badge: "/icons/icon-192.png" },
+          fcmOptions: { link },
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === "messaging/registration-token-not-registered") {
+        await admin.firestore().doc(`users/${userId}`).update({
+          fcmTokens: admin.firestore.FieldValue.arrayRemove(token),
+        });
+      } else {
+        console.error("FCM send failed:", err);
+      }
+    }
   }
 }
 
@@ -143,10 +154,10 @@ export const onFeedPostCreated = onDocumentCreated(
 
             await createNotification(notification);
 
-            await dbg('branch', { fn: 'onFeedPostCreated:mention', userId, hasFcmToken: !!user.fcmToken, mentionsEnabled: user.notificationPreferences?.mentions })
-            if (user.fcmToken) {
-              await sendPushNotification(user.fcmToken, title, body);
-              await dbg('fn-exit', { fn: 'sendPushNotification:mention', userId, title })
+            await dbg('branch', { fn: 'onFeedPostCreated:mention', userId, tokenCount: user.fcmTokens?.length ?? 0, mentionsEnabled: user.notificationPreferences?.mentions })
+            if (user.fcmTokens?.length) {
+              await sendPushNotification(userId, user.fcmTokens, title, body);
+              await dbg('fn-exit', { fn: 'sendPushNotification:mention', userId, title, tokenCount: user.fcmTokens.length })
             }
           })
       );
@@ -189,10 +200,10 @@ export const onFeedPostCreated = onDocumentCreated(
 
           await createNotification(notification);
 
-          await dbg('branch', { fn: 'onFeedPostCreated:shoutout', userId, hasFcmToken: !!user.fcmToken, isMentionOnly, mentionsEnabled: user.notificationPreferences?.mentions })
-          if (user.fcmToken) {
-            await sendPushNotification(user.fcmToken, title, body);
-            await dbg('fn-exit', { fn: 'sendPushNotification:shoutout', userId, title })
+          await dbg('branch', { fn: 'onFeedPostCreated:shoutout', userId, tokenCount: user.fcmTokens?.length ?? 0, isMentionOnly, mentionsEnabled: user.notificationPreferences?.mentions })
+          if (user.fcmTokens?.length) {
+            await sendPushNotification(userId, user.fcmTokens, title, body);
+            await dbg('fn-exit', { fn: 'sendPushNotification:shoutout', userId, title, tokenCount: user.fcmTokens.length })
           }
         })
       );
@@ -382,9 +393,9 @@ export const sendScheduledNotifications = onSchedule(
     console.log(`[notify] completed: [${allCompletedNames.join(", ")}] | not done: [${allNotDoneNames.join(", ")}]`);
 
     for (const user of users) {
-      await dbg('branch', { fn: 'sendScheduledNotifications:user-check', userId: user.id, userName: user.displayName, hasFcmToken: !!user.fcmToken })
-      if (!user.fcmToken) {
-        console.log(`[notify] skip ${user.displayName} — no fcmToken`);
+      await dbg('branch', { fn: 'sendScheduledNotifications:user-check', userId: user.id, userName: user.displayName, tokenCount: user.fcmTokens?.length ?? 0 })
+      if (!user.fcmTokens?.length) {
+        console.log(`[notify] skip ${user.displayName} — no fcmTokens`);
         continue;
       }
       const prefs = user.notificationPreferences;
@@ -469,16 +480,9 @@ export const sendScheduledNotifications = onSchedule(
           console.log(`[notify]   → AI response: title="${title}" body="${body}"`);
           await dbg('state', { fn: 'sendScheduledNotifications', userId: user.id, userName: user.displayName, notifType: w.type, title, body })
 
-          await admin.messaging().send({
-            token: user.fcmToken,
-            notification: { title, body },
-            webpush: {
-              notification: { icon: "/icons/icon-192.png", badge: "/icons/icon-192.png" },
-              fcmOptions: { link: "/" },
-            },
-          });
+          await sendPushNotification(user.id, user.fcmTokens!, title, body, "/");
           console.log(`[notify]   → FCM sent OK`);
-          await dbg('fn-exit', { fn: 'sendScheduledNotifications:fcm-sent', userId: user.id, userName: user.displayName, notifType: w.type })
+          await dbg('fn-exit', { fn: 'sendScheduledNotifications:fcm-sent', userId: user.id, userName: user.displayName, notifType: w.type, tokenCount: user.fcmTokens!.length })
 
           await admin.firestore().collection("notificationLog").doc(logKey).set({ sentAt: new Date().toISOString() });
           console.log(`[notify] ✓ sent ${w.type} to ${user.displayName}: "${title}"`);
