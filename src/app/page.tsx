@@ -12,6 +12,7 @@ import {
   getUserChallengeLogs,
   updateUser,
   getLogsForDate,
+  createFeedPost,
 } from '@/lib/firestore'
 import {
   getCurrentChallenge,
@@ -21,7 +22,7 @@ import {
   getTotalDays,
   getChallengeDates,
 } from '@/lib/challenges'
-import { monthProgress, generateId, cn, stripUndefined } from '@/lib/utils'
+import { monthProgress, generateId, cn, stripUndefined, extractHashtags } from '@/lib/utils'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
@@ -111,6 +112,7 @@ export default function HomePage() {
 
   // Pre-fill callout modal with a specific target user
   const [calloutTarget, setCalloutTarget] = useState<User | null>(null)
+  const [calloutDefaultContent, setCalloutDefaultContent] = useState<string | undefined>(undefined)
 
   // Saving state for quick-tap debounce
   const [quickSaving, setQuickSaving] = useState(false)
@@ -121,6 +123,9 @@ export default function HomePage() {
   // Celebration banner shown briefly after day completion
   const [dayJustCompleted, setDayJustCompleted] = useState(false)
   const [prevFraction, setPrevFraction] = useState<number>(0)
+
+  // Track which users have been quick-encouraged this session
+  const [encouragedIds, setEncouragedIds] = useState<Set<string>>(new Set())
 
   // ── Redirect if no user ──────────────────────────────────────────────────
 
@@ -347,9 +352,36 @@ export default function HomePage() {
 
   const majorityDone = totalPAX > 0 && completedCount / totalPAX > 0.5
 
-  function openCalloutFor(user: User | null) {
+  function openCalloutFor(user: User | null, defaultContent?: string) {
     setCalloutTarget(user)
+    setCalloutDefaultContent(defaultContent)
     setCalloutOpen(true)
+  }
+
+  async function quickEncourage(targets: User[]) {
+    if (!currentUser || !challenge) return
+    const isAll = targets.length > 1
+    const content = isAll
+      ? `Let's go PAX! ${targets.length} of us haven't checked in yet — let's get everyone there! 💪 ${challenge.hashtag}`
+      : `Get after it @${targets[0].displayName}! 💪 ${challenge.hashtag}`
+    const post = stripUndefined({
+      id: generateId(),
+      type: 'shoutout' as const,
+      authorId: currentUser.id,
+      content,
+      hashtags: extractHashtags(content),
+      mentions: targets.map(u => u.id),
+      challengeId: challenge.id,
+      targetUserId: targets.length === 1 ? targets[0].id : undefined,
+      createdAt: new Date().toISOString(),
+      deleted: false,
+    })
+    await createFeedPost(post)
+    setEncouragedIds(prev => {
+      const next = new Set(prev)
+      targets.forEach(u => next.add(u.id))
+      return next
+    })
   }
 
   return (
@@ -479,7 +511,7 @@ export default function HomePage() {
         />
 
         {/* ── Quick-tap exercise cards ── */}
-        <div className="space-y-2">
+        {!isDayDone && <div className="space-y-2">
           <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider px-1">
             Quick Tap
           </p>
@@ -494,7 +526,7 @@ export default function HomePage() {
               disabled={quickSaving}
             />
           ))}
-        </div>
+        </div>}
 
         {/* ── Makeup section ── */}
         {incompletePastDates.length > 0 && (
@@ -522,40 +554,68 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── Post-completion: push your crew ── */}
+        {/* ── Post-completion: encourage your crew ── */}
         {isDayDone && !dayJustCompleted && (
           <div className="rounded-2xl border border-amber-700/50 bg-gradient-to-b from-amber-950/40 to-orange-950/20 p-4 space-y-3">
-            <p className="text-amber-300 font-bold text-sm">Nice work! Now push your crew 👊</p>
+            <div className="flex items-center justify-between">
+              <p className="text-amber-300 font-bold text-sm">Push your crew 👊</p>
+              {incompleteUsers.length > 0 && (
+                <span className="text-xs text-zinc-500">
+                  {incompleteUsers.length}/{totalPAX} haven&apos;t finished
+                </span>
+              )}
+            </div>
 
             {incompleteUsers.length > 0 ? (
               <>
                 <div className="space-y-2">
-                  {incompleteUsers.map(u => (
-                    <div key={u.id} className="flex items-center gap-3">
-                      <Avatar name={u.displayName} size="sm" />
-                      <span className="flex-1 text-sm text-zinc-300 font-medium truncate">
-                        {u.displayName}
-                      </span>
-                      <button
-                        onClick={() => openCalloutFor(u)}
-                        className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-600/40 hover:bg-amber-500/25 transition-colors"
-                      >
-                        Shout out
-                      </button>
-                    </div>
-                  ))}
+                  {incompleteUsers.map(u => {
+                    const sent = encouragedIds.has(u.id)
+                    return (
+                      <div key={u.id} className="flex items-center gap-3">
+                        <Avatar name={u.displayName} size="sm" />
+                        <span className="flex-1 text-sm text-zinc-300 font-medium truncate">
+                          {u.displayName}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => quickEncourage([u])}
+                            disabled={sent}
+                            className={cn(
+                              'px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors',
+                              sent
+                                ? 'bg-green-900/30 text-green-400 border-green-700/40 cursor-default'
+                                : 'bg-amber-500/15 text-amber-300 border-amber-600/40 hover:bg-amber-500/25'
+                            )}
+                          >
+                            {sent ? '✓ Sent' : '👊 Encourage'}
+                          </button>
+                          <button
+                            onClick={() => openCalloutFor(u)}
+                            className="px-2 py-1.5 rounded-xl text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                            title="Custom message"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
                 <Button
                   variant="secondary"
                   size="md"
                   fullWidth
                   className="!bg-amber-900/30 !text-amber-200 hover:!bg-amber-900/50 border border-amber-700/40"
-                  onClick={() => openCalloutFor(null)}
+                  onClick={() => {
+                    const pending = incompleteUsers.filter(u => !encouragedIds.has(u.id))
+                    const names = pending.map(u => `@${u.displayName}`).join(', ')
+                    const msg = `Let's go ${names}! Get after it! 💪 ${challenge.hashtag}`
+                    openCalloutFor(null, msg)
+                  }}
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-                  </svg>
-                  Shout out everyone
+                  <span>👊</span>
+                  Encourage All
                 </Button>
               </>
             ) : (
@@ -611,11 +671,13 @@ export default function HomePage() {
         onClose={() => {
           setCalloutOpen(false)
           setCalloutTarget(null)
+          setCalloutDefaultContent(undefined)
         }}
         currentUser={currentUser}
         allUsers={allUsers}
         challengeId={challenge.id}
         defaultTarget={calloutTarget}
+        defaultContent={calloutDefaultContent}
       />
     </div>
   )

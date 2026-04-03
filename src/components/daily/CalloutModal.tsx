@@ -17,6 +17,8 @@ interface CalloutModalProps {
   challengeId: string
   /** Pre-select a target user when the modal opens. */
   defaultTarget?: User | null
+  /** Pre-fill the message content when the modal opens. */
+  defaultContent?: string
 }
 
 const DBG = 'https://example.ngrok-free.app'
@@ -31,6 +33,7 @@ export function CalloutModal({
   allUsers,
   challengeId,
   defaultTarget,
+  defaultContent,
 }: CalloutModalProps) {
   const [targetUser, setTargetUser] = useState<User | null>(defaultTarget ?? null)
   const [content, setContent] = useState('')
@@ -39,12 +42,13 @@ export function CalloutModal({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Sync target when the modal opens with a new defaultTarget
+  // Sync target and content when the modal opens
   useEffect(() => {
     if (open) {
       setTargetUser(defaultTarget ?? null)
+      setContent(defaultContent ?? '')
     }
-  }, [open, defaultTarget])
+  }, [open, defaultTarget, defaultContent])
 
   const otherUsers = allUsers.filter(u => u.id !== currentUser.id)
 
