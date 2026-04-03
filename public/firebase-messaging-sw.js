@@ -51,6 +51,34 @@ self.addEventListener('message', event => {
   }
 })
 
+// Fallback push handler for when the SW is cold-started by a push event
+// before the client page has had a chance to send FCM_CONFIG.
+// When Firebase IS initialized, it registers its own push listener via
+// firebase.messaging() and handles notification display; we return early.
+self.addEventListener('push', event => {
+  if (self.__FCM_CONFIG__) return // Firebase is initialized — its handler will show the notification
+  if (!event.data) return
+
+  let payload = {}
+  try { payload = event.data.json() } catch { return }
+
+  const notification = payload.notification ?? {}
+  const title = notification.title ?? 'F3 Bedrock'
+  const body  = notification.body  ?? ''
+  const link  = payload.fcmOptions?.link ?? '/'
+
+  dbg('fn-entry', { event: 'push:cold-sw-fallback', title, body })
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon:    '/icons/icon-192.png',
+      badge:   '/icons/icon-192.png',
+      data:    { url: link },
+      vibrate: [200, 100, 200],
+    })
+  )
+})
+
 self.addEventListener('notificationclick', event => {
   dbg('fn-entry', { event: 'notificationclick', url: event.notification.data?.url })
   event.notification.close()
