@@ -3,8 +3,9 @@
  * No auth — users simply select or create their identity.
  */
 
-const CURRENT_USER_KEY = 'f3_current_user_id'
-const ONBOARDING_KEY   = 'f3_onboarding_complete'
+const CURRENT_USER_KEY  = 'f3_current_user_id'
+const ONBOARDING_KEY    = 'f3_onboarding_complete'
+const CACHED_USER_KEY   = 'f3_cached_user'
 
 export function getCurrentUserId(): string | null {
   if (typeof window === 'undefined') return null
@@ -26,4 +27,21 @@ export function isOnboardingComplete(): boolean {
 
 export function setOnboardingComplete(): void {
   localStorage.setItem(ONBOARDING_KEY, 'true')
+}
+
+// Cache the full user object so the app loads instantly without a Firestore round-trip
+export function getCachedUser<T>(): T | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(CACHED_USER_KEY)
+    return raw ? (JSON.parse(raw) as T) : null
+  } catch { return null }
+}
+
+export function setCachedUser<T>(user: T): void {
+  localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user))
+}
+
+export function clearCachedUser(): void {
+  localStorage.removeItem(CACHED_USER_KEY)
 }

@@ -65,8 +65,14 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
 
       {platform === 'ios' && (
         <div className="flex-1 space-y-4">
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-6">
-            <p className="text-amber-400 text-xs font-medium">Requires iOS 16.4+ and Safari for push notifications</p>
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-2 space-y-2">
+            <p className="text-amber-400 text-sm font-semibold">
+              Adding to Home Screen is required to receive push notifications and encouragement from your crew.
+            </p>
+            <p className="text-amber-500/80 text-xs">
+              Make sure you&apos;re using Safari — Chrome on iOS doesn&apos;t support push notifications.
+            </p>
+            <p className="text-amber-500/60 text-xs">Requires iOS 16.4+</p>
           </div>
 
           {[
@@ -116,6 +122,11 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
 
       {platform === 'android' && (
         <div className="flex-1">
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6">
+            <p className="text-amber-400 text-sm font-semibold">
+              Adding to Home Screen is required to receive push notifications and encouragement from your crew.
+            </p>
+          </div>
           {deferredPrompt ? (
             <Button onClick={handleInstallAndroid} loading={installing} size="lg" fullWidth className="mb-4">
               Install App

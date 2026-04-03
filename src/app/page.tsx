@@ -11,6 +11,7 @@ import {
   dailyLogId,
   getUserChallengeLogs,
   updateUser,
+  getLogsForDate,
 } from '@/lib/firestore'
 import {
   getCurrentChallenge,
@@ -20,15 +21,17 @@ import {
   getTotalDays,
   getChallengeDates,
 } from '@/lib/challenges'
-import { monthProgress, generateId, cn } from '@/lib/utils'
+import { monthProgress, generateId, cn, stripUndefined } from '@/lib/utils'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
+import { Avatar } from '@/components/ui/Avatar'
 import { DailyLogCard } from '@/components/daily/DailyLogCard'
 import { DailyExerciseCard } from '@/components/daily/DailyExerciseCard'
 import { LogDayModal } from '@/components/daily/LogDayModal'
 import { MakeupDayPicker } from '@/components/daily/MakeupDayPicker'
 import { CalloutModal } from '@/components/daily/CalloutModal'
 import type {
+  User,
   DailyLog,
   ChallengeParticipation,
   CompletionFraction,
@@ -106,8 +109,18 @@ export default function HomePage() {
   const [logModalOpen, setLogModalOpen] = useState(false)
   const [calloutOpen, setCalloutOpen] = useState(false)
 
+  // Pre-fill callout modal with a specific target user
+  const [calloutTarget, setCalloutTarget] = useState<User | null>(null)
+
   // Saving state for quick-tap debounce
   const [quickSaving, setQuickSaving] = useState(false)
+
+  // Group logs for today (all PAX)
+  const [groupLogs, setGroupLogs] = useState<DailyLog[]>([])
+
+  // Celebration banner shown briefly after day completion
+  const [dayJustCompleted, setDayJustCompleted] = useState(false)
+  const [prevFraction, setPrevFraction] = useState<number>(0)
 
   // ── Redirect if no user ──────────────────────────────────────────────────
 
@@ -150,6 +163,26 @@ export default function HomePage() {
     getUserChallengeLogs(currentUser.id, challenge.id).then(setAllLogs)
   }, [currentUser, challenge])
 
+  // ── Load today's group logs (all PAX) ────────────────────────────────────
+
+  useEffect(() => {
+    if (!challenge) return
+    getLogsForDate(challenge.id, today).then(setGroupLogs)
+  }, [challenge, today])
+
+  // ── Celebration banner when user crosses the completion threshold ─────────
+
+  useEffect(() => {
+    const currentFraction = todayLog?.completionFraction ?? 0
+    if (prevFraction < 1 && currentFraction >= 1) {
+      setDayJustCompleted(true)
+      const timer = setTimeout(() => setDayJustCompleted(false), 2000)
+      return () => clearTimeout(timer)
+    }
+    setPrevFraction(currentFraction)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayLog?.completionFraction])
+
   // ── Save a log ──────────────────────────────────────────────────────────
 
   const saveLog = useCallback(
@@ -190,7 +223,7 @@ export default function HomePage() {
         updatedAt: new Date().toISOString(),
       }
 
-      await upsertDailyLog(log)
+      await upsertDailyLog(stripUndefined(log))
 
       // Update allLogs cache
       setAllLogs(prev => {
@@ -303,6 +336,22 @@ export default function HomePage() {
   const isDayDone     = todayFraction >= 1
   const streak        = currentUser.currentStreak ?? 0
 
+  // ── Group PAX stats ──────────────────────────────────────────────────────
+  const totalPAX      = allUsers.length
+  const completedCount = groupLogs.filter(l => l.completionFraction >= 1).length
+  const activeCount    = groupLogs.filter(l => l.completionFraction > 0 && l.completionFraction < 1).length
+
+  // Users who haven't completed today (for the "push your crew" list)
+  const loggedUserIds = new Set(groupLogs.filter(l => l.completionFraction >= 1).map(l => l.userId))
+  const incompleteUsers = allUsers.filter(u => u.id !== currentUser.id && !loggedUserIds.has(u.id))
+
+  const majorityDone = totalPAX > 0 && completedCount / totalPAX > 0.5
+
+  function openCalloutFor(user: User | null) {
+    setCalloutTarget(user)
+    setCalloutOpen(true)
+  }
+
   return (
     <div className="min-h-dvh bg-[#09090b]">
       <div className="max-w-lg mx-auto px-4 pt-6 pb-nav space-y-4">
@@ -366,6 +415,24 @@ export default function HomePage() {
           sublabel={`${progress}% through`}
           color="orange"
         />
+
+        {/* ── PAX completion stat line ── */}
+        {totalPAX > 0 && (
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-sm">💪</span>
+            <p className="text-sm text-zinc-400">
+              <span className="font-semibold text-zinc-200">{completedCount}/{totalPAX}</span>
+              {' '}done
+              {activeCount > 0 && (
+                <>
+                  {' ·'}{' '}
+                  <span className="font-semibold text-amber-400">{activeCount}</span>
+                  {' '}in progress
+                </>
+              )}
+            </p>
+          </div>
+        )}
 
         {/* ── Day completion status (prominent) ── */}
         <div
@@ -443,13 +510,81 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* ── Celebration banner (shown briefly after completing) ── */}
+        {dayJustCompleted && (
+          <div className="rounded-2xl bg-green-950/60 border border-green-700/60 px-4 py-3 flex items-center gap-3 animate-pulse">
+            <div className="w-8 h-8 rounded-full bg-green-500/25 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-green-300 font-bold text-sm">Day complete!</p>
+          </div>
+        )}
+
+        {/* ── Post-completion: push your crew ── */}
+        {isDayDone && !dayJustCompleted && (
+          <div className="rounded-2xl border border-amber-700/50 bg-gradient-to-b from-amber-950/40 to-orange-950/20 p-4 space-y-3">
+            <p className="text-amber-300 font-bold text-sm">Nice work! Now push your crew 👊</p>
+
+            {incompleteUsers.length > 0 ? (
+              <>
+                <div className="space-y-2">
+                  {incompleteUsers.map(u => (
+                    <div key={u.id} className="flex items-center gap-3">
+                      <Avatar name={u.displayName} size="sm" />
+                      <span className="flex-1 text-sm text-zinc-300 font-medium truncate">
+                        {u.displayName}
+                      </span>
+                      <button
+                        onClick={() => openCalloutFor(u)}
+                        className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-600/40 hover:bg-amber-500/25 transition-colors"
+                      >
+                        Shout out
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  className="!bg-amber-900/30 !text-amber-200 hover:!bg-amber-900/50 border border-amber-700/40"
+                  onClick={() => openCalloutFor(null)}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                  </svg>
+                  Shout out everyone
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-400">
+                The whole crew got it done today — that&apos;s what it&apos;s about. 🏆
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── Pre-completion motivational nudge ── */}
+        {!isDayDone && totalPAX > 0 && (
+          <div className="px-1">
+            <p className="text-sm text-zinc-500 text-center">
+              {majorityDone
+                ? `Half the crew is already done — don't get left behind!`
+                : `${completedCount > 0 ? completedCount + (completedCount === 1 ? ' PAX has' : ' PAX have') + ' already finished — ' : ''}${totalPAX - completedCount} ${(totalPAX - completedCount) === 1 ? 'PAX is' : 'PAX are'} counting on you — get it done!`
+              }
+            </p>
+          </div>
+        )}
+
         {/* ── Call out button ── */}
         <div className="pt-1">
           <Button
             variant="secondary"
             size="lg"
             fullWidth
-            onClick={() => setCalloutOpen(true)}
+            onClick={() => openCalloutFor(null)}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
@@ -473,10 +608,14 @@ export default function HomePage() {
       {/* ── Callout modal ── */}
       <CalloutModal
         open={calloutOpen}
-        onClose={() => setCalloutOpen(false)}
+        onClose={() => {
+          setCalloutOpen(false)
+          setCalloutTarget(null)
+        }}
         currentUser={currentUser}
         allUsers={allUsers}
         challengeId={challenge.id}
+        defaultTarget={calloutTarget}
       />
     </div>
   )

@@ -1,6 +1,6 @@
 {
   "name": "F3 Bedrock Monthly Challenge",
-  "short_name": "F3 Bedrock",
+  "short_name": "Monthly Challenge",
   "description": "Track and crush the F3 Bedrock monthly fitness challenge.",
   "start_url": "/",
   "display": "standalone",

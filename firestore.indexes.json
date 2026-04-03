@@ -35,13 +35,6 @@
       ]
     },
     {
-      "collectionGroup": "participation",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "challengeId", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "items",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

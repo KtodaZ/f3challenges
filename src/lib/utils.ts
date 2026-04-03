@@ -6,10 +6,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /** Strip undefined values from an object before passing to Firestore setDoc/updateDoc. */
-export function stripUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function stripUndefined<T extends object>(obj: T): T {
   return Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined)
-  ) as Partial<T>
+  ) as T
 }
 
 /** Format YYYY-MM-DD to "Mon Apr 1" */

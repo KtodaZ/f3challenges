@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
@@ -15,6 +15,8 @@ interface CalloutModalProps {
   currentUser: User
   allUsers: User[]
   challengeId: string
+  /** Pre-select a target user when the modal opens. */
+  defaultTarget?: User | null
 }
 
 export function CalloutModal({
@@ -23,11 +25,19 @@ export function CalloutModal({
   currentUser,
   allUsers,
   challengeId,
+  defaultTarget,
 }: CalloutModalProps) {
-  const [targetUser, setTargetUser] = useState<User | null>(null)
+  const [targetUser, setTargetUser] = useState<User | null>(defaultTarget ?? null)
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+
+  // Sync target when the modal opens with a new defaultTarget
+  useEffect(() => {
+    if (open) {
+      setTargetUser(defaultTarget ?? null)
+    }
+  }, [open, defaultTarget])
 
   const otherUsers = allUsers.filter(u => u.id !== currentUser.id)
 
@@ -43,7 +53,7 @@ export function CalloutModal({
         hashtags: [],
         mentions: targetUser ? [targetUser.id] : [],
         challengeId,
-        targetUserId: targetUser?.id,
+        ...(targetUser ? { targetUserId: targetUser.id } : {}),
         createdAt: new Date().toISOString(),
         deleted: false,
       }

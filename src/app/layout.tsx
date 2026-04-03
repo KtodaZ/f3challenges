@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'F3 Bedrock',
+    title: 'Monthly Challenge',
   },
   formatDetection: { telephone: false },
   other: {
