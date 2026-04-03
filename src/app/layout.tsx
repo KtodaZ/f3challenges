@@ -56,7 +56,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </main>
               <BottomNav />
               <Toaster
-                position="top-center"
+                position="bottom-center"
+                offset="80px"
                 toastOptions={{
                   style: { background: '#27272a', border: '1px solid #3f3f46', color: '#fafafa' },
                 }}

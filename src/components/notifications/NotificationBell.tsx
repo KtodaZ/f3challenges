@@ -18,6 +18,12 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     return unsubscribe
   }, [userId])
 
+  useEffect(() => {
+    const handler = () => setDrawerOpen(true)
+    window.addEventListener('fcm-foreground-message', handler)
+    return () => window.removeEventListener('fcm-foreground-message', handler)
+  }, [])
+
   const unreadCount = notifications.length
   const badgeLabel = unreadCount > 9 ? '9+' : String(unreadCount)
 

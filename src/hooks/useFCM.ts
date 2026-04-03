@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { onMessage } from 'firebase/messaging'
-import { toast } from 'sonner'
 import { getMessagingInstance } from '@/lib/firebase'
 import { sendFCMConfigToServiceWorker, requestNotificationPermission, registerServiceWorker } from '@/lib/fcm'
 
@@ -32,10 +31,8 @@ export function useFCM(): UseFCMReturn {
     getMessagingInstance().then(messaging => {
       if (!messaging) return
 
-      unsubscribe = onMessage(messaging, payload => {
-        toast(payload.notification?.title ?? 'F3 Bedrock', {
-          description: payload.notification?.body,
-        })
+      unsubscribe = onMessage(messaging, () => {
+        window.dispatchEvent(new CustomEvent('fcm-foreground-message'))
       })
     })
 

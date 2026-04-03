@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { markNotificationRead } from '@/lib/firestore'
 import { timeAgo, cn } from '@/lib/utils'
@@ -29,6 +30,8 @@ export function NotificationDrawer({
 }: NotificationDrawerProps) {
   const router = useRouter()
   const drawerRef = useRef<HTMLDivElement>(null)
+  const dragStartY = useRef<number | null>(null)
+  const dragOffset = useRef(0)
 
   // Keep the drawer in the DOM during the exit animation, then unmount.
   const [rendered, setRendered] = useState(open)
@@ -64,6 +67,31 @@ export function NotificationDrawer({
     return () => { document.body.style.overflow = '' }
   }, [open])
 
+  function handleDragStart(e: React.TouchEvent) {
+    dragStartY.current = e.touches[0].clientY
+    dragOffset.current = 0
+    if (drawerRef.current) drawerRef.current.style.transition = 'none'
+  }
+
+  function handleDragMove(e: React.TouchEvent) {
+    if (dragStartY.current === null) return
+    const delta = Math.max(0, e.touches[0].clientY - dragStartY.current)
+    dragOffset.current = delta
+    if (drawerRef.current) drawerRef.current.style.transform = `translateY(${delta}px)`
+  }
+
+  function handleDragEnd() {
+    if (dragStartY.current === null) return
+    dragStartY.current = null
+    if (drawerRef.current) drawerRef.current.style.transition = ''
+    if (dragOffset.current > 120) {
+      onClose()
+    } else {
+      if (drawerRef.current) drawerRef.current.style.transform = ''
+    }
+    dragOffset.current = 0
+  }
+
   const handleMarkAllRead = async () => {
     await Promise.all(
       notifications.map(n => markNotificationRead(userId, n.id))
@@ -84,7 +112,7 @@ export function NotificationDrawer({
 
   if (!rendered) return null
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
@@ -115,7 +143,12 @@ export function NotificationDrawer({
         )}
       >
         {/* Drag handle (mobile only) */}
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+        <div
+          className="flex justify-center pt-3 pb-2 sm:hidden cursor-grab active:cursor-grabbing touch-none"
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+        >
           <div className="w-10 h-1.5 rounded-full bg-zinc-700" />
         </div>
 
@@ -204,6 +237,7 @@ export function NotificationDrawer({
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }
