@@ -317,7 +317,7 @@ Generate SHORT push notification messages. Rules:
 
 export const sendScheduledNotifications = onSchedule(
   {
-    schedule: "every 60 minutes",
+    schedule: "every 10 minutes",
     timeZone: "America/Los_Angeles",
     secrets: [openAiKey],
   },
@@ -327,9 +327,16 @@ export const sendScheduledNotifications = onSchedule(
     const nowDate = new Date(nowPT);
     const nowHour = nowDate.getHours();
     const nowMin  = nowDate.getMinutes();
+    const nowTotal = nowHour * 60 + nowMin;
+
+    console.log(`[notify] ── run start ── ${nowPT} | today=${today} | nowTotal=${nowTotal}min`);
 
     const challenge = getChallengeForDate(today);
-    if (!challenge) return;
+    if (!challenge) {
+      console.log(`[notify] no active challenge for ${today}, exiting`);
+      return;
+    }
+    console.log(`[notify] challenge=${challenge.name} day=${getDayNumber(challenge.startDate, today)}/${getTotalDays(challenge.startDate, challenge.endDate)}`);
 
     const dayNumber  = getDayNumber(challenge.startDate, today);
     const totalDays  = getTotalDays(challenge.startDate, challenge.endDate);
@@ -339,6 +346,7 @@ export const sendScheduledNotifications = onSchedule(
 
     const usersSnap = await admin.firestore().collection("users").get();
     const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User & { notificationPreferences: NotifPrefs; currentStreak?: number }));
+    console.log(`[notify] ${users.length} users total`);
 
     // Group completion stats for today
     const todayLogsSnap = await admin.firestore().collection("dailyLogs")
@@ -346,6 +354,7 @@ export const sendScheduledNotifications = onSchedule(
       .where("date", "==", today)
       .get();
     const groupCompleted = todayLogsSnap.docs.filter(d => (d.data() as DailyLog).completionFraction >= 1).length;
+    console.log(`[notify] group completion: ${groupCompleted}/${users.length} done today`);
 
     // Build name lookup for peer pressure messaging
     const userById = new Map(users.map(u => [u.id, u.displayName]));
@@ -358,11 +367,18 @@ export const sendScheduledNotifications = onSchedule(
     const allNotDoneNames = users
       .filter(u => !completedUserIds.has(u.id))
       .map(u => u.displayName);
+    console.log(`[notify] completed: [${allCompletedNames.join(", ")}] | not done: [${allNotDoneNames.join(", ")}]`);
 
     for (const user of users) {
-      if (!user.fcmToken) continue;
+      if (!user.fcmToken) {
+        console.log(`[notify] skip ${user.displayName} — no fcmToken`);
+        continue;
+      }
       const prefs = user.notificationPreferences;
-      if (!prefs) continue;
+      if (!prefs) {
+        console.log(`[notify] skip ${user.displayName} — no notificationPreferences`);
+        continue;
+      }
 
       type NotifType = "morning" | "afternoon" | "evening" | "weekly_recap";
       const windows: Array<{ type: NotifType; enabled: boolean; time: string }> = [
@@ -372,29 +388,53 @@ export const sendScheduledNotifications = onSchedule(
         { type: "weekly_recap", enabled: prefs.weeklyRecap?.enabled ?? false,  time: prefs.weeklyRecap?.time ?? "20:00" },
       ];
 
+      console.log(`[notify] checking ${user.displayName} | windows: ${windows.filter(w => w.enabled).map(w => `${w.type}@${w.time}`).join(", ") || "none enabled"}`);
+
       for (const w of windows) {
         if (!w.enabled) continue;
-        if (w.type === "weekly_recap" && nowDate.getDay() !== (prefs.weeklyRecap?.dayOfWeek ?? 0)) continue;
+
+        if (w.type === "weekly_recap") {
+          const todayDay = nowDate.getDay();
+          const prefDay  = prefs.weeklyRecap?.dayOfWeek ?? 0;
+          if (todayDay !== prefDay) {
+            console.log(`[notify]   ${w.type} skipped — today is day ${todayDay}, pref is day ${prefDay}`);
+            continue;
+          }
+        }
 
         const [prefH, prefM] = w.time.split(":").map(Number);
-        const diffMins = Math.abs((nowHour * 60 + nowMin) - (prefH * 60 + prefM));
-        if (diffMins > 30) continue; // within 30-min window of the scheduled hour
+        const prefTotal = prefH * 60 + prefM;
+        const diffMins  = Math.abs(nowTotal - prefTotal);
+        const WINDOW    = 5; // minutes either side — scheduler runs every 10 min so max drift is 5 min
+
+        console.log(`[notify]   ${w.type}@${w.time} | now=${nowTotal}min pref=${prefTotal}min diff=${diffMins}min window=±${WINDOW}`);
+
+        if (diffMins > WINDOW) {
+          console.log(`[notify]   → outside window, skip`);
+          continue;
+        }
 
         const logKey = `${user.id}_${today}_${w.type}`;
         const alreadySent = await admin.firestore().collection("notificationLog").doc(logKey).get();
-        if (alreadySent.exists) continue;
+        if (alreadySent.exists) {
+          console.log(`[notify]   → already sent (logKey=${logKey}), skip`);
+          continue;
+        }
 
         const userLogSnap = await admin.firestore().collection("dailyLogs").doc(`${user.id}_${today}`).get();
         const userLog = userLogSnap.exists ? (userLogSnap.data() as DailyLog) : null;
+        const userCompleted = (userLog?.completionFraction ?? 0) >= 1;
+        console.log(`[notify]   → user log: fraction=${userLog?.completionFraction ?? 0} completed=${userCompleted}`);
 
         const partSnap = await admin.firestore().collection("participation").doc(`${user.id}_${challenge.id}`).get();
         const part = partSnap.exists ? (partSnap.data() as ChallengeParticipation) : null;
         let statusStr = part?.status ?? "active";
         if (statusStr === "modifying" && part?.modificationNote) statusStr = `modifying: ${part.modificationNote}`;
+        console.log(`[notify]   → participation: ${statusStr}`);
 
         try {
-          const userCompleted = (userLog?.completionFraction ?? 0) >= 1;
-          const { title, body } = await generateAINotification(openai, {
+          console.log(`[notify]   → calling OpenAI for ${user.displayName}...`);
+          const ctx = {
             userName:            user.displayName,
             challengeName:       challenge.name,
             dayNumber,
@@ -407,10 +447,13 @@ export const sendScheduledNotifications = onSchedule(
             userStreak:          (user as { currentStreak?: number }).currentStreak ?? 0,
             participationStatus: statusStr,
             notificationType:    w.type,
-            // Peer pressure: exclude the user themselves from each list
             completedNames: allCompletedNames.filter(n => n !== user.displayName).slice(0, 3),
             notDoneNames:   allNotDoneNames.filter(n => n !== user.displayName).slice(0, 3),
-          });
+          };
+          console.log(`[notify]   → AI ctx: ${JSON.stringify(ctx)}`);
+
+          const { title, body } = await generateAINotification(openai, ctx);
+          console.log(`[notify]   → AI response: title="${title}" body="${body}"`);
 
           await admin.messaging().send({
             token: user.fcmToken,
@@ -420,12 +463,16 @@ export const sendScheduledNotifications = onSchedule(
               fcmOptions: { link: "/" },
             },
           });
+          console.log(`[notify]   → FCM sent OK`);
 
           await admin.firestore().collection("notificationLog").doc(logKey).set({ sentAt: new Date().toISOString() });
+          console.log(`[notify] ✓ sent ${w.type} to ${user.displayName}: "${title}"`);
         } catch (err) {
-          console.error(`[notify] failed for ${user.displayName}:`, err);
+          console.error(`[notify] ✗ failed for ${user.displayName} ${w.type}:`, err);
         }
       }
     }
+
+    console.log(`[notify] ── run complete ──`);
   }
 );
