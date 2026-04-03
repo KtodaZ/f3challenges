@@ -81,11 +81,8 @@ async function sendPushNotification(
     try {
       await admin.messaging().send({
         token,
-        notification: { title, body },
-        webpush: {
-          notification: { icon: "/icons/icon-192.png", badge: "/icons/icon-192.png" },
-          fcmOptions: { link },
-        },
+        data: { title, body, link },
+        webpush: { headers: { TTL: "86400" } },
       });
     } catch (err: any) {
       if (err?.code === "messaging/registration-token-not-registered") {

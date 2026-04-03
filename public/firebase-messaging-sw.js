@@ -34,13 +34,15 @@ self.addEventListener('message', event => {
       const messaging = firebase.messaging()
 
       messaging.onBackgroundMessage(payload => {
-        const { title, body, icon } = payload.notification ?? {}
-        dbg('fn-entry', { event: 'onBackgroundMessage', title, body, hasData: !!payload.data })
-        self.registration.showNotification(title ?? 'F3 Bedrock', {
-          body: body ?? '',
-          icon: icon ?? '/icons/icon-192.png',
-          badge: '/icons/icon-192.png',
-          data: payload.data,
+        const title = payload.data?.title ?? 'F3 Bedrock'
+        const body  = payload.data?.body  ?? ''
+        const link  = payload.data?.link  ?? '/'
+        dbg('fn-entry', { event: 'onBackgroundMessage', title, body })
+        self.registration.showNotification(title, {
+          body,
+          icon:    '/icons/icon-192.png',
+          badge:   '/icons/icon-192.png',
+          data:    { url: link },
           vibrate: [200, 100, 200],
         })
         dbg('fn-exit', { event: 'showNotification', title })
@@ -62,10 +64,9 @@ self.addEventListener('push', event => {
   let payload = {}
   try { payload = event.data.json() } catch { return }
 
-  const notification = payload.notification ?? {}
-  const title = notification.title ?? 'F3 Bedrock'
-  const body  = notification.body  ?? ''
-  const link  = payload.fcmOptions?.link ?? '/'
+  const title = payload.data?.title ?? 'F3 Bedrock'
+  const body  = payload.data?.body  ?? ''
+  const link  = payload.data?.link  ?? '/'
 
   dbg('fn-entry', { event: 'push:cold-sw-fallback', title, body })
   event.waitUntil(
