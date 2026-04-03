@@ -119,8 +119,12 @@ export async function GET(req: NextRequest) {
           try {
             await adminMessaging.send({
               token,
-              data: { title, body, link: '/' },
-              webpush: { headers: { TTL: '86400' } },
+              notification: { title, body },
+              data: { link: '/' },
+              webpush: {
+                notification: { icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' },
+                fcmOptions: { link: '/' },
+              },
             })
           } catch (tokenErr: any) {
             if (tokenErr?.code === 'messaging/registration-token-not-registered') {
