@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { markNotificationRead } from '@/lib/firestore'
 import { timeAgo, cn } from '@/lib/utils'
@@ -30,10 +30,27 @@ export function NotificationDrawer({
   const router = useRouter()
   const drawerRef = useRef<HTMLDivElement>(null)
 
-  // Trap focus and close on Escape
+  // Keep the drawer in the DOM during the exit animation, then unmount.
+  const [rendered, setRendered] = useState(open)
+  // Separate state drives the CSS open/closed classes (lags one frame behind `open` on mount).
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setRendered(true)
+      // One frame later so the enter transition fires properly.
+      const raf = requestAnimationFrame(() => setVisible(true))
+      return () => cancelAnimationFrame(raf)
+    } else {
+      setVisible(false)
+      const t = setTimeout(() => setRendered(false), 300)
+      return () => clearTimeout(t)
+    }
+  }, [open])
+
+  // Close on Escape
   useEffect(() => {
     if (!open) return
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
@@ -43,14 +60,8 @@ export function NotificationDrawer({
 
   // Prevent body scroll while open
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
+    document.body.style.overflow = open ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
   }, [open])
 
   const handleMarkAllRead = async () => {
@@ -71,6 +82,8 @@ export function NotificationDrawer({
     }
   }
 
+  if (!rendered) return null
+
   return (
     <>
       {/* Backdrop */}
@@ -79,7 +92,7 @@ export function NotificationDrawer({
         onClick={onClose}
         className={cn(
           'fixed inset-0 bg-black/60 z-50 transition-opacity duration-300',
-          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}
       />
 
@@ -96,9 +109,9 @@ export function NotificationDrawer({
           'z-50 flex flex-col',
           'max-h-[80dvh] sm:max-h-full sm:h-full',
           'transition-transform duration-300 ease-in-out',
-          open
+          visible
             ? 'translate-y-0 sm:translate-x-0'
-            : 'translate-y-full sm:translate-y-0 sm:translate-x-full pointer-events-none',
+            : 'translate-y-full sm:translate-y-0 sm:translate-x-full',
         )}
       >
         {/* Drag handle (mobile only) */}

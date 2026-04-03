@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { Textarea } from '@/components/ui/Input'
 import { Avatar } from '@/components/ui/Avatar'
+import { MentionAutocomplete } from '@/components/feed/MentionAutocomplete'
 import { createFeedPost } from '@/lib/firestore'
-import { generateId } from '@/lib/utils'
+import { generateId, extractHashtags, extractMentionNames } from '@/lib/utils'
 import type { User, FeedPost } from '@/types'
 
 interface CalloutModalProps {
@@ -31,6 +31,8 @@ export function CalloutModal({
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Sync target when the modal opens with a new defaultTarget
   useEffect(() => {
@@ -41,17 +43,46 @@ export function CalloutModal({
 
   const otherUsers = allUsers.filter(u => u.id !== currentUser.id)
 
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setContent(e.target.value)
+    const cursor = e.target.selectionStart ?? e.target.value.length
+    const textBeforeCursor = e.target.value.slice(0, cursor)
+    const atMatch = textBeforeCursor.match(/@([\w ]*)$/)
+    setMentionQuery(atMatch ? atMatch[1] : null)
+  }
+
+  function handleMentionSelect(user: User) {
+    if (!textareaRef.current) return
+    const cursor = textareaRef.current.selectionStart ?? content.length
+    const textBeforeCursor = content.slice(0, cursor)
+    const textAfterCursor = content.slice(cursor)
+    const replaced = textBeforeCursor.replace(/@([\w ]*)$/, `@${user.displayName} `)
+    setContent(replaced + textAfterCursor)
+    setMentionQuery(null)
+    textareaRef.current.focus()
+  }
+
   async function handlePost() {
     if (!content.trim()) return
     setSaving(true)
     try {
+      // Resolve @mention names → user IDs (additive to targetUser)
+      const mentionedNames = extractMentionNames(content)
+      const mentionedUsers = allUsers.filter(u =>
+        mentionedNames.some(name => name.toLowerCase() === u.displayName.toLowerCase())
+      )
+      const mentionIds = mentionedUsers.map(u => u.id)
+      const allMentions = targetUser
+        ? [...new Set([targetUser.id, ...mentionIds])]
+        : mentionIds
+
       const post: FeedPost = {
         id: generateId(),
         type: 'shoutout',
         authorId: currentUser.id,
         content: content.trim(),
-        hashtags: [],
-        mentions: targetUser ? [targetUser.id] : [],
+        hashtags: extractHashtags(content),
+        mentions: allMentions,
         challengeId,
         ...(targetUser ? { targetUserId: targetUser.id } : {}),
         createdAt: new Date().toISOString(),
@@ -75,6 +106,7 @@ export function CalloutModal({
     setTargetUser(null)
     setContent('')
     setDone(false)
+    setMentionQuery(null)
     onClose()
   }
 
@@ -121,18 +153,37 @@ export function CalloutModal({
             </div>
           </div>
 
-          <Textarea
-            label="Message"
-            placeholder={
-              targetUser
-                ? `Shout out ${targetUser.displayName}…`
-                : 'Great work out there, PAX!'
-            }
-            value={content}
-            onChange={e => setContent(e.target.value)}
-            rows={3}
-            disabled={saving}
-          />
+          <div>
+            <p className="text-sm font-medium text-zinc-300 mb-1.5">Message</p>
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                value={content}
+                onChange={handleChange}
+                onKeyDown={e => {
+                  if (e.key === 'Escape' && mentionQuery !== null) {
+                    e.stopPropagation()
+                    setMentionQuery(null)
+                  }
+                }}
+                placeholder={
+                  targetUser
+                    ? `Shout out ${targetUser.displayName}…`
+                    : 'Great work out there, PAX!'
+                }
+                rows={3}
+                disabled={saving}
+                className="bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 rounded-xl px-4 py-3 text-sm w-full resize-none focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              {mentionQuery !== null && (
+                <MentionAutocomplete
+                  query={mentionQuery}
+                  users={otherUsers}
+                  onSelect={handleMentionSelect}
+                />
+              )}
+            </div>
+          </div>
 
           <Button
             variant="primary"
