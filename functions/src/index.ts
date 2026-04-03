@@ -495,22 +495,82 @@ export const sendScheduledNotifications = onSchedule(
 );
 
 // ---------------------------------------------------------------------------
-// sendTestPush — manual HTTP trigger for testing push delivery
-// Usage: curl -X POST <url> -H "Content-Type: application/json" \
-//          -d '{"userId":"<id>","title":"Test","body":"Hello"}'
+// sendTestPush — manual HTTP trigger to send an AI-generated reminder
+// Runs the full scheduled notification flow for one user, no time-window check.
+//
+// Usage:
+//   curl -X POST <url> -H "Content-Type: application/json" \
+//     -d '{"userId":"<id>"}'
+//
+// Optional overrides:
+//   -d '{"userId":"<id>","notificationType":"evening"}'   (default: "morning")
+//   -d '{"userId":"<id>","title":"Custom","body":"Hi"}'   (skip AI, send directly)
 // ---------------------------------------------------------------------------
-export const sendTestPush = onRequest(async (req, res) => {
-  if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+export const sendTestPush = onRequest(
+  { secrets: [openAiKey] },
+  async (req, res) => {
+    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
 
-  const { userId, title = "Test notification", body = "Push is working!" } = req.body ?? {};
-  if (!userId) { res.status(400).json({ error: "userId required" }); return; }
+    const { userId, title, body, notificationType = "morning" } = req.body ?? {};
+    if (!userId) { res.status(400).json({ error: "userId required" }); return; }
 
-  const userSnap = await admin.firestore().doc(`users/${userId}`).get();
-  if (!userSnap.exists) { res.status(404).json({ error: "User not found" }); return; }
+    const userSnap = await admin.firestore().doc(`users/${userId}`).get();
+    if (!userSnap.exists) { res.status(404).json({ error: "User not found" }); return; }
+    const user = { id: userSnap.id, ...(userSnap.data() as Omit<User, "id"> & { currentStreak?: number }) };
 
-  const user = { id: userSnap.id, ...(userSnap.data() as { displayName: string; fcmTokens?: string[] }) };
-  if (!user.fcmTokens?.length) { res.status(400).json({ error: `${user.displayName} has no fcmTokens` }); return; }
+    if (!user.fcmTokens?.length) { res.status(400).json({ error: `${user.displayName} has no fcmTokens` }); return; }
 
-  await sendPushNotification(user.id, user.fcmTokens, title, body, "/");
-  res.json({ ok: true, sentTo: user.displayName, tokenCount: user.fcmTokens.length, title, body });
-});
+    let finalTitle: string;
+    let finalBody: string;
+
+    if (title && body) {
+      finalTitle = title;
+      finalBody = body;
+    } else {
+      const today = getTodayPT();
+      const challenge = getChallengeForDate(today);
+      if (!challenge) { res.status(400).json({ error: "No active challenge today" }); return; }
+
+      const dayNumber = getDayNumber(challenge.startDate, today);
+      const totalDays = getTotalDays(challenge.startDate, challenge.endDate);
+      const todayReps = dayNumber * challenge.dailyMultiplier;
+
+      const [userLogSnap, partSnap, usersSnap, allLogsSnap] = await Promise.all([
+        admin.firestore().doc(`dailyLogs/${userId}_${today}`).get(),
+        admin.firestore().doc(`participation/${userId}_${challenge.id}`).get(),
+        admin.firestore().collection("users").get(),
+        admin.firestore().collection("dailyLogs").where("challengeId", "==", challenge.id).where("date", "==", today).get(),
+      ]);
+
+      const userLog = userLogSnap.exists ? (userLogSnap.data() as DailyLog) : null;
+      const part    = partSnap.exists    ? (partSnap.data()    as ChallengeParticipation) : null;
+      let statusStr = part?.status ?? "active";
+      if (statusStr === "modifying" && part?.modificationNote) statusStr = `modifying: ${part.modificationNote}`;
+
+      const userById = new Map(usersSnap.docs.map(d => [d.id, (d.data() as User).displayName]));
+      const completedIds = new Set(allLogsSnap.docs.filter(d => (d.data() as DailyLog).completionFraction >= 1).map(d => (d.data() as DailyLog).userId));
+      const completedNames = [...completedIds].map(id => userById.get(id) ?? "").filter(n => n && n !== user.displayName).slice(0, 3);
+      const notDoneNames   = usersSnap.docs.map(d => d.data() as User).filter(u => u.id !== userId && !completedIds.has(u.id)).map(u => u.displayName).slice(0, 3);
+
+      const openai = new OpenAI({ apiKey: openAiKey.value() });
+      const result = await generateAINotification(openai, {
+        userName: user.displayName, challengeName: challenge.name,
+        dayNumber, totalDays, todayTarget: todayReps,
+        userCompleted: (userLog?.completionFraction ?? 0) >= 1,
+        completionFraction: userLog?.completionFraction ?? 0,
+        groupCompletedCount: completedIds.size,
+        groupTotalCount: usersSnap.size,
+        userStreak: user.currentStreak ?? 0,
+        participationStatus: statusStr,
+        notificationType,
+        completedNames,
+        notDoneNames,
+      });
+      finalTitle = result.title;
+      finalBody  = result.body;
+    }
+
+    await sendPushNotification(user.id, user.fcmTokens, finalTitle, finalBody, "/");
+    res.json({ ok: true, sentTo: user.displayName, tokenCount: user.fcmTokens.length, title: finalTitle, body: finalBody });
+  }
+);
