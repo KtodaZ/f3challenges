@@ -155,9 +155,10 @@
 
 <script>
   const ICONS = [
-    { size: 192, filename: 'icon-192.png',        label: '192 × 192' },
-    { size: 512, filename: 'icon-512.png',        label: '512 × 512' },
-    { size: 180, filename: 'apple-touch-icon.png', label: '180 × 180  (Apple Touch)' },
+    { size: 192, filename: 'icon-192.png',             label: '192 × 192',                  draw: drawIcon },
+    { size: 512, filename: 'icon-512.png',             label: '512 × 512',                  draw: drawIcon },
+    { size: 180, filename: 'apple-touch-icon.png',     label: '180 × 180  (Apple Touch)',   draw: drawIcon },
+    { size: 96,  filename: 'notification-badge.png',   label: '96 × 96  (Android Badge)',   draw: drawBadge },
   ];
 
   // ── Drawing ────────────────────────────────────────────────────────────────
@@ -245,13 +246,48 @@
     ctx.closePath();
   }
 
+  /**
+   * Draw a monochrome (white-on-transparent) badge icon for Android notifications.
+   * Android ignores color data in the badge; only the alpha channel matters.
+   */
+  function drawBadge(canvas, size) {
+    const ctx = canvas.getContext('2d');
+    canvas.width  = size;
+    canvas.height = size;
+
+    // Transparent background — required for Android monochrome badge
+    ctx.clearRect(0, 0, size, size);
+
+    const cx = size / 2;
+    const cy = size / 2;
+
+    const sw = size * 0.82;
+    const sh = size * 0.88;
+    const sx = cx - sw / 2;
+    const sy = cy - sh / 2 - size * 0.02;
+
+    ctx.fillStyle = '#ffffff';
+    drawShield(ctx, sx, sy, sw, sh);
+    ctx.fill();
+
+    // Knock out "F3" text so it reads as negative space (more legible at small sizes)
+    ctx.globalCompositeOperation = 'destination-out';
+    const fontSize = Math.round(size * 0.32);
+    ctx.font = `900 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle    = '#000000';
+    ctx.fillText('F3', cx, sy + sh * 0.47);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   // ── Build UI ───────────────────────────────────────────────────────────────
 
   const grid = document.getElementById('grid');
 
-  ICONS.forEach(({ size, filename, label }) => {
+  ICONS.forEach(({ size, filename, label, draw }) => {
     const canvas = document.createElement('canvas');
-    drawIcon(canvas, size);
+    draw(canvas, size);
 
     const wrap = document.createElement('div');
     wrap.className = 'canvas-wrap';

@@ -45,7 +45,7 @@ self.addEventListener('message', event => {
         self.registration.showNotification(title, {
           body,
           icon:    '/icons/icon-192.png',
-          badge:   '/icons/icon-192.png',
+          badge:   '/icons/notification-badge.png',
           data:    { url: link },
           vibrate: [200, 100, 200],
         })
@@ -55,6 +55,34 @@ self.addEventListener('message', event => {
       dbg('fn-exit', { event: 'message:FCM_CONFIG', initialized: true })
     }
   }
+})
+
+// iOS does not auto-display from the notification key — the SW must call
+// showNotification() explicitly. This fallback handles cold SW starts where
+// Firebase hasn't been initialized yet (no FCM_CONFIG from the client page).
+// When Firebase IS initialized, __FCM_CONFIG__ is set and we return early so
+// onBackgroundMessage handles it exclusively — no duplicates.
+self.addEventListener('push', event => {
+  if (self.__FCM_CONFIG__) return
+  if (!event.data) return
+
+  let payload = {}
+  try { payload = event.data.json() } catch { return }
+
+  const title = payload.notification?.title ?? 'F3 Bedrock'
+  const body  = payload.notification?.body  ?? ''
+  const link  = payload.data?.link ?? '/'
+
+  dbg('fn-entry', { event: 'push:cold-sw-fallback', title, body })
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon:    '/icons/icon-192.png',
+      badge:   '/icons/notification-badge.png',
+      data:    { url: link },
+      vibrate: [200, 100, 200],
+    })
+  )
 })
 
 self.addEventListener('notificationclick', event => {
