@@ -121,8 +121,22 @@ export interface FeedPost {
   mentions: string[]      // user ids
   challengeId?: string
   targetUserId?: string   // shoutout recipient
+  reactions?: Record<string, string[]>  // emoji → userId[]
   createdAt: string       // ISO
   updatedAt?: string      // ISO
+  deleted: boolean
+}
+
+// ─── Comments ─────────────────────────────────────────────────────────────────
+
+export interface FeedComment {
+  id: string
+  postId: string
+  parentCommentId?: string  // if set, this is a reply (max depth 2)
+  authorId: string
+  content: string
+  reactions?: Record<string, string[]>  // emoji → userId[]
+  createdAt: string         // ISO
   deleted: boolean
 }
 
@@ -131,6 +145,8 @@ export interface FeedPost {
 export type NotificationType =
   | 'mention'
   | 'shoutout'
+  | 'comment'
+  | 'reply'
   | 'daily_reminder'
   | 'weekly_recap'
   | 'system'

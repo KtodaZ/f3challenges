@@ -18,6 +18,8 @@ import {
   onSnapshot,
   serverTimestamp,
   Timestamp,
+  arrayUnion,
+  arrayRemove,
   type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from './firebase'
@@ -25,6 +27,7 @@ import type {
   User,
   DailyLog,
   FeedPost,
+  FeedComment,
   AppNotification,
   ChallengeParticipation,
 } from '@/types'
@@ -162,6 +165,58 @@ export function subscribeToFeed(
   )
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => d.data() as FeedPost))
+  })
+}
+
+// ─── Reactions ────────────────────────────────────────────────────────────────
+
+export async function togglePostReaction(
+  postId: string,
+  emoji: string,
+  userId: string,
+  hasReacted: boolean
+): Promise<void> {
+  await updateDoc(doc(feedCol(), postId), {
+    [`reactions.${emoji}`]: hasReacted ? arrayRemove(userId) : arrayUnion(userId),
+  })
+}
+
+export async function toggleCommentReaction(
+  postId: string,
+  commentId: string,
+  emoji: string,
+  userId: string,
+  hasReacted: boolean
+): Promise<void> {
+  await updateDoc(doc(commentsCol(postId), commentId), {
+    [`reactions.${emoji}`]: hasReacted ? arrayRemove(userId) : arrayUnion(userId),
+  })
+}
+
+// ─── Comments ─────────────────────────────────────────────────────────────────
+
+export const commentsCol = (postId: string) =>
+  collection(db, 'feed', postId, 'comments')
+
+export async function createComment(comment: FeedComment): Promise<void> {
+  await setDoc(doc(commentsCol(comment.postId), comment.id), comment)
+}
+
+export async function softDeleteComment(postId: string, commentId: string): Promise<void> {
+  await updateDoc(doc(commentsCol(postId), commentId), { deleted: true })
+}
+
+export function subscribeToComments(
+  postId: string,
+  callback: (comments: FeedComment[]) => void
+) {
+  const q = query(
+    commentsCol(postId),
+    where('deleted', '==', false),
+    orderBy('createdAt', 'asc')
+  )
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => d.data() as FeedComment))
   })
 }
 

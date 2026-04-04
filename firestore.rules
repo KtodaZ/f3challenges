@@ -21,6 +21,14 @@ service cloud.firestore {
       allow create: if true;
       allow update: if true;
       allow delete: if false;
+
+      // Comments subcollection — same soft-delete pattern
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if true;
+        allow delete: if false;
+      }
     }
 
     // Participation: readable and writable by all (trust-based)

@@ -17,6 +17,8 @@ interface NotificationDrawerProps {
 const TYPE_ICON: Record<NotificationType, string> = {
   mention:          '💬',
   shoutout:         '💪',
+  comment:          '💬',
+  reply:            '↩️',
   daily_reminder:   '⏰',
   weekly_recap:     '📊',
   system:           '📢',
