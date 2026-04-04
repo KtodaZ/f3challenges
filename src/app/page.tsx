@@ -22,7 +22,7 @@ import {
   getTotalDays,
   getChallengeDates,
 } from '@/lib/challenges'
-import { monthProgress, generateId, cn, stripUndefined, extractHashtags } from '@/lib/utils'
+import { monthProgress, generateId, cn, stripUndefined, extractHashtags, calculateStreak } from '@/lib/utils'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
@@ -324,6 +324,15 @@ export default function HomePage() {
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Must be above early returns — hooks can't be called conditionally
+  const streak = useMemo(() => {
+    const completedDates = allLogs
+      .filter(l => l.completionFraction >= 1)
+      .map(l => l.date)
+      .sort()
+    return calculateStreak(completedDates).current
+  }, [allLogs])
+
   if (userLoading) return <Spinner />
   if (!currentUser) return null // redirect in progress
 
@@ -349,27 +358,6 @@ export default function HomePage() {
   const todayFraction = todayLog?.completionFraction ?? 0
   const todayLoggedReps = todayLog?.exerciseLogs.reduce((sum, el) => sum + el.completedReps, 0) ?? 0
   const isDayDone     = todayFraction >= 1
-  // Compute streak live from allLogs so it's accurate before today is logged
-  const streak = useMemo(() => {
-    const completedSet = new Set(allLogs.filter(l => l.completionFraction >= 1).map(l => l.date))
-    if (completedSet.size === 0) return 0
-    const todayDone = completedSet.has(today)
-    let check = todayDone
-      ? today
-      : (() => {
-          const d = new Date(today + 'T00:00:00')
-          d.setDate(d.getDate() - 1)
-          return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-        })()
-    let count = 0
-    while (completedSet.has(check)) {
-      count++
-      const d = new Date(check + 'T00:00:00')
-      d.setDate(d.getDate() - 1)
-      check = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-    }
-    return count
-  }, [allLogs, today])
 
   // ── Group PAX stats ──────────────────────────────────────────────────────
   const totalPAX      = allUsers.length
