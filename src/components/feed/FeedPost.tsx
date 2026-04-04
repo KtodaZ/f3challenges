@@ -178,7 +178,18 @@ export function FeedPost({ post }: FeedPostProps) {
               className="text-xs text-zinc-400 leading-relaxed"
               dangerouslySetInnerHTML={{ __html: highlightMentions(post.content) }}
             />
-            <span className="text-[10px] text-zinc-600 mt-1 block">{timeAgo(post.createdAt)}</span>
+            <div className="flex items-center gap-3 mt-2">
+              <span className="text-[10px] text-zinc-600">{timeAgo(post.createdAt)}</span>
+              <ReactionBar
+                reactions={post.reactions}
+                currentUserId={currentUser?.id}
+                onToggle={emoji => {
+                  if (!currentUser) return
+                  const hasReacted = post.reactions?.[emoji]?.includes(currentUser.id) ?? false
+                  togglePostReaction(post.id, emoji, currentUser.id, hasReacted)
+                }}
+              />
+            </div>
           </div>
         </div>
       </article>
