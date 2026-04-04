@@ -9,6 +9,7 @@ import { FCMInitializer } from '@/components/notifications/FCMInitializer'
 import { Toaster } from 'sonner'
 import { QueryProvider } from '@/components/providers/QueryProvider'
 import { FirestoreConnectionGuard } from '@/components/providers/FirestoreConnectionGuard'
+import { UpdateChecker } from '@/components/providers/UpdateChecker'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <TooltipProvider>
               <FCMInitializer />
               <FirestoreConnectionGuard />
+              <UpdateChecker />
               <TopBar />
               <main className="pb-nav min-h-dvh">
                 {children}
