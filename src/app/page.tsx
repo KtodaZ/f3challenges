@@ -27,6 +27,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { DailyLogCard } from '@/components/daily/DailyLogCard'
+import { WelcomeMessage } from '@/components/home/WelcomeMessage'
 import { DailyExerciseCard } from '@/components/daily/DailyExerciseCard'
 import { LogDayModal } from '@/components/daily/LogDayModal'
 import { MakeupDayPicker } from '@/components/daily/MakeupDayPicker'
@@ -466,42 +467,21 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── Day completion status (prominent) ── */}
-        <div
-          className={cn(
-            'rounded-2xl px-4 py-3 border flex items-center gap-3',
-            isDayDone
-              ? 'bg-green-950/40 border-green-800/60'
-              : 'bg-zinc-900 border-zinc-800'
-          )}
-        >
-          <div className={cn(
-            'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
-            isDayDone ? 'bg-green-500/25' : 'bg-zinc-800'
-          )}>
-            {isDayDone ? (
-              <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            )}
-          </div>
-          <div className="flex-1">
-            <p className={cn('font-bold text-sm', isDayDone ? 'text-green-300' : 'text-white')}>
-              {isDayDone
-                ? 'Today is done — CRUSH IT PAX!'
-                : todayFraction > 0
-                ? 'Keep going — you\'re making progress!'
-                : 'Ready to get after it?'}
-            </p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {target.totalReps} total reps · {target.exercises.length} exercises · {target.repsPerExercise} each
-            </p>
-          </div>
-        </div>
+        {/* ── Dynamic welcome message ── */}
+        <WelcomeMessage
+          userName={currentUser.displayName}
+          dayNumber={dayNumber}
+          totalDays={totalDays}
+          totalReps={target.totalReps}
+          repsPerExercise={target.repsPerExercise}
+          exerciseCount={target.exercises.length}
+          completionFraction={todayFraction}
+          streak={streak}
+          completedCount={completedCount}
+          totalPAX={totalPAX}
+          activeCount={activeCount}
+          incompleteNames={incompleteUsers.map(u => u.displayName)}
+        />
 
         {/* ── Summary log card ── */}
         <DailyLogCard

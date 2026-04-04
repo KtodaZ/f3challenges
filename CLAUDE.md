@@ -89,3 +89,9 @@ In `functions/src/index.ts`, the OpenAI client is created inside the function ha
 - Firebase project: `f3-bedrock-monthly-challenge`
 - All env vars must be set in Vercel dashboard (copy from `.env.local`)
 - OPENAI_API_KEY is a Firebase secret: `firebase functions:secrets:set OPENAI_API_KEY`
+
+**Claude is responsible for Firebase deploys after making changes to functions.**
+After editing `functions/src/index.ts`, always run:
+```
+cd functions && pnpm build && cd .. && firebase deploy --only functions --force
+```

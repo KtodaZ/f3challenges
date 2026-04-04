@@ -270,10 +270,10 @@ interface ChallengeParticipation {
   modificationNote?: string;
 }
 
-function getChallengeForDate(date: string): { id: string; name: string; dailyMultiplier: number; exercises: { id: string }[]; startDate: string; endDate: string } | null {
+function getChallengeForDate(date: string): { id: string; name: string; dailyMultiplier: number; exercises: { id: string; name: string }[]; startDate: string; endDate: string } | null {
   const CHALLENGES = [
-    { id: "apr-2026", name: "The Merking Gauntlet", dailyMultiplier: 10, exercises: [{id:"merkin"},{id:"diamond-merkin"},{id:"wide-merkin"},{id:"incline-merkin"},{id:"decline-merkin"}], startDate: "2026-04-01", endDate: "2026-04-30" },
-    { id: "may-2026", name: "May Challenge", dailyMultiplier: 10, exercises: [{id:"tbd"}], startDate: "2026-05-01", endDate: "2026-05-31" },
+    { id: "apr-2026", name: "The Merking Gauntlet", dailyMultiplier: 10, exercises: [{id:"merkin",name:"Merkin"},{id:"diamond-merkin",name:"Diamond Merkin"},{id:"wide-merkin",name:"Wide Merkin"},{id:"incline-merkin",name:"Incline Merkin"},{id:"decline-merkin",name:"Decline Merkin"}], startDate: "2026-04-01", endDate: "2026-04-30" },
+    { id: "may-2026", name: "May Challenge", dailyMultiplier: 10, exercises: [{id:"tbd",name:"TBD"}], startDate: "2026-05-01", endDate: "2026-05-31" },
   ];
   return CHALLENGES.find(c => date >= c.startDate && date <= c.endDate) ?? null;
 }
@@ -298,7 +298,9 @@ async function generateAINotification(
   client: OpenAI,
   ctx: {
     userName: string; challengeName: string; dayNumber: number; totalDays: number;
-    todayTarget: number; userCompleted: boolean; completionFraction: number;
+    todayTarget: number; repsCompleted: number; repsRemaining: number;
+    exerciseList: string; repsPerExercise: number;
+    userCompleted: boolean; completionFraction: number;
     groupCompletedCount: number; groupTotalCount: number; userStreak: number;
     participationStatus: string; notificationType: string;
     weeklyCompletedDays?: number;
@@ -320,7 +322,10 @@ Generate SHORT push notification messages. Rules:
 - Body: max 20 words, direct
 - Use F3 culture: PAX = members. Do NOT say "beatdown" — this is a monthly rep challenge, not a workout session
 - Always reference the challenge by name (challengeName) not generic workout terms
-- Use the person's name and real numbers (todayTarget reps total for the day)
+- Use the person's name and SPECIFIC numbers: repsRemaining (what's left), todayTarget (today's total), repsPerExercise (reps per variant)
+- exerciseList lists the exercise variants (e.g. "Merkin, Diamond Merkin, Wide Merkin, Incline Merkin, Decline Merkin")
+- If repsRemaining > 0: reference it specifically ("still need X reps" or "X reps to go — repsPerExercise each variant") NOT todayTarget
+- If repsCompleted > 0 and not done: acknowledge progress ("already did X, Y left")
 - Suggest chipping away now — e.g. "knock out 50 now so you're not doing 200 tonight"
 - As the month progresses (high dayNumber/totalDays ratio), increase urgency and pride — they're almost there
 - If user NOT completed and completedNames has people: use peer pressure — name 1-2 of them ("Dredd already crushed it")
@@ -345,7 +350,7 @@ Generate SHORT push notification messages. Rules:
 
 export const sendScheduledNotifications = onSchedule(
   {
-    schedule: "every 10 minutes",
+    schedule: "*/10 * * * *",
     timeZone: "America/Los_Angeles",
     secrets: [openAiKey],
   },
@@ -463,14 +468,23 @@ export const sendScheduledNotifications = onSchedule(
 
         try {
           console.log(`[notify]   → calling OpenAI for ${user.displayName}...`);
+          const fraction        = userLog?.completionFraction ?? 0;
+          const repsCompleted   = Math.round(todayReps * fraction);
+          const repsRemaining   = todayReps - repsCompleted;
+          const repsPerExercise = challenge.exercises.length > 0 ? Math.round(todayReps / challenge.exercises.length) : todayReps;
+          const exerciseList    = challenge.exercises.map(e => e.name).join(", ");
           const ctx = {
             userName:            user.displayName,
             challengeName:       challenge.name,
             dayNumber,
             totalDays,
             todayTarget:         todayReps,
+            repsCompleted,
+            repsRemaining,
+            exerciseList,
+            repsPerExercise,
             userCompleted,
-            completionFraction:  userLog?.completionFraction ?? 0,
+            completionFraction:  fraction,
             groupCompletedCount: userCompleted ? groupCompleted - 1 : groupCompleted,
             groupTotalCount:     users.length - 1,
             userStreak:          (user as { currentStreak?: number }).currentStreak ?? 0,
@@ -559,12 +573,18 @@ export const sendTestPush = onRequest(
       const completedNames = [...completedIds].map(id => userById.get(id) ?? "").filter(n => n && n !== user.displayName).slice(0, 3);
       const notDoneNames   = usersSnap.docs.map(d => d.data() as User).filter(u => u.id !== userId && !completedIds.has(u.id)).map(u => u.displayName).slice(0, 3);
 
+      const fraction          = userLog?.completionFraction ?? 0;
+      const repsCompleted     = Math.round(todayReps * fraction);
+      const repsRemaining     = todayReps - repsCompleted;
+      const repsPerExercise   = challenge.exercises.length > 0 ? Math.round(todayReps / challenge.exercises.length) : todayReps;
+      const exerciseList      = challenge.exercises.map(e => e.name).join(", ");
       const openai = new OpenAI({ apiKey: openAiKey.value().trim() });
       const result = await generateAINotification(openai, {
         userName: user.displayName, challengeName: challenge.name,
         dayNumber, totalDays, todayTarget: todayReps,
-        userCompleted: (userLog?.completionFraction ?? 0) >= 1,
-        completionFraction: userLog?.completionFraction ?? 0,
+        repsCompleted, repsRemaining, exerciseList, repsPerExercise,
+        userCompleted: fraction >= 1,
+        completionFraction: fraction,
         groupCompletedCount: completedIds.size,
         groupTotalCount: usersSnap.size,
         userStreak: user.currentStreak ?? 0,
