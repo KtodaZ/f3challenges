@@ -12,6 +12,7 @@ interface WelcomeMessageProps {
   repsPerExercise: number
   exerciseCount: number
   completionFraction: number  // 0 | 0.25 | 0.5 | 0.75 | 1
+  loggedReps: number
   streak: number
   completedCount: number      // PAX who finished today
   totalPAX: number
@@ -52,6 +53,7 @@ function getWelcomeMessage(
     totalReps,
     repsPerExercise,
     completionFraction,
+    loggedReps,
     streak,
     completedCount,
     totalPAX,
@@ -64,12 +66,11 @@ function getWelcomeMessage(
   const nearEnd = daysLeft <= 5
   const earlyMonth = dayNumber <= 5
   const isDone = completionFraction >= 1
-  const inProgress = completionFraction > 0 && completionFraction < 1
+  const inProgress = (loggedReps > 0 || completionFraction > 0) && completionFraction < 1
   const paxNotDone = totalPAX - completedCount
   const majorityDone = totalPAX > 0 && completedCount / totalPAX > 0.5
 
-  const repsCompleted = Math.round(totalReps * completionFraction)
-  const repsRemaining = totalReps - repsCompleted
+  const repsRemaining = Math.max(0, totalReps - loggedReps)
 
   // Format a short name list: "Dredd", "Dredd and Fuse", "Dredd, Fuse, and 3 others"
   function nameList(names: string[]): string {
@@ -246,7 +247,7 @@ function getWelcomeMessage(
 export function WelcomeMessage(props: WelcomeMessageProps) {
   const hour = getHourPT()
   const isDone = props.completionFraction >= 1
-  const inProgress = props.completionFraction > 0 && props.completionFraction < 1
+  const inProgress = (props.loggedReps > 0 || props.completionFraction > 0) && props.completionFraction < 1
   const { greeting, body } = getWelcomeMessage({ ...props, hour })
 
   return (

@@ -339,6 +339,7 @@ export default function HomePage() {
   })
 
   const todayFraction = todayLog?.completionFraction ?? 0
+  const todayLoggedReps = todayLog?.exerciseLogs.reduce((sum, el) => sum + el.completedReps, 0) ?? 0
   const isDayDone     = todayFraction >= 1
   const streak        = currentUser.currentStreak ?? 0
 
@@ -476,6 +477,7 @@ export default function HomePage() {
           repsPerExercise={target.repsPerExercise}
           exerciseCount={target.exercises.length}
           completionFraction={todayFraction}
+          loggedReps={todayLoggedReps}
           streak={streak}
           completedCount={completedCount}
           totalPAX={totalPAX}
