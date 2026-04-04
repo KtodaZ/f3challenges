@@ -50,20 +50,24 @@ export default function LeaderboardPage() {
           ? Math.round((completedDays / pastDates.length) * 100)
           : 0
 
-        // Compute streak from sorted completed log dates
-        const completedDates = logs
-          .filter(l => l.completionFraction >= 0.25)
-          .map(l => l.date)
-          .sort()
-
+        // Compute streak — don't dock mid-day, start from yesterday if today isn't done
+        const completedSet = new Set(
+          logs.filter(l => l.completionFraction >= 0.25).map(l => l.date)
+        )
+        const todayDone = completedSet.has(today)
+        let streakCheck = todayDone
+          ? today
+          : (() => {
+              const d = new Date(today + 'T00:00:00')
+              d.setDate(d.getDate() - 1)
+              return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+            })()
         let streak = 0
-        for (let i = completedDates.length - 1; i >= 0; i--) {
-          const d = new Date(completedDates[i] + 'T00:00:00')
-          const expected = new Date(today + 'T00:00:00')
-          expected.setDate(expected.getDate() - (completedDates.length - 1 - i))
-          if (d.toLocaleDateString('en-CA') === expected.toLocaleDateString('en-CA')) {
-            streak++
-          } else break
+        while (completedSet.has(streakCheck)) {
+          streak++
+          const d = new Date(streakCheck + 'T00:00:00')
+          d.setDate(d.getDate() - 1)
+          streakCheck = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
         }
 
         return {
