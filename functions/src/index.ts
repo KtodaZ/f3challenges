@@ -85,7 +85,7 @@ async function sendPushNotification(
         notification: { title, body },
         data: { link },
         webpush: {
-          notification: { icon: "/icons/icon-192.png", badge: "/icons/notification-badge.png" },
+          notification: { badge: "/icons/notification-badge.png" },
           fcmOptions: { link },
         },
       });

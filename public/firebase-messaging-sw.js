@@ -44,7 +44,6 @@ self.addEventListener('message', event => {
         dbg('fn-entry', { event: 'onBackgroundMessage', title, body })
         self.registration.showNotification(title, {
           body,
-          icon:    '/icons/icon-192.png',
           badge:   '/icons/notification-badge.png',
           data:    { url: link },
           vibrate: [200, 100, 200],
@@ -77,7 +76,6 @@ self.addEventListener('push', event => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon:    '/icons/icon-192.png',
       badge:   '/icons/notification-badge.png',
       data:    { url: link },
       vibrate: [200, 100, 200],
