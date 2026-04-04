@@ -7,7 +7,7 @@ import { EditPostModal } from './EditPostModal'
 import { CommentThread } from './CommentThread'
 import { ReactionBar } from './ReactionBar'
 import { softDeletePost, togglePostReaction } from '@/lib/firestore'
-import { timeAgo, highlightMentions } from '@/lib/utils'
+import { timeAgo, highlightMentions, cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import type { FeedPost as FeedPostType } from '@/types'
 
@@ -231,8 +231,8 @@ export function FeedPost({ post }: FeedPostProps) {
             dangerouslySetInnerHTML={{ __html: highlightMentions(post.content) }}
           />
 
-          {/* Reactions */}
-          <div className="mt-2">
+          {/* Actions row */}
+          <div className="flex items-center gap-3 mt-2.5">
             <ReactionBar
               reactions={post.reactions}
               currentUserId={currentUser?.id}
@@ -242,18 +242,16 @@ export function FeedPost({ post }: FeedPostProps) {
                 togglePostReaction(post.id, emoji, currentUser.id, hasReacted)
               }}
             />
+            <button
+              onClick={() => setThreadOpen(v => !v)}
+              className={cn('transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
+              aria-label="Comments"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </button>
           </div>
-
-          {/* Comment toggle */}
-          <button
-            onClick={() => setThreadOpen(v => !v)}
-            className="flex items-center gap-1.5 mt-2 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            {threadOpen ? 'Hide comments' : 'Comment'}
-          </button>
 
           {confirmDelete && (
             <DeleteConfirm
@@ -315,8 +313,8 @@ export function FeedPost({ post }: FeedPostProps) {
             {/* Content */}
             <PostBody post={post} />
 
-            {/* Reactions */}
-            <div className="mt-2">
+            {/* Actions row */}
+            <div className="flex items-center gap-3 mt-2.5">
               <ReactionBar
                 reactions={post.reactions}
                 currentUserId={currentUser?.id}
@@ -326,18 +324,16 @@ export function FeedPost({ post }: FeedPostProps) {
                   togglePostReaction(post.id, emoji, currentUser.id, hasReacted)
                 }}
               />
+              <button
+                onClick={() => setThreadOpen(v => !v)}
+                className={cn('transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
+                aria-label="Comments"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </button>
             </div>
-
-            {/* Comment toggle */}
-            <button
-              onClick={() => setThreadOpen(v => !v)}
-              className="flex items-center gap-1.5 mt-2 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              {threadOpen ? 'Hide comments' : 'Comment'}
-            </button>
 
             {/* Delete confirm inline */}
             {confirmDelete && (

@@ -9,10 +9,9 @@ interface ReactionBarProps {
   reactions?: Record<string, string[]>
   currentUserId: string | undefined
   onToggle: (emoji: string) => void
-  size?: 'sm' | 'xs'
 }
 
-export function ReactionBar({ reactions = {}, currentUserId, onToggle, size = 'sm' }: ReactionBarProps) {
+export function ReactionBar({ reactions = {}, currentUserId, onToggle }: ReactionBarProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
 
@@ -27,21 +26,12 @@ export function ReactionBar({ reactions = {}, currentUserId, onToggle, size = 's
     return () => document.removeEventListener('mousedown', handler)
   }, [pickerOpen])
 
-  // Only show emojis with at least one reactor
   const activeEntries = REACTION_EMOJIS
     .map(emoji => ({ emoji, users: reactions[emoji] ?? [] }))
     .filter(({ users }) => users.length > 0)
 
-  const pillClass = size === 'xs'
-    ? 'px-1.5 py-0.5 text-[10px] gap-0.5'
-    : 'px-2 py-0.5 text-xs gap-1'
-
-  const addBtnClass = size === 'xs'
-    ? 'w-5 h-5 text-[10px]'
-    : 'w-6 h-6 text-xs'
-
   return (
-    <div className="flex items-center gap-1 flex-wrap">
+    <div className="flex items-center gap-2.5">
       {activeEntries.map(({ emoji, users }) => {
         const hasReacted = currentUserId ? users.includes(currentUserId) : false
         return (
@@ -49,39 +39,38 @@ export function ReactionBar({ reactions = {}, currentUserId, onToggle, size = 's
             key={emoji}
             onClick={() => onToggle(emoji)}
             className={cn(
-              'flex items-center rounded-full border transition-colors',
-              pillClass,
-              hasReacted
-                ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
-                : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700'
+              'flex items-center gap-0.5 transition-colors',
+              hasReacted ? 'text-orange-400' : 'text-zinc-400 hover:text-zinc-200'
             )}
           >
-            <span>{emoji}</span>
-            <span className="tabular-nums">{users.length}</span>
+            <span className="text-sm leading-none">{emoji}</span>
+            <span className="text-[11px] tabular-nums">{users.length}</span>
           </button>
         )
       })}
 
-      {/* Add reaction */}
+      {/* Add reaction — smiley icon */}
       <div ref={pickerRef} className="relative">
         <button
           onClick={() => setPickerOpen(v => !v)}
-          className={cn(
-            'flex items-center justify-center rounded-full bg-zinc-800 border border-zinc-700 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 transition-colors',
-            addBtnClass
-          )}
+          className="text-zinc-500 hover:text-zinc-300 transition-colors"
           aria-label="Add reaction"
         >
-          +
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <circle cx="12" cy="12" r="10" />
+            <path strokeLinecap="round" d="M8 13.5s1.5 2 4 2 4-2 4-2" />
+            <circle cx="9" cy="9.5" r="1" fill="currentColor" stroke="none" />
+            <circle cx="15" cy="9.5" r="1" fill="currentColor" stroke="none" />
+          </svg>
         </button>
 
         {pickerOpen && (
-          <div className="absolute bottom-full mb-1.5 left-0 flex items-center gap-1.5 bg-zinc-800 border border-zinc-700 rounded-full px-2.5 py-1.5 shadow-xl z-20">
+          <div className="absolute bottom-full mb-2 left-0 flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-full px-3 py-2 shadow-xl z-20">
             {REACTION_EMOJIS.map(emoji => (
               <button
                 key={emoji}
                 onClick={() => { onToggle(emoji); setPickerOpen(false) }}
-                className="text-base leading-none hover:scale-125 transition-transform active:scale-110"
+                className="text-lg leading-none hover:scale-125 transition-transform active:scale-110"
                 aria-label={emoji}
               >
                 {emoji}

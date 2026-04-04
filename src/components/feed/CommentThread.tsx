@@ -59,48 +59,45 @@ function CommentRow({
           <p className="text-xs text-zinc-200 leading-relaxed break-words">{comment.content}</p>
         </div>
 
-        {/* Reactions + actions */}
-        <div className="flex items-center gap-2 mt-1 pl-2 flex-wrap">
+        {/* Actions row */}
+        <div className="flex items-center gap-2.5 mt-1 pl-2">
           <ReactionBar
             reactions={comment.reactions}
             currentUserId={currentUserId}
             onToggle={onReactionToggle}
-            size="xs"
           />
-          <div className="flex items-center gap-2">
-            {onReply && (
+          {onReply && (
+            <button
+              onClick={onReply}
+              className="text-[11px] text-zinc-500 hover:text-zinc-300 font-medium transition-colors"
+            >
+              Reply
+            </button>
+          )}
+          {isAuthor && !confirmDelete && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors"
+            >
+              Delete
+            </button>
+          )}
+          {confirmDelete && (
+            <>
               <button
-                onClick={onReply}
-                className="text-[11px] text-zinc-500 hover:text-zinc-300 font-medium transition-colors"
+                onClick={onDelete}
+                className="text-[11px] text-red-400 font-medium transition-colors"
               >
-                Reply
+                Confirm
               </button>
-            )}
-            {isAuthor && !confirmDelete && (
               <button
-                onClick={() => setConfirmDelete(true)}
-                className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors"
+                onClick={() => setConfirmDelete(false)}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
               >
-                Delete
+                Cancel
               </button>
-            )}
-            {confirmDelete && (
-              <>
-                <button
-                  onClick={onDelete}
-                  className="text-[11px] text-red-400 font-medium transition-colors"
-                >
-                  Confirm
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
-                >
-                  Cancel
-                </button>
-              </>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>
