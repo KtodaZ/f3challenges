@@ -31,7 +31,7 @@ export function ReactionBar({ reactions = {}, currentUserId, onToggle }: Reactio
     .filter(({ users }) => users.length > 0)
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="inline-flex items-center gap-2.5">
       {activeEntries.map(({ emoji, users }) => {
         const hasReacted = currentUserId ? users.includes(currentUserId) : false
         return (
@@ -53,7 +53,7 @@ export function ReactionBar({ reactions = {}, currentUserId, onToggle }: Reactio
       <div ref={pickerRef} className="relative">
         <button
           onClick={() => setPickerOpen(v => !v)}
-          className="text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="inline-flex items-center text-zinc-500 hover:text-zinc-300 transition-colors"
           aria-label="Add reaction"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>

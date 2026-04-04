@@ -244,7 +244,7 @@ export function FeedPost({ post }: FeedPostProps) {
             />
             <button
               onClick={() => setThreadOpen(v => !v)}
-              className={cn('transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
+              className={cn('inline-flex items-center transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
               aria-label="Comments"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
