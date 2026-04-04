@@ -10,6 +10,7 @@ import { Toaster } from 'sonner'
 import { QueryProvider } from '@/components/providers/QueryProvider'
 import { FirestoreConnectionGuard } from '@/components/providers/FirestoreConnectionGuard'
 import { CrashCapture } from '@/components/providers/CrashCapture'
+import { UpdateChecker } from '@/components/providers/UpdateChecker'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <CrashCapture />
               <FCMInitializer />
               <FirestoreConnectionGuard />
+              <UpdateChecker />
               <TopBar />
               <main className="pb-nav min-h-dvh">
                 {children}
