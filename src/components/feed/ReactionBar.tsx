@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
-export const REACTION_EMOJIS = ['🔥', '💪', '👏', '😂', '❤️']
+export const REACTION_EMOJIS = ['🔥', '💪', '😍', '😆', '😮']
 
 interface ReactionBarProps {
   reactions?: Record<string, string[]>
