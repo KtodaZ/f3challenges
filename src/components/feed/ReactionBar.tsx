@@ -50,7 +50,7 @@ export function ReactionBar({ reactions = {}, currentUserId, onToggle }: Reactio
       })}
 
       {/* Add reaction — smiley icon */}
-      <div ref={pickerRef} className="relative">
+      <div ref={pickerRef} className="relative flex items-center h-4">
         <button
           onClick={() => setPickerOpen(v => !v)}
           className="inline-flex items-center text-zinc-500 hover:text-zinc-300 transition-colors"
