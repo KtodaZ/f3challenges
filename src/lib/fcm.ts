@@ -3,8 +3,9 @@
 import { getToken } from 'firebase/messaging'
 import { getMessagingInstance } from './firebase'
 
-const DBG = 'https://example.ngrok-free.app'
+const DBG = process.env.NEXT_PUBLIC_DEBUG_URL
 function dbg(label: string, data: unknown) {
+  if (!DBG) return
   fetch(DBG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, src: 'fcm.ts', data }) }).catch(() => {})
 }
 

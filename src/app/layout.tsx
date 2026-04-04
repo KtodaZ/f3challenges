@@ -9,6 +9,7 @@ import { FCMInitializer } from '@/components/notifications/FCMInitializer'
 import { Toaster } from 'sonner'
 import { QueryProvider } from '@/components/providers/QueryProvider'
 import { FirestoreConnectionGuard } from '@/components/providers/FirestoreConnectionGuard'
+import { CrashCapture } from '@/components/providers/CrashCapture'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <QueryProvider>
           <UserProvider>
             <TooltipProvider>
+              <CrashCapture />
               <FCMInitializer />
               <FirestoreConnectionGuard />
               <TopBar />
