@@ -57,10 +57,10 @@ export function ReactionBar({ reactions = {}, currentUserId, onToggle }: Reactio
           aria-label="Add reaction"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <circle cx="12" cy="12" r="10" />
-            <path strokeLinecap="round" d="M8 13.5s1.5 2 4 2 4-2 4-2" />
-            <circle cx="9" cy="9.5" r="1" fill="currentColor" stroke="none" />
-            <circle cx="15" cy="9.5" r="1" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="12" r="8" />
+            <path strokeLinecap="round" d="M9 13.5s1 1.5 3 1.5 3-1.5 3-1.5" />
+            <circle cx="9.5" cy="10" r="1" fill="currentColor" stroke="none" />
+            <circle cx="14.5" cy="10" r="1" fill="currentColor" stroke="none" />
           </svg>
         </button>
 
