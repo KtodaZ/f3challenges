@@ -42,6 +42,15 @@ function getTimeOfDay(hour: number): TimeOfDay {
   return 'night'
 }
 
+// Stable per user+day so message doesn't flicker on re-renders, but varies each day
+function makePick(seed: string) {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0
+  return function pick<T>(arr: T[]): T {
+    return arr[Math.abs(h++) % arr.length]
+  }
+}
+
 function getWelcomeMessage(
   ctx: WelcomeMessageProps & { hour: number }
 ): { greeting: string; body: string } {
@@ -60,6 +69,8 @@ function getWelcomeMessage(
     activeCount,
     incompleteNames,
   } = ctx
+
+  const pick = makePick(`${userName}-${dayNumber}`)
 
   const tod = getTimeOfDay(hour)
   const daysLeft = totalDays - dayNumber
@@ -84,162 +95,206 @@ function getWelcomeMessage(
 
   if (isDone) {
     if (completedCount >= totalPAX && totalPAX > 0) {
-      return {
-        greeting: `Clean sweep, ${userName}.`,
-        body: `Every PAX locked in on day ${dayNumber}. Full crew. That's what it's about.`,
-      }
+      return pick([
+        { greeting: `Clean sweep, ${userName}.`, body: `Every PAX locked in on day ${dayNumber}. Full crew. That's what it's about.` },
+        { greeting: `Full house, ${userName}.`, body: `Everyone checked in on day ${dayNumber}. This is what the crew looks like when it locks in.` },
+        { greeting: `Nobody left behind.`, body: `Every single PAX done on day ${dayNumber}. The whole group showed up today.` },
+      ])
     }
     if (paxNotDone === 1 && incompleteNames.length > 0) {
-      return {
-        greeting: `You're done — now go get ${incompleteNames[0]}.`,
-        body: `One PAX still needs to check in. Drop a shoutout and pull 'em across the line.`,
-      }
+      return pick([
+        { greeting: `You're done — now go get ${incompleteNames[0]}.`, body: `One PAX still needs to check in. Drop a shoutout and pull 'em across the line.` },
+        { greeting: `Almost a clean sweep.`, body: `Just ${incompleteNames[0]} left. Give 'em a nudge and make it a full house.` },
+        { greeting: `One more, ${userName}.`, body: `${incompleteNames[0]} hasn't logged yet — send some heat their way.` },
+      ])
     }
     if (paxNotDone > 0 && paxNotDone <= 3 && incompleteNames.length > 0) {
-      return {
-        greeting: `Locked in. Help finish the crew.`,
-        body: `${nameList(incompleteNames)} still need${paxNotDone === 1 ? 's' : ''} to check in — give 'em a push.`,
-      }
+      return pick([
+        { greeting: `Locked in. Help finish the crew.`, body: `${nameList(incompleteNames)} still need${paxNotDone === 1 ? 's' : ''} to check in — give 'em a push.` },
+        { greeting: `You're done, now pull the rest across.`, body: `${nameList(incompleteNames)} still out there. A shoutout goes a long way.` },
+        { greeting: `Good work. Now recruit.`, body: `${paxNotDone} PAX still need to log — ${nameList(incompleteNames.slice(0, 2))} included.` },
+      ])
     }
     if (paxNotDone > 3 && incompleteNames.length > 0) {
-      return {
-        greeting: `You're done, ${userName}. Push the crew.`,
-        body: `${paxNotDone} PAX haven't checked in yet — ${nameList(incompleteNames.slice(0, 2))} still out there.`,
-      }
+      return pick([
+        { greeting: `You're done, ${userName}. Push the crew.`, body: `${paxNotDone} PAX haven't checked in yet — ${nameList(incompleteNames.slice(0, 2))} still out there.` },
+        { greeting: `Checked off. Now make some noise.`, body: `${paxNotDone} PAX still need to log. Drop a shoutout and get 'em moving.` },
+        { greeting: `Your work is done. Theirs isn't.`, body: `${paxNotDone} PAX still on the clock — ${nameList(incompleteNames.slice(0, 2))} among them.` },
+      ])
     }
     if (nearEnd) {
-      return {
-        greeting: `Day ${dayNumber} done, ${userName}.`,
-        body: `${daysLeft} day${daysLeft === 1 ? '' : 's'} left. Don't let up now.`,
-      }
+      return pick([
+        { greeting: `Day ${dayNumber} done, ${userName}.`, body: `${daysLeft} day${daysLeft === 1 ? '' : 's'} left. Don't let up now.` },
+        { greeting: `${daysLeft} days left. You're not stopping now.`, body: `Day ${dayNumber} locked. Finish what you started.` },
+        { greeting: `Almost there, ${userName}.`, body: `Day ${dayNumber} checked off. ${daysLeft} more to go — this is the finish line push.` },
+      ])
     }
     if (streak >= 3) {
-      return {
-        greeting: `${streak} days straight, ${userName}.`,
-        body: `Day ${dayNumber} checked off. ${paxNotDone > 0 ? `${paxNotDone} PAX still going — push 'em.` : "Everyone's rolling."}`,
-      }
+      return pick([
+        { greeting: `${streak} days straight, ${userName}.`, body: `Day ${dayNumber} checked off. ${paxNotDone > 0 ? `${paxNotDone} PAX still going — push 'em.` : "Everyone's rolling."}` },
+        { greeting: `Streak intact. Day ${dayNumber} done.`, body: `${streak} in a row. Keep showing up like this.` },
+        { greeting: `${streak}-day run and counting.`, body: `Day ${dayNumber} in the books. Don't let tomorrow break it.` },
+      ])
     }
-    return {
-      greeting: `Locked in, ${userName}.`,
-      body: `${completedCount}/${totalPAX} PAX done today.${paxNotDone > 0 ? ` Encourage ${nameList(incompleteNames.slice(0, 2))} to close it out.` : ''}`,
-    }
+    return pick([
+      { greeting: `Locked in, ${userName}.`, body: `${completedCount}/${totalPAX} PAX done today.${paxNotDone > 0 ? ` Encourage ${nameList(incompleteNames.slice(0, 2))} to close it out.` : ''}` },
+      { greeting: `Day ${dayNumber} done.`, body: `${completedCount} PAX checked in.${paxNotDone > 0 ? ` ${nameList(incompleteNames.slice(0, 2))} still needs to finish.` : ' Nice work today.'}` },
+      { greeting: `That's it for day ${dayNumber}, ${userName}.`, body: `${completedCount}/${totalPAX} PAX accounted for.${paxNotDone > 0 ? ` Push ${nameList(incompleteNames.slice(0, 2))} to close it out.` : ''}` },
+    ])
   }
 
   // ── In progress ─────────────────────────────────────────────────────────────
 
   if (inProgress) {
     if (tod === 'night') {
-      return {
-        greeting: `Finish it, ${userName}.`,
-        body: `${repsRemaining} reps left — don't go to bed without checking this one off.`,
-      }
+      return pick([
+        { greeting: `Finish it, ${userName}.`, body: `${repsRemaining} reps left — don't go to bed without checking this one off.` },
+        { greeting: `Don't sleep on this, ${userName}.`, body: `${repsRemaining} reps standing between you and a clean day ${dayNumber}.` },
+        { greeting: `Almost there — close it out.`, body: `${repsRemaining} reps left. Finish before you hit the rack.` },
+      ])
     }
     if (tod === 'evening') {
-      return {
-        greeting: `Almost there, ${userName}.`,
-        body: `${repsRemaining} reps to close out day ${dayNumber}. ${majorityDone ? `${completedCount} PAX already done.` : 'Finish strong.'}`,
-      }
+      return pick([
+        { greeting: `Almost there, ${userName}.`, body: `${repsRemaining} reps to close out day ${dayNumber}. ${majorityDone ? `${completedCount} PAX already done.` : 'Finish strong.'}` },
+        { greeting: `Finish what you started.`, body: `${repsRemaining} reps left on day ${dayNumber}. Evening's burning — don't leave it unfinished.` },
+        { greeting: `So close, ${userName}.`, body: `${repsRemaining} reps and day ${dayNumber} is done. ${majorityDone ? `${completedCount} PAX already wrapped up.` : 'Get it done tonight.'}` },
+      ])
     }
     if (streak >= 3) {
-      return {
-        greeting: `${streak}-day streak on the line.`,
-        body: `${repsRemaining} reps left, ${userName}. Keep it rolling.`,
-      }
+      return pick([
+        { greeting: `${streak}-day streak on the line.`, body: `${repsRemaining} reps left, ${userName}. Keep it rolling.` },
+        { greeting: `Don't stop now, ${userName}.`, body: `${repsRemaining} reps to protect a ${streak}-day streak.` },
+        { greeting: `${streak} days in a row. Finish it.`, body: `${repsRemaining} reps left. You're not letting this one slip.` },
+      ])
     }
     if (majorityDone) {
-      return {
-        greeting: `Don't stop now, ${userName}.`,
-        body: `${repsRemaining} reps to go. ${completedCount} PAX already wrapped up.`,
-      }
+      return pick([
+        { greeting: `Don't stop now, ${userName}.`, body: `${repsRemaining} reps to go. ${completedCount} PAX already wrapped up.` },
+        { greeting: `Crew's moving — keep up.`, body: `${completedCount} PAX are done. ${repsRemaining} reps left for you.` },
+        { greeting: `You started, so finish.`, body: `${repsRemaining} reps left. ${completedCount} PAX already logged it today.` },
+      ])
     }
-    return {
-      greeting: `Good start, ${userName}.`,
-      body: `${repsRemaining} reps left on day ${dayNumber}. Knock 'em out.`,
-    }
+    return pick([
+      { greeting: `Good start, ${userName}.`, body: `${repsRemaining} reps left on day ${dayNumber}. Knock 'em out.` },
+      { greeting: `Keep the momentum, ${userName}.`, body: `${repsRemaining} reps to go. You're already moving — don't stop.` },
+      { greeting: `Halfway counts for nothing, ${userName}.`, body: `${repsRemaining} reps left. Finish the day.` },
+    ])
   }
 
   // ── Not started ─────────────────────────────────────────────────────────────
 
+  if (streak >= 2) {
+    const paxLine = completedCount > 0 ? ` ${completedCount} PAX already in.` : ''
+    const repsLine = `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each).`
+    if (tod === 'evening' || tod === 'night') {
+      return pick([
+        { greeting: `Don't lose it now, ${userName}.`, body: `${streak}-day streak on the line. ${repsLine}${paxLine}` },
+        { greeting: `Streak's still alive — keep it that way.`, body: `${streak} days running. ${repsLine}${paxLine}` },
+        { greeting: `${streak} days. Don't let tonight end that.`, body: `${repsLine}${paxLine} Protect the streak.` },
+      ])
+    }
+    return pick([
+      { greeting: `Rise up, ${userName}.`, body: `${streak}-day streak on the line. ${repsLine}${paxLine}` },
+      { greeting: `${streak} days and counting, ${userName}.`, body: `Keep it alive. ${repsLine}${paxLine}` },
+      { greeting: `Protect the streak, ${userName}.`, body: `${streak} days running. ${repsLine}${paxLine}` },
+      { greeting: `Don't break it now.`, body: `${streak}-day streak. ${repsLine}${paxLine}` },
+    ])
+  }
+
   if (tod === 'morning') {
     if (completedCount > 0) {
-      return {
-        greeting: `Rise up, ${userName}.`,
-        body: `${completedCount} PAX already checked in. Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each).`,
-      }
+      return pick([
+        { greeting: `Rise up, ${userName}.`, body: `${completedCount} PAX already checked in. Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each).` },
+        { greeting: `${completedCount} PAX are ahead of you.`, body: `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each). Get after it.` },
+        { greeting: `The crew is already moving.`, body: `${completedCount} PAX checked in. Day ${dayNumber}: ${totalReps} reps. Don't let 'em get too far ahead.` },
+      ])
     }
     if (earlyMonth) {
-      return {
-        greeting: `Good morning, ${userName}.`,
-        body: `Day ${dayNumber} of ${totalDays}. ${totalReps} reps, ${repsPerExercise} each. Let's start strong.`,
-      }
+      return pick([
+        { greeting: `Good morning, ${userName}.`, body: `Day ${dayNumber} of ${totalDays}. ${totalReps} reps, ${repsPerExercise} each. Let's start strong.` },
+        { greeting: `Day ${dayNumber}. Let's build the habit.`, body: `${totalReps} reps (${repsPerExercise} each). Early days set the tone for the whole month.` },
+        { greeting: `Fresh start, ${userName}.`, body: `Day ${dayNumber} of ${totalDays}. ${totalReps} reps on the board. Make it count.` },
+      ])
     }
     if (nearEnd) {
-      return {
-        greeting: `Morning, ${userName}.`,
-        body: `Day ${dayNumber} — ${daysLeft} left in the challenge. ${totalReps} reps. Don't let up.`,
-      }
+      return pick([
+        { greeting: `Morning, ${userName}.`, body: `Day ${dayNumber} — ${daysLeft} left in the challenge. ${totalReps} reps. Don't let up.` },
+        { greeting: `${daysLeft} days left. Go.`, body: `Day ${dayNumber}: ${totalReps} reps. You've come too far to coast now.` },
+        { greeting: `Finish line's close, ${userName}.`, body: `${daysLeft} days remain. Day ${dayNumber}: ${totalReps} reps — lock it in.` },
+      ])
     }
-    return {
-      greeting: `Morning, ${userName}.`,
-      body: `Day ${dayNumber}: ${totalReps} reps on deck (${repsPerExercise} each). Start a set now.`,
-    }
+    return pick([
+      { greeting: `Morning, ${userName}.`, body: `Day ${dayNumber}: ${totalReps} reps on deck (${repsPerExercise} each). Start a set now.` },
+      { greeting: `Rise and grind, ${userName}.`, body: `Day ${dayNumber} is waiting. ${totalReps} reps (${repsPerExercise} each).` },
+      { greeting: `New day, same mission.`, body: `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each). Get the first set in.` },
+      { greeting: `Up and at 'em, ${userName}.`, body: `${totalReps} reps on the board for day ${dayNumber}. ${repsPerExercise} each. Let's go.` },
+    ])
   }
 
   if (tod === 'afternoon') {
     if (majorityDone) {
-      return {
-        greeting: `Clock's ticking, ${userName}.`,
-        body: `${completedCount}/${totalPAX} PAX are done. Day ${dayNumber}: ${totalReps} reps waiting on you.`,
-      }
+      return pick([
+        { greeting: `Clock's ticking, ${userName}.`, body: `${completedCount}/${totalPAX} PAX are done. Day ${dayNumber}: ${totalReps} reps waiting on you.` },
+        { greeting: `More than half the crew is done.`, body: `${completedCount}/${totalPAX} PAX checked in. Day ${dayNumber}: ${totalReps} reps. Don't fall behind.` },
+        { greeting: `The crew isn't waiting, ${userName}.`, body: `${completedCount} PAX already logged day ${dayNumber}. ${totalReps} reps — get on it.` },
+      ])
     }
     if (activeCount > 0) {
-      return {
-        greeting: `Afternoon, ${userName}.`,
-        body: `${activeCount} PAX are in the middle of it right now. Day ${dayNumber}: ${totalReps} reps.`,
-      }
+      return pick([
+        { greeting: `Afternoon, ${userName}.`, body: `${activeCount} PAX are in the middle of it right now. Day ${dayNumber}: ${totalReps} reps.` },
+        { greeting: `The crew is grinding.`, body: `${activeCount} PAX are mid-workout. Day ${dayNumber}: ${totalReps} reps — jump in.` },
+        { greeting: `${activeCount} PAX are already going, ${userName}.`, body: `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each). Join 'em.` },
+      ])
     }
-    return {
-      greeting: `Afternoon, ${userName}.`,
-      body: `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each). ${completedCount > 0 ? `${completedCount} PAX down.` : 'Get a set in now.'}`,
-    }
+    return pick([
+      { greeting: `Afternoon, ${userName}.`, body: `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each). ${completedCount > 0 ? `${completedCount} PAX down.` : 'Get a set in now.'}` },
+      { greeting: `Afternoon check-in, ${userName}.`, body: `Day ${dayNumber} isn't going to log itself. ${totalReps} reps — get started.` },
+      { greeting: `Still time today, ${userName}.`, body: `${totalReps} reps on the board for day ${dayNumber}. Knock out a set this afternoon.` },
+    ])
   }
 
   if (tod === 'evening') {
     if (majorityDone) {
-      return {
-        greeting: `Don't get left behind, ${userName}.`,
-        body: `${completedCount}/${totalPAX} PAX are done. ${totalReps} reps before tonight's over.`,
-      }
+      return pick([
+        { greeting: `Don't get left behind, ${userName}.`, body: `${completedCount}/${totalPAX} PAX are done. ${totalReps} reps before tonight's over.` },
+        { greeting: `The crew already handled it.`, body: `${completedCount}/${totalPAX} PAX logged day ${dayNumber}. ${totalReps} reps — your turn.` },
+        { greeting: `Everyone else showed up, ${userName}.`, body: `${completedCount} PAX are done. You've still got ${totalReps} reps before tonight ends.` },
+      ])
     }
     if (nearEnd) {
-      return {
-        greeting: `Evening, ${userName}.`,
-        body: `${daysLeft} days left in the challenge. Day ${dayNumber}: ${totalReps} reps — don't skip tonight.`,
-      }
+      return pick([
+        { greeting: `Evening, ${userName}.`, body: `${daysLeft} days left in the challenge. Day ${dayNumber}: ${totalReps} reps — don't skip tonight.` },
+        { greeting: `So close to the finish.`, body: `${daysLeft} days remain. Day ${dayNumber}: ${totalReps} reps. This isn't the time to ease up.` },
+        { greeting: `${daysLeft} days left — protect that.`, body: `Day ${dayNumber}: ${totalReps} reps. Don't let this evening slip.` },
+      ])
     }
-    return {
-      greeting: `Evening, ${userName}.`,
-      body: `Day ${dayNumber} isn't done yet. ${totalReps} reps before you call it a night.`,
-    }
+    return pick([
+      { greeting: `Evening, ${userName}.`, body: `Day ${dayNumber} isn't done yet. ${totalReps} reps before you call it a night.` },
+      { greeting: `Don't let today go unmarked.`, body: `${totalReps} reps left on day ${dayNumber}. You've still got time tonight.` },
+      { greeting: `Night's not over yet, ${userName}.`, body: `Day ${dayNumber}: ${totalReps} reps. Get 'em in before you wind down.` },
+    ])
   }
 
   // night
   if (majorityDone) {
-    return {
-      greeting: `Last call, ${userName}.`,
-      body: `${completedCount}/${totalPAX} PAX are done. ${totalReps} reps on the clock for day ${dayNumber}.`,
-    }
+    return pick([
+      { greeting: `Last call, ${userName}.`, body: `${completedCount}/${totalPAX} PAX are done. ${totalReps} reps on the clock for day ${dayNumber}.` },
+      { greeting: `Clock's almost out.`, body: `${completedCount} PAX logged it. ${totalReps} reps remaining for day ${dayNumber} — last chance.` },
+      { greeting: `Don't let the day end like this.`, body: `${completedCount}/${totalPAX} PAX finished. ${totalReps} reps — you've still got time.` },
+    ])
   }
   if (nearEnd) {
-    return {
-      greeting: `Last call, ${userName}.`,
-      body: `Day ${dayNumber}, ${daysLeft} left. ${totalReps} reps — don't let tonight slip.`,
-    }
+    return pick([
+      { greeting: `Last call, ${userName}.`, body: `Day ${dayNumber}, ${daysLeft} left. ${totalReps} reps — don't let tonight slip.` },
+      { greeting: `${daysLeft} days left. Don't waste one.`, body: `Day ${dayNumber}: ${totalReps} reps. Tonight's the last shot.` },
+      { greeting: `Almost at the finish line.`, body: `${daysLeft} days remain. Day ${dayNumber}: ${totalReps} reps — get it done tonight.` },
+    ])
   }
-  return {
-    greeting: `Still up, ${userName}?`,
-    body: `${totalReps} reps on the board for day ${dayNumber}. Get it done.`,
-  }
+  return pick([
+    { greeting: `Still up, ${userName}?`, body: `${totalReps} reps on the board for day ${dayNumber}. Get it done.` },
+    { greeting: `Late but not too late.`, body: `Day ${dayNumber}: ${totalReps} reps. Don't let the clock run out on this one.` },
+    { greeting: `Last chance tonight, ${userName}.`, body: `${totalReps} reps left for day ${dayNumber}. You know what to do.` },
+  ])
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

@@ -248,7 +248,15 @@ export default function HomePage() {
       if (completedDates.length > 0) {
         let streak = 0
         const todayDate = getTodayPT()
-        let check = todayDate
+        // Don't dock streak mid-day — start from yesterday if today isn't done yet
+        const todayDone = completedDates.includes(todayDate)
+        let check = todayDone
+          ? todayDate
+          : (() => {
+              const d = new Date(todayDate + 'T00:00:00')
+              d.setDate(d.getDate() - 1)
+              return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+            })()
 
         while (completedDates.includes(check)) {
           streak++
