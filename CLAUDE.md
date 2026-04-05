@@ -66,6 +66,22 @@ Adding a new challenge = append one object to `CHALLENGES` in that file. Nothing
 - `feed` collection: blocks hard deletes (soft delete via `deleted: true` field)
 - `notificationLog`: blocks client writes (only Cloud Functions can write)
 
+## Debug Logging
+Uses a local ngrok tunnel for observing logs from deployed Vercel builds and devices.
+
+- Local server: `.claude-debug/server.js` (runs on port 3333, logs to `.claude-debug/debug.log`)
+- Env var: `NEXT_PUBLIC_DEBUG_URL` — set to the ngrok public URL pointing at port 3333
+- Pattern used throughout the codebase:
+  ```typescript
+  const DBG = process.env.NEXT_PUBLIC_DEBUG_URL
+  function dbg(label: string, data: unknown) {
+    if (!DBG) return
+    fetch(DBG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, src: 'MyComponent', data }) }).catch(() => {})
+  }
+  ```
+- Works in both client components and Next.js API routes (server-side) — `NEXT_PUBLIC_` vars are available in both
+- To start: `node .claude-debug/server.js` and expose via ngrok, then set `NEXT_PUBLIC_DEBUG_URL` in Vercel dashboard
+
 ## Key Files
 | Path | Purpose |
 |------|---------|
@@ -83,6 +99,8 @@ Adding a new challenge = append one object to `CHALLENGES` in that file. Nothing
 | `src/app/onboarding/page.tsx` | 7-step wizard |
 | `src/app/settings/page.tsx` | Settings root |
 | `src/app/settings/notifications/page.tsx` | Notification preferences |
+| `src/app/settings/notifications/troubleshoot/page.tsx` | Notification setup diagnostics + test send |
+| `src/app/api/notifications/test/route.ts` | POST — sends a test push to the user's FCM tokens |
 | `functions/src/index.ts` | All Cloud Functions |
 | `public/firebase-messaging-sw.js` | FCM service worker |
 | `firestore.rules` | Firestore security rules |
