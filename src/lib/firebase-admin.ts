@@ -22,6 +22,18 @@ export function getAdminMessaging(): Messaging {
   return getMessaging(getAdminApp())
 }
 
-// Named exports for convenience (lazy via getters)
-export const adminDb        = new Proxy({} as Firestore,        { get: (_, p) => getAdminDb()[p as keyof Firestore] })
-export const adminMessaging = new Proxy({} as Messaging, { get: (_, p) => getAdminMessaging()[p as keyof Messaging] })
+// Named exports for convenience (lazy via getters).
+// Methods must be bound to the real instance so that internal `this` mutations
+// (e.g. FCM caching urlPath on `this`) write and read from the same object.
+function proxyInstance<T extends object>(getInstance: () => T): T {
+  return new Proxy({} as T, {
+    get: (_, p) => {
+      const instance = getInstance()
+      const value = instance[p as keyof T]
+      return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(instance) : value
+    },
+  })
+}
+
+export const adminDb        = proxyInstance(getAdminDb)
+export const adminMessaging = proxyInstance(getAdminMessaging)
