@@ -119,10 +119,28 @@ export default function NotificationTroubleshootPage() {
   useEffect(() => {
     const p = detectPlatform()
     const pwa = window.matchMedia('(display-mode: standalone)').matches
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlatform(p)
     setIsPWA(pwa)
-    dbg('mount', { platform: p, isPWA: pwa, ua: navigator.userAgent })
+
+    // Log which FCM token belongs to this device so we can match against Firestore tokens
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      import('@/lib/firebase').then(({ getMessagingInstance }) =>
+        getMessagingInstance().then(messaging => {
+          if (!messaging) return
+          import('firebase/messaging').then(({ getToken }) =>
+            getToken(messaging, {
+              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+            }).then(token => {
+              dbg('mount', { platform: p, isPWA: pwa, ua: navigator.userAgent, thisDeviceToken: token?.slice(0, 20) })
+            }).catch(err => {
+              dbg('mount', { platform: p, isPWA: pwa, ua: navigator.userAgent, thisDeviceTokenError: String(err) })
+            })
+          )
+        })
+      )
+    } else {
+      dbg('mount', { platform: p, isPWA: pwa, ua: navigator.userAgent })
+    }
   }, [])
 
   if (loading || !currentUser) {
