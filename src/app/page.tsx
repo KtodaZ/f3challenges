@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useUser } from '@/contexts/UserContext'
 import {
   subscribeToDailyLog,
@@ -161,6 +162,9 @@ export default function HomePage() {
 
   // Track which users have been quick-encouraged this session
   const [encouragedIds, setEncouragedIds] = useState<Set<string>>(new Set())
+
+  // Notification setup banner — dismissed for this session
+  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false)
 
   // ── Redirect if no user ──────────────────────────────────────────────────
 
@@ -445,6 +449,16 @@ export default function HomePage() {
 
   const majorityDone = totalPAX > 0 && completedCount / totalPAX > 0.5
 
+  // Show notification setup banner when user wants notifications but has no registered device
+  const hasNotifPrefsEnabled = !!(
+    currentUser.notificationPreferences?.morning?.enabled ||
+    currentUser.notificationPreferences?.afternoon?.enabled ||
+    currentUser.notificationPreferences?.evening?.enabled ||
+    currentUser.notificationPreferences?.weeklyRecap?.enabled ||
+    currentUser.notificationPreferences?.mentions
+  )
+  const showNotifBanner = !notifBannerDismissed && hasNotifPrefsEnabled && !currentUser.fcmTokens?.length
+
   function openCalloutFor(user: User | null, defaultContent?: string) {
     setCalloutTarget(user)
     setCalloutDefaultContent(defaultContent)
@@ -479,6 +493,32 @@ export default function HomePage() {
               <span className="font-semibold">Modifying:</span>{' '}
               {participation.modificationNote}
             </p>
+          </div>
+        )}
+
+        {/* ── Notification setup banner ── */}
+        {showNotifBanner && (
+          <div className="bg-amber-900/20 border border-amber-700/50 rounded-2xl p-4 flex items-start gap-3">
+            <span className="text-amber-400 mt-0.5 text-lg shrink-0">🔔</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-200 text-sm font-medium">Notifications aren&apos;t set up</p>
+              <p className="text-amber-400/80 text-xs mt-0.5">Your device isn&apos;t registered to receive push notifications.</p>
+              <Link
+                href="/settings/notifications/troubleshoot"
+                className="mt-2 inline-block text-sm text-orange-400 underline hover:text-orange-300 font-medium"
+              >
+                Fix this →
+              </Link>
+            </div>
+            <button
+              onClick={() => setNotifBannerDismissed(true)}
+              className="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 mt-0.5"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         )}
 
