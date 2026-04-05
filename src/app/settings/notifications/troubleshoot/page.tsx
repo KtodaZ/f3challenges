@@ -6,6 +6,12 @@ import Link from 'next/link'
 import { useUser } from '@/contexts/UserContext'
 import { useFCM } from '@/hooks/useFCM'
 
+const DBG = process.env.NEXT_PUBLIC_DEBUG_URL
+function dbg(label: string, data: unknown) {
+  if (!DBG) return
+  fetch(DBG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, src: 'troubleshoot', data }) }).catch(() => {})
+}
+
 type Platform = 'ios-standalone' | 'ios-browser' | 'android' | 'desktop'
 type TestState = 'idle' | 'sending' | 'sent' | 'no_tokens' | 'error'
 
@@ -111,9 +117,12 @@ export default function NotificationTroubleshootPage() {
   }, [currentUser, loading, router])
 
   useEffect(() => {
+    const p = detectPlatform()
+    const pwa = window.matchMedia('(display-mode: standalone)').matches
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPlatform(detectPlatform())
-    setIsPWA(window.matchMedia('(display-mode: standalone)').matches)
+    setPlatform(p)
+    setIsPWA(pwa)
+    dbg('mount', { platform: p, isPWA: pwa, ua: navigator.userAgent })
   }, [])
 
   if (loading || !currentUser) {
@@ -139,7 +148,22 @@ export default function NotificationTroubleshootPage() {
   // Has permission but no tokens — offer retry
   const canRetry = !hasTokens && permissionStatus !== 'denied' && notificationsSupported && !needsPWAInstall
 
+  dbg('state', {
+    userId: currentUser.id,
+    permissionStatus,
+    hasTokens,
+    tokenCount: currentUser.fcmTokens?.length ?? 0,
+    tokens: currentUser.fcmTokens?.map(t => t.slice(0, 20)),
+    platform,
+    isPWA,
+    canTest,
+    canRetry,
+    needsPWAInstall,
+    permissionDenied,
+  })
+
   async function handleTest() {
+    dbg('handleTest', { userId: currentUser!.id, tokenCount: currentUser!.fcmTokens?.length ?? 0 })
     setTestState('sending')
     try {
       const res = await fetch('/api/notifications/test', {
@@ -148,6 +172,7 @@ export default function NotificationTroubleshootPage() {
         body: JSON.stringify({ userId: currentUser!.id }),
       })
       const data = await res.json()
+      dbg('handleTest-response', { status: res.status, ok: res.ok, data })
       if (!res.ok && data.error === 'no_tokens') {
         setTestState('no_tokens')
       } else if (!res.ok || !data.sent) {
@@ -155,15 +180,19 @@ export default function NotificationTroubleshootPage() {
       } else {
         setTestState('sent')
       }
-    } catch {
+    } catch (err) {
+      dbg('handleTest-error', { error: String(err) })
       setTestState('error')
     }
   }
 
   async function handleRetry() {
+    dbg('handleRetry-start', { userId: currentUser!.id, permissionStatus })
     setRetrying(true)
-    await requestPermission(currentUser!.id)
+    const result = await requestPermission(currentUser!.id)
+    dbg('handleRetry-permission', { result, newPermission: typeof Notification !== 'undefined' ? Notification.permission : 'unknown' })
     await refreshCurrentUser()
+    dbg('handleRetry-done', { tokenCount: currentUser!.fcmTokens?.length ?? 0 })
     setRetrying(false)
   }
 
