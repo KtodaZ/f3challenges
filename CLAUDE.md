@@ -67,20 +67,30 @@ Adding a new challenge = append one object to `CHALLENGES` in that file. Nothing
 - `notificationLog`: blocks client writes (only Cloud Functions can write)
 
 ## Debug Logging
-Uses a local ngrok tunnel for observing logs from deployed Vercel builds and devices.
+Uses a local ngrok tunnel to capture logs from deployed Vercel builds and real devices.
 
-- Local server: `.claude-debug/server.js` (runs on port 3333, logs to `.claude-debug/debug.log`)
-- Env var: `NEXT_PUBLIC_DEBUG_URL` — set to the ngrok public URL pointing at port 3333
-- Pattern used throughout the codebase:
-  ```typescript
-  const DBG = process.env.NEXT_PUBLIC_DEBUG_URL
-  function dbg(label: string, data: unknown) {
-    if (!DBG) return
-    fetch(DBG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, src: 'MyComponent', data }) }).catch(() => {})
-  }
-  ```
-- Works in both client components and Next.js API routes (server-side) — `NEXT_PUBLIC_` vars are available in both
-- To start: `node .claude-debug/server.js` and expose via ngrok, then set `NEXT_PUBLIC_DEBUG_URL` in Vercel dashboard
+### Setup (already configured — just needs services running)
+- Local log server: `.claude-debug/server.js` on port 3333, writes to `.claude-debug/debug.log`
+- ngrok exposes port 3333 publicly — URL is `https://example.ngrok-free.app` (may change if ngrok restarts)
+- `NEXT_PUBLIC_DEBUG_URL` is set in both `.env.local` (local dev) and the Vercel dashboard (production)
+- After changing the ngrok URL: update `.env.local` AND Vercel → Settings → Environment Variables, then redeploy
+
+### Starting the services
+```bash
+node .claude-debug/server.js        # start log receiver on :3333
+# ngrok is already running — check with:
+curl -s http://localhost:4040/api/tunnels | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['tunnels'][0]['public_url'])"
+```
+
+### Pattern used throughout the codebase
+```typescript
+const DBG = process.env.NEXT_PUBLIC_DEBUG_URL
+function dbg(label: string, data: unknown) {
+  if (!DBG) return
+  fetch(DBG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, src: 'MyComponent', data }) }).catch(() => {})
+}
+```
+Works in both client components and Next.js API routes — `NEXT_PUBLIC_` vars are available server-side too.
 
 ## Key Files
 | Path | Purpose |
