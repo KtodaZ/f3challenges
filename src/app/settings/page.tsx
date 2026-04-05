@@ -53,6 +53,27 @@ export default function SettingsPage() {
           </svg>
         </Link>
 
+        {/* Notification troubleshoot */}
+        <Link
+          href="/settings/notifications/troubleshoot"
+          className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4 hover:border-zinc-700 transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-zinc-800 rounded-xl flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l5.654-4.654m5.546-4.087c.319-.379.548-.82.657-1.302a4.5 4.5 0 00-6.364-4.73" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">Notification Troubleshoot</p>
+              <p className="text-xs text-zinc-500">Test and fix push notification delivery</p>
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
+
         {/* Switch user */}
         <button
           onClick={handleSwitchUser}
