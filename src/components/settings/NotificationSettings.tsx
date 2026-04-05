@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Switch } from '@/components/ui/Switch'
 import { useUser } from '@/contexts/UserContext'
@@ -165,6 +166,16 @@ export function NotificationSettings() {
       >
         {saving ? 'Saving…' : 'Save Preferences'}
       </button>
+
+      <Link
+        href="/settings/notifications/troubleshoot"
+        className="flex items-center justify-between w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
+      >
+        <span>Not receiving notifications?</span>
+        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
     </div>
   )
 }
