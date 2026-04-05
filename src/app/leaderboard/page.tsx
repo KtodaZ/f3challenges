@@ -164,15 +164,24 @@ export default function LeaderboardPage() {
           ) : entries.length === 0 ? (
             <div className="py-12 text-center text-zinc-500 text-sm">No participants yet</div>
           ) : (
-            entries.map((entry, idx) => (
-              <LeaderboardRow
-                key={entry.user.id}
-                entry={entry}
-                rank={idx + 1}
-                isCurrentUser={entry.user.id === currentUser?.id}
-                onClick={() => router.push(`/profile/${entry.user.id}`)}
-              />
-            ))
+            entries.map((entry, idx) => {
+              // Dense ranking: find the first entry with the same sort key
+              const denseRank = entries.findIndex(
+                e => e.participation?.status !== 'opted-out' &&
+                  e.completionPct === entry.completionPct &&
+                  e.currentStreak === entry.currentStreak
+              )
+              const rank = entry.participation?.status === 'opted-out' ? idx + 1 : denseRank + 1
+              return (
+                <LeaderboardRow
+                  key={entry.user.id}
+                  entry={entry}
+                  rank={rank}
+                  isCurrentUser={entry.user.id === currentUser?.id}
+                  onClick={() => router.push(`/profile/${entry.user.id}`)}
+                />
+              )
+            })
           )}
         </div>
 
