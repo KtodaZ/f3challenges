@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@/contexts/UserContext'
-import { getCurrentChallenge, getTodayPT, getChallengeDates } from '@/lib/challenges'
+import { getCurrentChallenge, getTodayPT, getChallengeDates, getDayNumber, getTotalDays } from '@/lib/challenges'
 import { getUserChallengeLogs, getChallengeParticipants, getDailyLog } from '@/lib/firestore'
 import { monthProgress } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'

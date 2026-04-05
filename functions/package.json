@@ -6,7 +6,8 @@
   },
   "main": "lib/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=lib/index.js --external:firebase-admin --external:firebase-functions --external:@google-cloud/functions-framework --alias:@f3-bedrock/shared=../shared/src/index.ts",
+    "typecheck": "tsc --noEmit",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "lint": "eslint --ext .js,.ts ."
@@ -14,12 +15,12 @@
   "dependencies": {
     "@google-cloud/functions-framework": "^5.0.2",
     "firebase-admin": "^13.0.0",
-    "firebase-functions": "^6.0.0",
-    "openai": "^4.0.0"
+    "firebase-functions": "^6.0.0"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^5.12.0",
     "@typescript-eslint/parser": "^5.12.0",
+    "esbuild": "^0.25.0",
     "eslint": "^8.9.0",
     "eslint-plugin-import": "^2.25.4",
     "typescript": "^5.0.0"

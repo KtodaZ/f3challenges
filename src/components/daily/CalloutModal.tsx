@@ -23,11 +23,25 @@ interface CalloutModalProps {
   onPosted?: (targetUserId: string | null) => void
 }
 
-const DBG = process.env.NEXT_PUBLIC_DEBUG_URL
-function dbg(label: string, data: unknown) {
-  if (!DBG) return
-  fetch(DBG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, src: 'CalloutModal', data }) }).catch(() => {})
-}
+const CREW_PLACEHOLDERS = [
+  'Great work out there, PAX!',
+  'The crew showed up today!',
+  'F3 Bedrock putting in the work!',
+  'Whole PAX grinding — let\'s go!',
+  'Proud of this crew today.',
+  'Nobody left behind out there!',
+  'That\'s what F3 Bedrock is about!',
+]
+
+const TARGET_PLACEHOLDERS = [
+  (name: string) => `Shout out ${name}…`,
+  (name: string) => `Big ups to ${name}…`,
+  (name: string) => `${name} crushed it today…`,
+  (name: string) => `Props to ${name}…`,
+  (name: string) => `${name} put in the work…`,
+  (name: string) => `Call out ${name} for…`,
+  (name: string) => `${name} showed up today…`,
+]
 
 export function CalloutModal({
   open,
@@ -44,13 +58,15 @@ export function CalloutModal({
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [placeholderIdx, setPlaceholderIdx] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Sync target and content when the modal opens
+  // Sync target and content when the modal opens; pick a fresh placeholder each time
   useEffect(() => {
     if (open) {
       setTargetUser(defaultTarget ?? null)
       setContent(defaultContent ?? '')
+      setPlaceholderIdx(Math.floor(Math.random() * CREW_PLACEHOLDERS.length))
     }
   }, [open, defaultTarget, defaultContent])
 
@@ -101,9 +117,7 @@ export function CalloutModal({
         createdAt: new Date().toISOString(),
         deleted: false,
       }
-      dbg('fn-entry', { fn: 'handlePost', targetUser: targetUser?.displayName, mentionIds, postId: post.id, contentSnippet: post.content.slice(0, 60) })
       await createFeedPost(post)
-      dbg('fn-exit', { fn: 'handlePost', postId: post.id, status: 'written to Firestore' })
       onPosted?.(targetUser?.id ?? null)
       setDone(true)
       setTimeout(() => {
@@ -184,8 +198,8 @@ export function CalloutModal({
                 }}
                 placeholder={
                   targetUser
-                    ? `Shout out ${targetUser.displayName}…`
-                    : 'Great work out there, PAX!'
+                    ? TARGET_PLACEHOLDERS[placeholderIdx % TARGET_PLACEHOLDERS.length](targetUser.displayName)
+                    : CREW_PLACEHOLDERS[placeholderIdx]
                 }
                 rows={3}
                 disabled={saving}

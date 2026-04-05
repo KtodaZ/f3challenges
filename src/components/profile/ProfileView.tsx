@@ -341,6 +341,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
           open={shoutoutOpen}
           onClose={() => setShoutoutOpen(false)}
           targetUser={user}
+          challengeId={currentChallenge?.id}
         />
       )}
     </div>

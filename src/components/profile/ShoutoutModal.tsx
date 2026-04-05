@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
@@ -9,17 +9,33 @@ import { generateId } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import type { User } from '@/types'
 
+const PLACEHOLDERS = [
+  (name: string) => `${name} is crushing it because…`,
+  (name: string) => `Big ups to ${name}…`,
+  (name: string) => `${name} put in the work…`,
+  (name: string) => `Props to ${name} for…`,
+  (name: string) => `${name} showed up today…`,
+  (name: string) => `Shout out ${name} for…`,
+  (name: string) => `${name} crushed it today…`,
+]
+
 interface ShoutoutModalProps {
   open: boolean
   onClose: () => void
   targetUser: User
+  challengeId?: string
 }
 
-export function ShoutoutModal({ open, onClose, targetUser }: ShoutoutModalProps) {
+export function ShoutoutModal({ open, onClose, targetUser, challengeId }: ShoutoutModalProps) {
   const { currentUser } = useUser()
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [placeholderIdx, setPlaceholderIdx] = useState(0)
+
+  useEffect(() => {
+    if (open) setPlaceholderIdx(Math.floor(Math.random() * PLACEHOLDERS.length))
+  }, [open])
 
   async function handleSubmit() {
     if (!currentUser) return
@@ -39,6 +55,7 @@ export function ShoutoutModal({ open, onClose, targetUser }: ShoutoutModalProps)
         hashtags: [],
         mentions: [targetUser.id],
         targetUserId: targetUser.id,
+        ...(challengeId ? { challengeId } : {}),
         createdAt: now,
         deleted: false,
       })
@@ -64,7 +81,7 @@ export function ShoutoutModal({ open, onClose, targetUser }: ShoutoutModalProps)
 
         <Textarea
           label="Your message"
-          placeholder={`${targetUser.displayName} is crushing it because...`}
+          placeholder={PLACEHOLDERS[placeholderIdx](targetUser.displayName)}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={4}

@@ -1,8 +1,8 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // Enable static export compatibility for PWA assets
   reactStrictMode: true,
+  transpilePackages: ['@f3-bedrock/shared'],
   // Headers for FCM service worker scope
   async headers() {
     return [

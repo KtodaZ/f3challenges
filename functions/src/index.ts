@@ -2,22 +2,17 @@ import * as admin from "firebase-admin";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
-import OpenAI from "openai";
-
-const openAiKey = defineSecret("OPENAI_API_KEY");
+import {
+  getChallengeForDate,
+  getDayNumber,
+  getTotalDays,
+  getTodayPT,
+} from "@f3-bedrock/shared";
 
 admin.initializeApp()
 
-const DBG = 'https://example.ngrok-free.app'
-async function dbg(label: string, data: unknown): Promise<void> {
-  try {
-    await fetch(DBG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, src: 'functions', data }) })
-  } catch { /* non-blocking */ }
-};
-
 // ---------------------------------------------------------------------------
-// Types
+// Types (app-specific — not in @f3-bedrock/shared)
 // ---------------------------------------------------------------------------
 
 interface FeedPost {
@@ -53,6 +48,25 @@ interface AppNotification {
   relatedUserId?: string;
 }
 
+interface NotifPrefs {
+  morning:     { enabled: boolean; time: string };
+  afternoon:   { enabled: boolean; time: string };
+  evening:     { enabled: boolean; time: string };
+  weeklyRecap: { enabled: boolean; time: string; dayOfWeek: number };
+  mentions:    boolean;
+}
+
+interface DailyLog {
+  completionFraction: number;
+  date: string;
+  userId: string;
+}
+
+interface ChallengeParticipation {
+  status: string;
+  modificationNote?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -64,6 +78,7 @@ function nanoid(): string {
 function truncate(text: string, maxLen: number): string {
   return text.length <= maxLen ? text : text.slice(0, maxLen - 1) + "…";
 }
+
 
 async function getUser(userId: string): Promise<User | null> {
   const snap = await admin.firestore().doc(`users/${userId}`).get();
@@ -122,7 +137,6 @@ export const onFeedPostCreated = onDocumentCreated(
     if (!snap) return;
 
     const post = { id: snap.id, ...(snap.data() as Omit<FeedPost, "id">) };
-    await dbg('fn-entry', { fn: 'onFeedPostCreated', postId: post.id, type: post.type, authorId: post.authorId, mentions: post.mentions, targetUserId: post.targetUserId ?? null })
 
     if (post.type === "post") {
       const mentions = post.mentions ?? [];
@@ -156,18 +170,14 @@ export const onFeedPostCreated = onDocumentCreated(
 
             await createNotification(notification);
 
-            await dbg('branch', { fn: 'onFeedPostCreated:mention', userId, tokenCount: user.fcmTokens?.length ?? 0, mentionsEnabled: user.notificationPreferences?.mentions })
             if (user.fcmTokens?.length) {
               await sendPushNotification(userId, user.fcmTokens, title, body);
-              await dbg('fn-exit', { fn: 'sendPushNotification:mention', userId, title, tokenCount: user.fcmTokens.length })
             }
           })
       );
     } else if (post.type === "shoutout") {
       const author = await getUser(post.authorId);
       const authorName = author?.displayName ?? "Someone";
-      const title = `@${authorName} shouted you out! 💪`;
-      const body = truncate(post.content, 80);
 
       // Collect recipients: mentions (excluding author) + targetUserId
       const recipientSet = new Set<string>(
@@ -187,6 +197,9 @@ export const onFeedPostCreated = onDocumentCreated(
             !post.targetUserId || post.targetUserId !== userId;
           if (isMentionOnly && !user.notificationPreferences?.mentions) return;
 
+          const title = `@${authorName} shouted you out! 💪`;
+          const body = truncate(post.content, 80);
+
           const notifId = nanoid();
           const notification: AppNotification = {
             id: notifId,
@@ -202,10 +215,8 @@ export const onFeedPostCreated = onDocumentCreated(
 
           await createNotification(notification);
 
-          await dbg('branch', { fn: 'onFeedPostCreated:shoutout', userId, tokenCount: user.fcmTokens?.length ?? 0, isMentionOnly, mentionsEnabled: user.notificationPreferences?.mentions })
           if (user.fcmTokens?.length) {
             await sendPushNotification(userId, user.fcmTokens, title, body);
-            await dbg('fn-exit', { fn: 'sendPushNotification:shoutout', userId, title, tokenCount: user.fcmTokens.length })
           }
         })
       );
@@ -229,12 +240,26 @@ export const onUserCreated = onDocumentCreated(
     // Give the user a moment to finish onboarding before the welcome post appears
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
+    const challenge = getChallengeForDate(getTodayPT());
+    const challengeLabel = challenge ? challenge.name : "F3 Bedrock";
+
+    const templates = [
+      `@${user.displayName} just joined ${challengeLabel}! Welcome to the crew! 💪`,
+      `New PAX alert! @${user.displayName} is in for ${challengeLabel}. Let's get it! 🔥`,
+      `@${user.displayName} has entered the chat — welcome to ${challengeLabel}! 💪`,
+      `@${user.displayName} just laced up for ${challengeLabel}. The crew just got stronger! 🙌`,
+      `Heads up PAX — @${user.displayName} is locked in for ${challengeLabel}. Welcome! 🔥`,
+      `The crew grows! @${user.displayName} just joined ${challengeLabel}. Let's go! 💪`,
+      `@${user.displayName} is here and ready for ${challengeLabel}. Welcome to F3 Bedrock! 🙌`,
+      `@${user.displayName} just showed up for ${challengeLabel}. That's how it's done! 🔥`,
+    ];
+
     const postId = nanoid();
     const welcomePost: FeedPost = {
       id: postId,
       type: "system",
       authorId: "system",
-      content: `@${user.displayName} just joined the F3 Bedrock challenge! Welcome to the crew! 💪`,
+      content: templates[Math.floor(Math.random() * templates.length)],
       hashtags: [],
       mentions: [userId],
       createdAt: new Date().toISOString(),
@@ -246,105 +271,352 @@ export const onUserCreated = onDocumentCreated(
 );
 
 // ---------------------------------------------------------------------------
-// sendScheduledNotifications — runs every hour, PT timezone
-// Checks each user's preferred notification times and sends AI-generated
-// push notifications to those due within the current hour window.
+// sendScheduledNotifications — runs every 10 min, PT timezone
+// Checks each user's preferred notification times and sends algorithmic
+// push notifications to those due within the current window.
 // ---------------------------------------------------------------------------
 
-interface NotifPrefs {
-  morning:     { enabled: boolean; time: string };
-  afternoon:   { enabled: boolean; time: string };
-  evening:     { enabled: boolean; time: string };
-  weeklyRecap: { enabled: boolean; time: string; dayOfWeek: number };
-  mentions:    boolean;
+// ---------------------------------------------------------------------------
+// Algorithmic notification generation
+// ---------------------------------------------------------------------------
+
+// Seed varies by day and notification type so the same user sees different
+// templates across days; morning/afternoon/evening also pick different ones.
+function notifSeed(dayNumber: number, notifType: string): number {
+  let h = 0;
+  for (const c of notifType) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h + dayNumber * 997;
 }
 
-interface DailyLog {
-  completionFraction: number;
-  date: string;
-  userId: string;
+function pick<T>(arr: T[], seed: number): T {
+  return arr[Math.abs(seed) % arr.length];
 }
 
-interface ChallengeParticipation {
-  status: string;
-  modificationNote?: string;
+function firstName(name: string): string {
+  return name.split(" ")[0];
 }
 
-function getChallengeForDate(date: string): { id: string; name: string; dailyMultiplier: number; exercises: { id: string; name: string }[]; startDate: string; endDate: string } | null {
-  const CHALLENGES = [
-    { id: "apr-2026", name: "The Merking Gauntlet", dailyMultiplier: 10, exercises: [{id:"merkin",name:"Merkin"},{id:"diamond-merkin",name:"Diamond Merkin"},{id:"wide-merkin",name:"Wide Merkin"},{id:"incline-merkin",name:"Incline Merkin"},{id:"decline-merkin",name:"Decline Merkin"}], startDate: "2026-04-01", endDate: "2026-04-30" },
-    { id: "may-2026", name: "May Challenge", dailyMultiplier: 10, exercises: [{id:"tbd",name:"TBD"}], startDate: "2026-05-01", endDate: "2026-05-31" },
-  ];
-  return CHALLENGES.find(c => date >= c.startDate && date <= c.endDate) ?? null;
+// "Alice"              → "Alice"
+// "Alice, Bob"         → "Alice and Bob"
+// "Alice, Bob, Charlie, Dave" → "Alice, Bob, and 2 others"
+function fmtNames(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  const others = names.length - 2;
+  return `${names[0]}, ${names[1]}, and ${others} other${others > 1 ? "s" : ""}`;
 }
 
-function getDayNumber(startDate: string, date: string): number {
-  const start = new Date(startDate + "T00:00:00Z");
-  const d     = new Date(date + "T00:00:00Z");
-  return Math.round((d.getTime() - start.getTime()) / 86_400_000) + 1;
-}
+function generateNotification(ctx: {
+  userName: string; challengeName: string; dayNumber: number; totalDays: number;
+  todayTarget: number; repsCompleted: number; repsRemaining: number;
+  repsPerExercise: number; primaryExercise: string;
+  userCompleted: boolean; completionFraction: number;
+  groupCompletedCount: number; groupTotalCount: number; userStreak: number;
+  participationStatus: string; notificationType: string;
+  completedNames: string[]; notDoneNames: string[];
+}): { title: string; body: string } {
+  const {
+    userName, challengeName, dayNumber, totalDays,
+    repsCompleted, repsRemaining, repsPerExercise, primaryExercise,
+    userCompleted, groupCompletedCount, groupTotalCount,
+    notificationType, completedNames, notDoneNames,
+    participationStatus, userStreak,
+  } = ctx;
 
-function getTotalDays(startDate: string, endDate: string): number {
-  const start = new Date(startDate + "T00:00:00Z");
-  const end   = new Date(endDate + "T00:00:00Z");
-  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
-}
+  const fn = firstName(userName);
+  const seed = notifSeed(dayNumber, notificationType);
+  const daysRemaining = totalDays - dayNumber;
+  const daysWord = daysRemaining === 1 ? "day" : "days";
+  const isEndgame = daysRemaining <= 3;
+  const isLate = daysRemaining <= 10;
+  const hasPeers = completedNames.length > 0;
+  const hasPartners = notDoneNames.length > 0;
+  const peerStr = fmtNames(completedNames);
+  const partnerStr = fmtNames(notDoneNames);
+  const progressNote = repsCompleted > 0
+    ? `${repsCompleted} done, ${repsRemaining} to go`
+    : `${repsRemaining} reps to go`;
 
-function getTodayPT(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-}
-
-async function generateAINotification(
-  client: OpenAI,
-  ctx: {
-    userName: string; challengeName: string; dayNumber: number; totalDays: number;
-    todayTarget: number; repsCompleted: number; repsRemaining: number;
-    exerciseList: string; repsPerExercise: number;
-    userCompleted: boolean; completionFraction: number;
-    groupCompletedCount: number; groupTotalCount: number; userStreak: number;
-    participationStatus: string; notificationType: string;
-    weeklyCompletedDays?: number;
-    completedNames?: string[];   // PAX who have finished today
-    notDoneNames?: string[];     // PAX who haven't finished today
+  // --- Weekly recap ---
+  if (notificationType === "weekly_recap") {
+    const streakLine = userStreak > 1
+      ? `${userStreak}-day streak — keep it alive!`
+      : "Every rep counts — stay the course.";
+    const bodies = [
+      `Day ${dayNumber} of ${totalDays}. ${streakLine}`,
+      `You're ${Math.round((dayNumber / totalDays) * 100)}% through ${challengeName}. ${userStreak > 0 ? `${userStreak}-day streak — don't stop now.` : "Keep showing up."}`,
+      `${daysRemaining} ${daysWord} left in ${challengeName}. Stay the course, ${fn}.`,
+      `Week in the books. Day ${dayNumber}/${totalDays} on ${challengeName}. ${streakLine}`,
+    ];
+    return { title: `Week in Review, ${fn}`, body: pick(bodies, seed) };
   }
-): Promise<{ title: string; body: string }> {
-  try {
-    const res = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 80,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: `You are a motivational coach for F3 Bedrock, a men's fitness accountability group.
-Generate SHORT push notification messages. Rules:
-- Title: max 6 words, punchy
-- Body: max 20 words, direct
-- Use F3 culture: PAX = members. Do NOT say "beatdown" — this is a monthly rep challenge, not a workout session
-- Always reference the challenge by name (challengeName) not generic workout terms
-- Use the person's name and SPECIFIC numbers: repsRemaining (what's left), todayTarget (today's total), repsPerExercise (reps per variant)
-- exerciseList lists the exercise variants (e.g. "Merkin, Diamond Merkin, Wide Merkin, Incline Merkin, Decline Merkin")
-- If repsRemaining > 0: reference it specifically ("still need X reps" or "X reps to go — repsPerExercise each variant") NOT todayTarget
-- If repsCompleted > 0 and not done: acknowledge progress ("already did X, Y left")
-- Suggest chipping away now — e.g. "knock out 50 now so you're not doing 200 tonight"
-- As the month progresses (high dayNumber/totalDays ratio), increase urgency and pride — they're almost there
-- If user NOT completed and completedNames has people: use peer pressure — name 1-2 of them ("Dredd already crushed it")
-- If user NOT completed and notDoneNames has others too: softer — "you and X others still have time"
-- If user completed and notDoneNames has people: encourage them to shoutout — name 1-2 who may need a nudge
-- If user completed and everyone else is done: celebrate the whole crew
-- If morning + not done: motivate, day is young, suggest starting a set now
-- If evening + not done: urgent, last chance tonight
-- If modifying: acknowledge the specific modification reason, still encourage
-- Respond ONLY with valid JSON: {"title": "...", "body": "..."}`,
-        },
-        { role: "user", content: JSON.stringify(ctx) },
-      ],
-    });
-    const parsed = JSON.parse(res.choices[0].message.content ?? "{}");
-    return { title: parsed.title ?? "F3 Bedrock", body: parsed.body ?? "Time to get after it." };
-  } catch (err) {
-    console.error("[AI] generateAINotification failed:", err);
-    return { title: "F3 Bedrock", body: "Time to get after it, PAX." };
+
+  // --- User completed ---
+  if (userCompleted) {
+    if (notDoneNames.length === 0) {
+      // Whole crew done
+      const titles = [
+        "Whole Crew Showed Up! 💪",
+        `Day ${dayNumber} — Full House!`,
+        "PAX All In — That's F3!",
+        "Every PAX Finished Today!",
+        "Clean Sweep, PAX!",
+      ];
+      const bodies = [
+        `Every PAX crushed Day ${dayNumber}. F3 Bedrock coming through!`,
+        `All ${groupTotalCount} PAX done. Day ${dayNumber} belongs to the crew!`,
+        `Full house on Day ${dayNumber}! That's the standard, ${fn}.`,
+        `Nobody left behind — whole PAX finished Day ${dayNumber}. Let's go!`,
+        `${groupTotalCount} for ${groupTotalCount} today. That's what F3 Bedrock is about.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else {
+      // Done — nudge others
+      const titles = [
+        `You're Done, ${fn}! 🔥`,
+        `Day ${dayNumber} Crushed, ${fn}!`,
+        `Nice Work, ${fn}!`,
+        `${fn} Checked In! ✅`,
+        `Rep That, ${fn}!`,
+        `Lead By Example, ${fn}`,
+      ];
+      const plural = notDoneNames.length === 1 ? "hasn't" : "haven't";
+      const needPlural = notDoneNames.length === 1 ? "needs" : "need";
+      const bodies = [
+        `${partnerStr} ${plural} finished yet — hit their name in the feed.`,
+        `${groupCompletedCount}/${groupTotalCount} PAX done. Drop a shoutout to fire up ${partnerStr}.`,
+        `You led the way. ${partnerStr} still grinding — give them a push.`,
+        `${partnerStr} still ${needPlural} Day ${dayNumber}'s reps. Tag them in the feed.`,
+        `Solid work. Now drag ${partnerStr} across the finish line.`,
+        `${groupCompletedCount}/${groupTotalCount} done — ${partnerStr} still out there. Send the encouragement.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    }
+  }
+
+  // --- Modifying participation — acknowledge and still encourage ---
+  const modNote = participationStatus.startsWith("modifying")
+    ? "Scaled or not, "
+    : "";
+
+  // --- Endgame (last 3 days) — heavy urgency with countdown ---
+  if (isEndgame) {
+    const titles = [
+      `${daysRemaining} ${daysWord} Left — Don't Fold`,
+      `Almost There, ${fn}!`,
+      `Final Push, ${fn}!`,
+      `${daysRemaining} ${daysWord} Remaining — Go!`,
+      `Finish What You Started`,
+      `So Close, ${fn} — Don't Stop`,
+      `The End Is in Sight`,
+    ];
+    const peerLine = hasPeers ? `${peerStr} have completed today's challenge. ` : "";
+    const bodies = [
+      `${peerLine}${daysRemaining} ${daysWord} left — ${repsRemaining} reps stand between you and the finish line.`,
+      `${modNote}${progressNote}. ${daysRemaining} ${daysWord} in ${challengeName}. Don't quit this close to done.`,
+      `${fn}, ${daysRemaining} ${daysWord} left — ${repsRemaining} reps now. The crew is watching.`,
+      `You've come too far to stop. ${repsRemaining} reps, ${daysRemaining} ${daysWord} to go — finish strong.`,
+      `${peerLine}${repsPerExercise} per variant = ${repsRemaining} reps. ${daysRemaining} ${daysWord} left — make it count.`,
+      `${daysRemaining} ${daysWord} left in ${challengeName}. ${repsRemaining} reps today — this is what you trained for.`,
+      `${modNote}${repsRemaining} reps left. ${daysRemaining} ${daysWord} remaining — leave nothing on the table, ${fn}.`,
+    ];
+    return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+  }
+
+  // --- Late challenge (last 4–10 days) — elevated urgency with countdown ---
+  if (isLate) {
+    const peerLine = hasPeers ? `${peerStr} have completed today's challenge. ` : "";
+    const titles = [
+      `${daysRemaining} ${daysWord} Left, ${fn}`,
+      `Don't Slip Now, ${fn}`,
+      `Stay Locked In, ${fn}`,
+      `Late-Month Push`,
+      `Grind Don't Stop`,
+      `${daysRemaining} ${daysWord} to Finish Strong`,
+      `Almost Home, ${fn}`,
+    ];
+    const bodies = [
+      `${peerLine}${repsRemaining} reps left on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — hold the line.`,
+      `${modNote}${progressNote}. ${daysRemaining} ${daysWord} remaining in ${challengeName} — finish what you started.`,
+      `${fn}, ${daysRemaining} ${daysWord} left. ${repsRemaining} reps today, then you're one day closer.`,
+      `${peerLine}Day ${dayNumber} of ${totalDays}: ${repsRemaining} reps. ${daysRemaining} ${daysWord} remaining — let's close strong.`,
+      `You've put in the work. ${daysRemaining} ${daysWord} left — ${repsRemaining} reps today keeps the streak alive.`,
+      `${daysRemaining} ${daysWord} left in ${challengeName}. ${fn}: ${progressNote}. Stay locked in.`,
+      `${peerLine}${repsRemaining} reps on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — don't let up now.`,
+    ];
+    return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+  }
+
+  // --- Time-of-day branches (early in challenge) ---
+
+  if (notificationType === "morning") {
+    if (hasPeers) {
+      const titles = [
+        `Rise & Grind, ${fn}!`,
+        `PAX Up, ${fn}`,
+        `Get After It, ${fn}`,
+        `Morning Accountability`,
+        `Don't Sleep, ${fn}`,
+        `Early Bird Check-In`,
+        `Lead From the Front, ${fn}`,
+      ];
+      const bodies = [
+        `${peerStr} already crushed Day ${dayNumber}. Your ${repsRemaining} reps aren't going to do themselves.`,
+        `${peerStr} have completed today's challenge. ${fn}, ${repsPerExercise} per variant — start your first set now.`,
+        `${peerStr} put in the work. Day ${dayNumber}: ${repsRemaining} reps — be next.`,
+        `${peerStr} have completed today's challenge — don't let them show you up. ${repsRemaining} reps, ${fn}.`,
+        `${peerStr} already done. Day ${dayNumber}: ${repsPerExercise} each variant. Get moving, ${fn}.`,
+        `${peerStr} led the way today. ${fn}, ${repsRemaining} reps — go now, thank yourself later.`,
+        `${peerStr} have completed today's challenge. ${modNote}${repsRemaining} reps — you're next, ${fn}.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else if (hasPartners) {
+      const titles = [
+        `Day ${dayNumber} Starts Now`,
+        `Rise Up, ${fn}!`,
+        `Morning ${primaryExercise}s, ${fn}`,
+        `PAX Don't Wait`,
+        `First Set, ${fn}`,
+        `Lead the PAX, ${fn}`,
+        `Set the Tone, ${fn}`,
+      ];
+      const bodies = [
+        `${partnerStr} haven't started yet — be the first PAX to finish Day ${dayNumber}.`,
+        `${modNote}${progressNote}. Day is young — knock out a set and be the one who leads today.`,
+        `${repsPerExercise} each variant = ${repsRemaining} reps. ${fn}, go first — set the tone.`,
+        `Nobody's done yet. ${fn}, be the standard — ${repsRemaining} reps on Day ${dayNumber}.`,
+        `You and ${partnerStr} are all still in it. First one done fires up the rest — go.`,
+        `Morning sets pay dividends. ${fn}, ${repsRemaining} reps — lead the crew.`,
+        `${partnerStr} haven't finished yet. ${fn}: ${repsPerExercise} per variant, ${repsRemaining} total — lead the charge.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else {
+      const titles = [
+        `Rise Up, ${fn}!`,
+        `Day ${dayNumber}, Let's Go`,
+        `Morning Grind, ${fn}`,
+        `First Move Wins`,
+        `Own the Morning, ${fn}`,
+      ];
+      const bodies = [
+        `Day ${dayNumber} of ${totalDays}: ${repsRemaining} reps. Morning sets pay dividends — start now.`,
+        `${repsPerExercise} per variant = ${repsRemaining} reps. Day is young, ${fn} — get moving.`,
+        `Day ${dayNumber} on ${challengeName}. Be the first PAX to finish today.`,
+        `${fn}, ${repsRemaining} reps today. Knock your first set out early and thank yourself later.`,
+        `${modNote}${repsRemaining} reps waiting, ${fn}. Morning is the best time — go.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    }
+  }
+
+  if (notificationType === "afternoon") {
+    if (hasPeers) {
+      const titles = [
+        `Midday Check, ${fn}`,
+        `Afternoon Accountability`,
+        `Don't Let It Slip, ${fn}`,
+        `PAX Rolling, ${fn}`,
+        `Halfway Gone, ${fn}`,
+        `Clock's Moving, ${fn}`,
+        `Get It Done, ${fn}`,
+      ];
+      const bodies = [
+        `${peerStr} have completed today's challenge. ${fn}: ${progressNote} — do it now, not tonight.`,
+        `${peerStr} already done. ${repsRemaining} reps on Day ${dayNumber} — don't let it pile up.`,
+        `${peerStr} checked in. ${fn}, ${repsPerExercise} per variant — knock a set out before dinner.`,
+        `${peerStr} have completed today's challenge. ${modNote}${progressNote} — you've got time, use it.`,
+        `${peerStr} are done for the day. ${fn}: ${repsRemaining} reps left, go now.`,
+        `${peerStr} already crushed it. Afternoon's the sweet spot — ${repsRemaining} reps, ${fn}.`,
+        `${peerStr} have completed today's challenge. ${fn}, don't push it to tonight — ${repsRemaining} reps now.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else if (hasPartners) {
+      const titles = [
+        `Afternoon Grind, ${fn}`,
+        `Midday Push, ${fn}`,
+        `Still Time, ${fn}`,
+        `Check In, ${fn}`,
+        `Beat the Clock, ${fn}`,
+      ];
+      const bodies = [
+        `You and ${partnerStr} are still grinding. ${repsRemaining} reps — finish before tonight.`,
+        `${partnerStr} haven't finished yet either. Day ${dayNumber}: ${progressNote} — go now.`,
+        `You're not alone — ${partnerStr} still have reps left too. ${repsRemaining} to go, ${fn}.`,
+        `${groupCompletedCount}/${groupTotalCount} PAX done. ${fn}: ${repsRemaining} reps — don't push it to evening.`,
+        `${modNote}${partnerStr} still grinding too. ${repsRemaining} reps left — who finishes first?`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else {
+      const titles = [
+        `Midday Check, ${fn}`,
+        `Afternoon Accountability`,
+        `Use Daylight, ${fn}`,
+        `Don't Wait, ${fn}`,
+      ];
+      const bodies = [
+        `${modNote}${progressNote} on Day ${dayNumber}. Afternoon's the sweet spot — knock it out now.`,
+        `Day ${dayNumber}: ${repsRemaining} reps. Don't let it pile up for tonight.`,
+        `${fn}, ${repsPerExercise} per variant = ${repsRemaining} total. Go now while it's light.`,
+        `${modNote}${repsRemaining} reps left on Day ${dayNumber}. Afternoons are for grinding — go.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    }
+  }
+
+  // Evening (default)
+  if (hasPeers) {
+    const titles = [
+      `Last Chance, ${fn}`,
+      `Clock's Running Out`,
+      `PAX Don't Quit`,
+      `Evening Accountability`,
+      `Don't Sleep on This`,
+      `Tonight's the Night, ${fn}`,
+      `Finish Day ${dayNumber}, ${fn}`,
+    ];
+    const bodies = [
+      `${peerStr} have completed today's challenge. ${fn}: ${repsRemaining} reps before midnight — let's go.`,
+      `${peerStr} already done. Day ${dayNumber} ends soon — ${repsRemaining} reps, ${fn}.`,
+      `${peerStr} have completed today's challenge. ${modNote}${progressNote} — last chance to close Day ${dayNumber}.`,
+      `${peerStr} checked in. ${fn}, ${repsPerExercise} per variant, ${repsRemaining} total — do it now.`,
+      `${peerStr} are done for the day. ${fn}: clock's running — ${repsRemaining} reps left.`,
+      `${peerStr} have completed today's challenge. Don't let Day ${dayNumber} slip — ${repsRemaining} reps now.`,
+      `${peerStr} put it in. ${fn}, ${repsRemaining} reps — don't be the one who didn't finish today.`,
+    ];
+    return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+  } else if (hasPartners) {
+    const titles = [
+      `Last Chance Tonight`,
+      `Evening Push, ${fn}`,
+      `Don't Break the Streak`,
+      `Finish Day ${dayNumber}, ${fn}`,
+      `Final Hour, ${fn}`,
+    ];
+    const bodies = [
+      `You and ${partnerStr} still need to finish. ${repsRemaining} reps — don't let today slip.`,
+      `${partnerStr} are still grinding too. Day ${dayNumber}: ${progressNote}. Finish together.`,
+      `Only ${notDoneNames.length + 1} PAX left to finish Day ${dayNumber}. ${fn}, ${repsRemaining} reps — go.`,
+      `${partnerStr} haven't finished either. ${fn}: ${repsRemaining} reps — tonight's your last shot.`,
+      `${modNote}${partnerStr} still out there too. ${repsRemaining} reps, ${fn} — close it out.`,
+    ];
+    return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+  } else {
+    const titles = [
+      `Last Chance Tonight`,
+      `Clock's Running Out`,
+      `Don't Sleep on This`,
+      `Finish Strong, ${fn}`,
+      `Close It Out, ${fn}`,
+    ];
+    const bodies = [
+      `${fn}, ${repsRemaining} reps before midnight. Don't break the streak.`,
+      `Day ${dayNumber} ends soon — ${repsRemaining} reps left, ${fn}. Get it done.`,
+      `Tonight's your last shot on Day ${dayNumber}. ${modNote}${repsRemaining} reps — go.`,
+      `${fn}: ${repsPerExercise} per variant, ${repsRemaining} total. Don't let Day ${dayNumber} slip.`,
+      `${modNote}${repsRemaining} reps stand between you and Day ${dayNumber}. Close it out, ${fn}.`,
+    ];
+    return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
   }
 }
 
@@ -352,7 +624,6 @@ export const sendScheduledNotifications = onSchedule(
   {
     schedule: "*/10 * * * *",
     timeZone: "America/Los_Angeles",
-    secrets: [openAiKey],
   },
   async () => {
     const today   = getTodayPT();
@@ -369,13 +640,10 @@ export const sendScheduledNotifications = onSchedule(
       console.log(`[notify] no active challenge for ${today}, exiting`);
       return;
     }
-    console.log(`[notify] challenge=${challenge.name} day=${getDayNumber(challenge.startDate, today)}/${getTotalDays(challenge.startDate, challenge.endDate)}`);
-
-    const dayNumber  = getDayNumber(challenge.startDate, today);
-    const totalDays  = getTotalDays(challenge.startDate, challenge.endDate);
-    const todayReps  = dayNumber * challenge.dailyMultiplier;
-
-    const openai = new OpenAI({ apiKey: openAiKey.value().trim() });
+    const dayNumber = getDayNumber(challenge, today)!;
+    const totalDays = getTotalDays(challenge);
+    const todayReps = dayNumber * challenge.dailyMultiplier;
+    console.log(`[notify] challenge=${challenge.name} day=${dayNumber}/${totalDays}`);
 
     const usersSnap = await admin.firestore().collection("users").get();
     const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User & { notificationPreferences: NotifPrefs; currentStreak?: number }));
@@ -389,7 +657,7 @@ export const sendScheduledNotifications = onSchedule(
     const groupCompleted = todayLogsSnap.docs.filter(d => (d.data() as DailyLog).completionFraction >= 1).length;
     console.log(`[notify] group completion: ${groupCompleted}/${users.length} done today`);
 
-    // Build name lookup for peer pressure messaging
+    // Build name lists for peer pressure messaging
     const userById = new Map(users.map(u => [u.id, u.displayName]));
     const completedUserIds = new Set(
       todayLogsSnap.docs
@@ -403,7 +671,6 @@ export const sendScheduledNotifications = onSchedule(
     console.log(`[notify] completed: [${allCompletedNames.join(", ")}] | not done: [${allNotDoneNames.join(", ")}]`);
 
     for (const user of users) {
-      await dbg('branch', { fn: 'sendScheduledNotifications:user-check', userId: user.id, userName: user.displayName, tokenCount: user.fcmTokens?.length ?? 0 })
       if (!user.fcmTokens?.length) {
         console.log(`[notify] skip ${user.displayName} — no fcmTokens`);
         continue;
@@ -467,13 +734,12 @@ export const sendScheduledNotifications = onSchedule(
         console.log(`[notify]   → participation: ${statusStr}`);
 
         try {
-          console.log(`[notify]   → calling OpenAI for ${user.displayName}...`);
           const fraction        = userLog?.completionFraction ?? 0;
           const repsCompleted   = Math.round(todayReps * fraction);
           const repsRemaining   = todayReps - repsCompleted;
           const repsPerExercise = challenge.exercises.length > 0 ? Math.round(todayReps / challenge.exercises.length) : todayReps;
-          const exerciseList    = challenge.exercises.map(e => e.name).join(", ");
-          const ctx = {
+
+          const { title, body } = generateNotification({
             userName:            user.displayName,
             challengeName:       challenge.name,
             dayNumber,
@@ -481,8 +747,8 @@ export const sendScheduledNotifications = onSchedule(
             todayTarget:         todayReps,
             repsCompleted,
             repsRemaining,
-            exerciseList,
             repsPerExercise,
+            primaryExercise:     challenge.exercises[0]?.name ?? "Rep",
             userCompleted,
             completionFraction:  fraction,
             groupCompletedCount: userCompleted ? groupCompleted - 1 : groupCompleted,
@@ -490,18 +756,13 @@ export const sendScheduledNotifications = onSchedule(
             userStreak:          (user as { currentStreak?: number }).currentStreak ?? 0,
             participationStatus: statusStr,
             notificationType:    w.type,
-            completedNames: allCompletedNames.filter(n => n !== user.displayName).slice(0, 3),
-            notDoneNames:   allNotDoneNames.filter(n => n !== user.displayName).slice(0, 3),
-          };
-          console.log(`[notify]   → AI ctx: ${JSON.stringify(ctx)}`);
-
-          const { title, body } = await generateAINotification(openai, ctx);
-          console.log(`[notify]   → AI response: title="${title}" body="${body}"`);
-          await dbg('state', { fn: 'sendScheduledNotifications', userId: user.id, userName: user.displayName, notifType: w.type, title, body })
+            completedNames: [...completedUserIds].filter(id => id !== user.id).map(id => userById.get(id) ?? "").filter(Boolean),
+            notDoneNames:   users.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
+          });
+          console.log(`[notify]   → generated: title="${title}" body="${body}"`);
 
           await sendPushNotification(user.id, user.fcmTokens!, title, body, "/");
           console.log(`[notify]   → FCM sent OK`);
-          await dbg('fn-exit', { fn: 'sendScheduledNotifications:fcm-sent', userId: user.id, userName: user.displayName, notifType: w.type, tokenCount: user.fcmTokens!.length })
 
           await admin.firestore().collection("notificationLog").doc(logKey).set({ sentAt: new Date().toISOString() });
           console.log(`[notify] ✓ sent ${w.type} to ${user.displayName}: "${title}"`);
@@ -516,8 +777,8 @@ export const sendScheduledNotifications = onSchedule(
 );
 
 // ---------------------------------------------------------------------------
-// sendTestPush — manual HTTP trigger to send an AI-generated reminder
-// Runs the full scheduled notification flow for one user, no time-window check.
+// sendTestPush — manual HTTP trigger to test a push notification
+// Runs the full notification flow for one user, bypassing the time-window check.
 //
 // Usage:
 //   curl -X POST <url> -H "Content-Type: application/json" \
@@ -525,10 +786,9 @@ export const sendScheduledNotifications = onSchedule(
 //
 // Optional overrides:
 //   -d '{"userId":"<id>","notificationType":"evening"}'   (default: "morning")
-//   -d '{"userId":"<id>","title":"Custom","body":"Hi"}'   (skip AI, send directly)
+//   -d '{"userId":"<id>","title":"Custom","body":"Hi"}'   (skip generation, send directly)
 // ---------------------------------------------------------------------------
 export const sendTestPush = onRequest(
-  { secrets: [openAiKey] },
   async (req, res) => {
     if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
 
@@ -552,8 +812,8 @@ export const sendTestPush = onRequest(
       const challenge = getChallengeForDate(today);
       if (!challenge) { res.status(400).json({ error: "No active challenge today" }); return; }
 
-      const dayNumber = getDayNumber(challenge.startDate, today);
-      const totalDays = getTotalDays(challenge.startDate, challenge.endDate);
+      const dayNumber = getDayNumber(challenge, today)!;
+      const totalDays = getTotalDays(challenge);
       const todayReps = dayNumber * challenge.dailyMultiplier;
 
       const [userLogSnap, partSnap, usersSnap, allLogsSnap] = await Promise.all([
@@ -570,19 +830,19 @@ export const sendTestPush = onRequest(
 
       const userById = new Map(usersSnap.docs.map(d => [d.id, (d.data() as User).displayName]));
       const completedIds = new Set(allLogsSnap.docs.filter(d => (d.data() as DailyLog).completionFraction >= 1).map(d => (d.data() as DailyLog).userId));
-      const completedNames = [...completedIds].map(id => userById.get(id) ?? "").filter(n => n && n !== user.displayName).slice(0, 3);
-      const notDoneNames   = usersSnap.docs.map(d => d.data() as User).filter(u => u.id !== userId && !completedIds.has(u.id)).map(u => u.displayName).slice(0, 3);
+      const completedNames = [...completedIds].filter(id => id !== userId).map(id => userById.get(id) ?? "").filter(Boolean);
+      const notDoneNames   = usersSnap.docs.filter(d => d.id !== userId && !completedIds.has(d.id)).map(d => (d.data() as User).displayName);
 
       const fraction          = userLog?.completionFraction ?? 0;
       const repsCompleted     = Math.round(todayReps * fraction);
       const repsRemaining     = todayReps - repsCompleted;
       const repsPerExercise   = challenge.exercises.length > 0 ? Math.round(todayReps / challenge.exercises.length) : todayReps;
-      const exerciseList      = challenge.exercises.map(e => e.name).join(", ");
-      const openai = new OpenAI({ apiKey: openAiKey.value().trim() });
-      const result = await generateAINotification(openai, {
+
+      const result = generateNotification({
         userName: user.displayName, challengeName: challenge.name,
         dayNumber, totalDays, todayTarget: todayReps,
-        repsCompleted, repsRemaining, exerciseList, repsPerExercise,
+        repsCompleted, repsRemaining, repsPerExercise,
+        primaryExercise: challenge.exercises[0]?.name ?? "Rep",
         userCompleted: fraction >= 1,
         completionFraction: fraction,
         groupCompletedCount: completedIds.size,
