@@ -12,6 +12,12 @@ function dbg(label: string, data: unknown) {
 export async function POST(req: NextRequest) {
   const { userId } = await req.json()
   dbg('request', { userId })
+  dbg('env', {
+    hasProjectId:   !!process.env.FIREBASE_PROJECT_ID,
+    hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+    hasPrivateKey:  !!process.env.FIREBASE_PRIVATE_KEY,
+    projectId:      process.env.FIREBASE_PROJECT_ID,
+  })
 
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
