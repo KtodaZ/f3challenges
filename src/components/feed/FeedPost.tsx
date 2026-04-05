@@ -147,12 +147,20 @@ export function FeedPost({ post }: FeedPostProps) {
   const [editOpen, setEditOpen]           = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]           = useState(false)
-  const [threadOpen, setThreadOpen]       = useState(true)
+  const [threadOpen, setThreadOpen]       = useState(false)
   const [comments, setComments]           = useState<FeedComment[]>([])
+  const hasAutoOpened                     = useRef(false)
 
   useEffect(() => {
     return subscribeToComments(post.id, setComments)
   }, [post.id])
+
+  useEffect(() => {
+    if (!hasAutoOpened.current && comments.length > 0) {
+      hasAutoOpened.current = true
+      setThreadOpen(true)
+    }
+  }, [comments.length])
 
   const commentCount = comments.length
 
