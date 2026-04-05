@@ -45,10 +45,10 @@ export async function POST(req: NextRequest) {
           title: 'Test — it works! 💪',
           body: 'Your F3 Bedrock notifications are set up correctly.',
         },
-        data: { link: '/settings/notifications' },
+        data: { link: '/' },
         webpush: {
           notification: { icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' },
-          fcmOptions: { link: '/settings/notifications' },
+          fcmOptions: { link: '/' },
         },
       })
       dbg('token-result', { token: token.slice(0, 20), success: true })

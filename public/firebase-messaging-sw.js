@@ -40,11 +40,13 @@ self.addEventListener('message', event => {
       messaging.onBackgroundMessage(payload => {
         const title = payload.notification?.title ?? 'F3 Bedrock'
         const body  = payload.notification?.body  ?? ''
+        const icon  = payload.notification?.icon  ?? '/icons/icon-192.png'
         const link  = payload.data?.link ?? payload.fcmOptions?.link ?? '/'
         dbg('fn-entry', { event: 'onBackgroundMessage', title, body })
         self.registration.showNotification(title, {
           body,
-          badge:   '/icons/notification-badge.png',
+          icon,
+          badge:   '/icons/icon-192.png',
           data:    { url: link },
           vibrate: [200, 100, 200],
         })
@@ -70,13 +72,15 @@ self.addEventListener('push', event => {
 
   const title = payload.notification?.title ?? 'F3 Bedrock'
   const body  = payload.notification?.body  ?? ''
+  const icon  = payload.notification?.icon  ?? '/icons/icon-192.png'
   const link  = payload.data?.link ?? '/'
 
   dbg('fn-entry', { event: 'push:cold-sw-fallback', title, body })
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      badge:   '/icons/notification-badge.png',
+      icon,
+      badge:   '/icons/icon-192.png',
       data:    { url: link },
       vibrate: [200, 100, 200],
     })
