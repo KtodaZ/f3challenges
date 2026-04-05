@@ -59,22 +59,80 @@ function buildDailyCompleteMessage(
 ): string {
   if (isMakeUp) {
     return pickRandom([
-      `@${name} went back and made up Day ${day} — ${totalReps} merkins. No unfinished business. 💪 ${hashtag}`,
+      `@${name} went back and made up Day ${day} — ${totalReps} reps. No unfinished business. 💪 ${hashtag}`,
       `@${name} circled back to Day ${day} and knocked out ${totalReps} reps. Better late than never. 🔥 ${hashtag}`,
-      `Day ${day} wasn't getting left behind — @${name} came back and got it done. ${totalReps} reps. 💪 ${hashtag}`,
-      `@${name} didn't let Day ${day} slip — ${repsPerExercise} reps of all ${exerciseCount} variations in the books. 🏋️ ${hashtag}`,
+      `Day ${day} wasn't getting left behind — @${name} came back and got it done. ${totalReps} reps. ✅ ${hashtag}`,
+      `@${name} didn't let Day ${day} slip — ${totalReps} reps in the books. 🏋️ ${hashtag}`,
+      `No gaps — @${name} patched Day ${day} with ${totalReps} reps. ✅ ${hashtag}`,
+      `@${name} said Day ${day} doesn't count as a miss. ${totalReps} reps later, they're right. 💪 ${hashtag}`,
+      `Make-up day done. @${name} erased the gap — Day ${day}, ${totalReps} reps completed. ${hashtag} ✅`,
+      `@${name} went back and knocked out Day ${day}. ${totalReps} reps — late but logged. That's accountability, brother. ${hashtag}`,
+      `Miss a day? @${name} doesn't let it slide. Day ${day} backfilled with ${totalReps} reps. ${hashtag}`,
+      `@${name} circled back for Day ${day} — ${totalReps} reps posted. The Gauntlet doesn't have an expiration date. ${hashtag}`,
+      `Day ${day} wasn't forgotten. @${name} came back for those ${totalReps} reps. No gap in the log. ${hashtag}`,
+      `@${name} refused to leave Day ${day} blank. ${totalReps} reps — better late than never, and better late than most. ${hashtag}`,
     ])
   }
-  return pickRandom([
+  const variants = [
     `@${name} just put in the work — Day ${day}/${totalDays}, ${totalReps} reps done. 💪 ${hashtag}`,
-    `@${name} got after it on Day ${day} — ${repsPerExercise} of each variation, ${totalReps} total. 🔥 ${hashtag}`,
+    `@${name} is accelerating — Day ${day}/${totalDays}, ${totalReps} reps down. 🔥 ${hashtag}`,
     `Day ${day} checked. @${name} knocked out ${totalReps} merkins. No days off. 💪 ${hashtag}`,
-    `@${name} showed up on Day ${day}/${totalDays} — ${totalReps} reps on the board. 🏋️ ${hashtag}`,
-    `${totalReps} merkins. Day ${day}. @${name} is getting after it. 🔥 ${hashtag}`,
+    `@${name} — Day ${day}/${totalDays}, ${totalReps} reps on the board. 🏋️ ${hashtag}`,
+    `${totalReps} merkins. Day ${day}. @${name} checked the box. 💪 ${hashtag}`,
     `@${name} didn't come to play — Day ${day} of the Gauntlet complete. ${totalReps} reps. 💪 ${hashtag}`,
-    `Day ${day}/${totalDays} done. @${name} put up ${repsPerExercise} reps across all ${exerciseCount} variations. ${hashtag} 💪`,
+    `Day ${day}/${totalDays} — @${name} put in the work. ${totalReps} reps completed. 💪 ${hashtag}`,
     `@${name} is ${Math.round((day / totalDays) * 100)}% through the Gauntlet. Day ${day} — ${totalReps} reps. 🔥 ${hashtag}`,
-  ])
+    `Day ${day} logged. @${name} earned it — ${totalReps} reps, ${exerciseCount} variations. ${hashtag} 💪`,
+    `@${name} put up ${totalReps} reps on Day ${day}. ✅ ${hashtag}`,
+    `✅ Day ${day} of ${totalDays} — @${name} cleared ${totalReps} reps. ${hashtag}`,
+    `Day ${day}, ${totalReps} reps. @${name} delivered. 💪 ${hashtag}`,
+    `@${name} — Day ${day}/${totalDays}, ${totalReps} reps. No days off. 🔥 ${hashtag}`,
+    `The Gauntlet asked for ${totalReps} on Day ${day}. @${name} answered. 💪 ${hashtag}`,
+    `@${name} — Day ${day} of ${totalDays}. ${totalReps} merkins in the bank. 🏋️ ${hashtag}`,
+    `${totalReps} reps. ${exerciseCount} variations. 1 PAX who doesn't quit. @${name}. Day ${day}. 🔥 ${hashtag}`,
+    `@${name} coming back strong — Day ${day}, ${totalReps} reps. 💪 ${hashtag}`,
+    `@${name} knocked out their reps for Day ${day}. Will you? ${totalReps} on the board. 🔥 ${hashtag}`,
+    `Let's go @${name} — Day ${day} done, ${totalReps} reps in the books. 💪 ${hashtag}`,
+    `Another one in the bag. @${name} — Day ${day}, ${totalReps} reps. ✅ ${hashtag}`,
+    `Day ${day} didn't stand a chance. @${name} — ${totalReps} reps, done. 💪 ${hashtag}`,
+    `@${name} making ${totalReps} reps look like a warm-up. Day ${day}. 🔥 ${hashtag}`,
+    `Who's next? @${name} just set the pace on Day ${day} — ${totalReps} reps. 🔥 ${hashtag}`,
+    `Day ${day} was already on @${name}'s schedule. ${totalReps} reps, no drama. ✅ ${hashtag}`,
+    `@${name} just crushed ${totalReps} reps across ${exerciseCount} variations. Day ${day}/${totalDays} in the books. ${hashtag}`,
+    `${totalReps} reps. ${exerciseCount} ways to suffer. @${name} didn't blink. Day ${day} done. ${hashtag}`,
+    `@${name} checked the box on Day ${day}. ${totalReps} reps, no excuses. Who else is posting today? ${hashtag}`,
+    `Day ${day} belongs to @${name}. ${totalReps} reps handled. ${totalDays - day} days left — will you keep pace? ${hashtag}`,
+    `@${name} just stacked another ${totalReps} reps on the pile. Day ${day}/${totalDays}. The Gauntlet doesn't care about your feelings. ${hashtag}`,
+    `Quiet day for @${name} — only ${totalReps} reps across ${exerciseCount} merkin variations. Casual. ${hashtag}`,
+    `@${name} punched Day ${day} in the mouth. ${totalReps} reps down. Your move. ${hashtag}`,
+    `The Gauntlet demanded ${totalReps} reps today. @${name} delivered. Day ${day}/${totalDays}. ${hashtag}`,
+    `@${name} — Day ${day} complete. ${totalReps} reps, ${exerciseCount} exercises, zero quit. Are you in or are you watching? ${hashtag}`,
+    `Another day, another stack. @${name} posted ${totalReps} reps on Day ${day}. ${hashtag}`,
+  ]
+  if (day > totalDays / 2) {
+    variants.push(
+      `Getting harder, @${name}? ${totalReps} reps says otherwise. 😏 ${hashtag}`,
+      `Day ${day}. ${totalReps} reps. Still looks easy on @${name}. 😏 ${hashtag}`,
+      `${totalReps} reps on Day ${day}. Was that supposed to be hard? @${name} didn't notice. 😏 ${hashtag}`,
+      `Only ${totalDays - day} days left. @${name} is already bored. ${totalReps} reps. 😏 ${hashtag}`,
+      `@${name} on Day ${day} like it's nothing. ${totalReps} reps. The Gauntlet is embarrassed. 😂 ${hashtag}`,
+      `The reps keep going up. @${name} keeps not caring. Day ${day}, ${totalReps} done. 😏 ${hashtag}`,
+      `Day ${day} of ${totalDays}. @${name} said "is that all?" and logged ${totalReps} reps. 😂 ${hashtag}`,
+      `Does @${name} ever stop? Day ${day}, ${totalReps} reps. Apparently not. 😏 ${hashtag}`,
+      `Knees weak, arms heavy — @${name} coming through on Day ${day} anyway. ${totalReps} reps. 😂 ${hashtag}`,
+      `@${name} could do this in their sleep. Day ${day} knocked out — ${totalReps} reps. 😏 ${hashtag}`,
+      `${totalReps} reps and @${name} didn't even break a sweat. Day ${day}. Someone stop them. 😂 ${hashtag}`,
+      `@${name} out here doing ${totalReps} reps like it's a warm-up. Somebody tell The Gauntlet to try harder. 😏 ${hashtag}`,
+      `Day ${day} and @${name} is still here. ${totalReps} reps. At this point the merkins owe HIM rent. 😂 ${hashtag}`,
+      `@${name} with ${totalReps} reps on Day ${day}. If you're not even gonna have the decency to struggle, at least pretend. 😏 ${hashtag}`,
+      `${totalReps} reps and @${name} acts like nothing happened. The Gauntlet is starting to take it personally. 😂 ${hashtag}`,
+      `Will the real @${name} please stand up? ${totalReps} reps on Day ${day}/${totalDays}. Man refuses to lose. 😏 ${hashtag}`,
+      `@${name} posting ${totalReps} reps on Day ${day} with the energy of someone ordering coffee. Does this man even have a heart rate? 😂 ${hashtag}`,
+      `Day ${day}. ${totalReps} reps. @${name} could probably do this blindfolded at this point. The Gauntlet is embarrassed. 😏 ${hashtag}`,
+      `Somebody check on @${name} — ${totalReps} reps on Day ${day} and not a single complaint. That's not normal behavior. 😂 ${hashtag}`,
+    )
+  }
+  return pickRandom(variants)
 }
 
 function snapFraction(val: number): CompletionFraction {
