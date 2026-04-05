@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
 import { ReactionBar } from './ReactionBar'
 import {
-  subscribeToComments,
   createComment,
   softDeleteComment,
   toggleCommentReaction,
@@ -104,23 +103,22 @@ function CommentRow({
   )
 }
 
+const MAX_VISIBLE_THREADS = 3
+
 // ─── Thread ───────────────────────────────────────────────────────────────────
 
 interface CommentThreadProps {
   post: FeedPost
+  comments: FeedComment[]
 }
 
-export function CommentThread({ post }: CommentThreadProps) {
+export function CommentThread({ post, comments }: CommentThreadProps) {
   const { currentUser, allUsers } = useUser()
-  const [comments, setComments]     = useState<FeedComment[]>([])
   const [inputValue, setInputValue] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [replyingTo, setReplyingTo] = useState<FeedComment | null>(null)
+  const [showAll, setShowAll]       = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    return subscribeToComments(post.id, setComments)
-  }, [post.id])
 
   const topLevel   = comments.filter(c => !c.parentCommentId)
   const repliesFor = useCallback(
@@ -207,7 +205,7 @@ export function CommentThread({ post }: CommentThreadProps) {
       {/* Comment list */}
       {topLevel.length > 0 && (
         <div className="flex flex-col gap-3">
-          {topLevel.map(comment => {
+          {(showAll ? topLevel : topLevel.slice(0, MAX_VISIBLE_THREADS)).map(comment => {
             const replies = repliesFor(comment.id)
             return (
               <div key={comment.id} className="flex flex-col gap-2">
@@ -244,6 +242,14 @@ export function CommentThread({ post }: CommentThreadProps) {
               </div>
             )
           })}
+          {!showAll && topLevel.length > MAX_VISIBLE_THREADS && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors text-left"
+            >
+              View {topLevel.length - MAX_VISIBLE_THREADS} more comment{topLevel.length - MAX_VISIBLE_THREADS !== 1 ? 's' : ''}
+            </button>
+          )}
         </div>
       )}
 

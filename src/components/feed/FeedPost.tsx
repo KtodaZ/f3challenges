@@ -6,10 +6,10 @@ import { Avatar } from '@/components/ui/Avatar'
 import { EditPostModal } from './EditPostModal'
 import { CommentThread } from './CommentThread'
 import { ReactionBar } from './ReactionBar'
-import { softDeletePost, togglePostReaction } from '@/lib/firestore'
+import { softDeletePost, togglePostReaction, subscribeToComments } from '@/lib/firestore'
 import { timeAgo, highlightMentions, cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
-import type { FeedPost as FeedPostType } from '@/types'
+import type { FeedPost as FeedPostType, FeedComment } from '@/types'
 
 interface FeedPostProps {
   post: FeedPostType
@@ -147,7 +147,14 @@ export function FeedPost({ post }: FeedPostProps) {
   const [editOpen, setEditOpen]           = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]           = useState(false)
-  const [threadOpen, setThreadOpen]       = useState(false)
+  const [threadOpen, setThreadOpen]       = useState(true)
+  const [comments, setComments]           = useState<FeedComment[]>([])
+
+  useEffect(() => {
+    return subscribeToComments(post.id, setComments)
+  }, [post.id])
+
+  const commentCount = comments.length
 
   const isAuthor = currentUser?.id === post.authorId
   const author   = allUsers.find(u => u.id === post.authorId)
@@ -192,19 +199,22 @@ export function FeedPost({ post }: FeedPostProps) {
                 />
                 <button
                   onClick={() => setThreadOpen(v => !v)}
-                  className={cn('inline-flex items-center transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
+                  className={cn('inline-flex items-center gap-1 transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
                   aria-label="Comments"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
+                  {commentCount > 0 && (
+                    <span className="text-[11px] font-medium">{commentCount}</span>
+                  )}
                 </button>
               </div>
             </div>
           </div>
         </article>
 
-        {threadOpen && <CommentThread post={post} />}
+        {threadOpen && <CommentThread post={post} comments={comments} />}
       </>
     )
   }
@@ -268,12 +278,15 @@ export function FeedPost({ post }: FeedPostProps) {
             />
             <button
               onClick={() => setThreadOpen(v => !v)}
-              className={cn('inline-flex items-center transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
+              className={cn('inline-flex items-center gap-1 transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
               aria-label="Comments"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
+              {commentCount > 0 && (
+                <span className="text-[11px] font-medium">{commentCount}</span>
+              )}
             </button>
           </div>
 
@@ -286,7 +299,7 @@ export function FeedPost({ post }: FeedPostProps) {
           )}
         </article>
 
-        {threadOpen && <CommentThread post={post} />}
+        {threadOpen && <CommentThread post={post} comments={comments} />}
 
         {editOpen && (
           <EditPostModal
@@ -350,12 +363,15 @@ export function FeedPost({ post }: FeedPostProps) {
               />
               <button
                 onClick={() => setThreadOpen(v => !v)}
-                className={cn('transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
+                className={cn('inline-flex items-center gap-1 transition-colors', threadOpen ? 'text-orange-400' : 'text-zinc-500 hover:text-zinc-300')}
                 aria-label="Comments"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
+                {commentCount > 0 && (
+                  <span className="text-[11px] font-medium">{commentCount}</span>
+                )}
               </button>
             </div>
 
@@ -371,7 +387,7 @@ export function FeedPost({ post }: FeedPostProps) {
         </div>
       </article>
 
-      {threadOpen && <CommentThread post={post} />}
+      {threadOpen && <CommentThread post={post} comments={comments} />}
 
       {editOpen && (
         <EditPostModal
