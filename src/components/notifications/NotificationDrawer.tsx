@@ -42,6 +42,7 @@ export function NotificationDrawer({
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRendered(true)
       // One frame later so the enter transition fires properly.
       const raf = requestAnimationFrame(() => setVisible(true))

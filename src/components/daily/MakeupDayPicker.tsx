@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, formatDate } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { getDailyTarget } from '@/lib/challenges'
 import { LogDayModal } from './LogDayModal'
 import type { ChallengeTemplate, DailyLog, CompletionFraction } from '@/types'

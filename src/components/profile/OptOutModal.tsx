@@ -5,8 +5,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import { upsertParticipation, participationId } from '@/lib/firestore'
-import { generateId } from '@/lib/utils'
-import type { ChallengeParticipation, ParticipationStatus } from '@/types'
+import type { ChallengeParticipation } from '@/types'
 
 interface OptOutModalProps {
   open: boolean
@@ -60,7 +59,7 @@ export function OptOutModal({
       await upsertParticipation(updated)
       onSuccess(updated)
       onClose()
-    } catch (err) {
+    } catch {
       setError('Something went wrong. Please try again.')
     } finally {
       setSaving(false)

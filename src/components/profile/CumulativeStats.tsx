@@ -1,6 +1,5 @@
 'use client'
 
-import { getChallengeById } from '@/lib/challenges'
 import type { DailyLog, AchievementBadge } from '@/types'
 
 interface CumulativeStatsProps {

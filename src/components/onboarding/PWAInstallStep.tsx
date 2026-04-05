@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { cn } from '@/lib/utils'
 
 interface Props {
   onNext: () => void
@@ -26,6 +25,7 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
   const [installing, setInstalling] = useState(false)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlatform(detectPlatform())
 
     const handler = (e: Event) => {
@@ -149,7 +149,7 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-medium text-white text-sm">Tap "Add to Home Screen"</p>
+                  <p className="font-medium text-white text-sm">Tap &ldquo;Add to Home Screen&rdquo;</p>
                   <p className="text-zinc-500 text-xs mt-0.5">Then confirm to install</p>
                 </div>
               </div>
@@ -161,7 +161,7 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
       {platform === 'other' && (
         <div className="flex-1">
           <p className="text-zinc-400 text-sm">
-            On desktop you can install this app from your browser's address bar or menu.
+            On desktop you can install this app from your browser&apos;s address bar or menu.
             On mobile, use Safari (iOS) or Chrome (Android) for the best experience.
           </p>
         </div>
@@ -170,14 +170,14 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
       <div className="mt-8 space-y-3">
         {platform !== 'android' && (
           <Button onClick={onNext} size="lg" fullWidth>
-            I've installed it →
+            I&apos;ve installed it →
           </Button>
         )}
         <button
           onClick={onSkip ?? onNext}
           className="w-full text-sm text-zinc-500 hover:text-zinc-300 py-2 transition-colors"
         >
-          I'll do this later
+          I&apos;ll do this later
         </button>
       </div>
     </div>

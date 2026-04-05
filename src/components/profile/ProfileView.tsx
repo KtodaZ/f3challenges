@@ -21,11 +21,8 @@ import {
 } from '@/lib/firestore'
 import {
   getCurrentChallenge,
-  getChallengeById,
   CHALLENGES,
   getChallengeDates,
-  getDailyTarget,
-  getMonthlyTotal,
   getTodayPT,
 } from '@/lib/challenges'
 import { useUser } from '@/contexts/UserContext'
@@ -97,6 +94,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
     } finally {
       setLoading(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id, currentChallenge?.id])
 
   useEffect(() => {
@@ -110,7 +108,6 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
   const totalRepsLogged = currentLogs.reduce((sum, log) => {
     return sum + log.exerciseLogs.reduce((s, e) => s + e.completedReps, 0)
   }, 0)
-  const monthlyTotal = currentChallenge ? getMonthlyTotal(currentChallenge) : 0
   const progressPct = totalDays > 0 ? Math.round((daysCompleted / totalDays) * 100) : 0
 
   async function handleSaveName() {

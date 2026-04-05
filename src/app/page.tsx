@@ -12,7 +12,7 @@ import {
   getUserChallengeLogs,
   updateUser,
   getLogsForDate,
-  createFeedPost,
+  createFeedPostOnce,
 } from '@/lib/firestore'
 import {
   getCurrentChallenge,
@@ -22,7 +22,7 @@ import {
   getTotalDays,
   getChallengeDates,
 } from '@/lib/challenges'
-import { monthProgress, generateId, cn, stripUndefined, extractHashtags, calculateStreak } from '@/lib/utils'
+import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak } from '@/lib/utils'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
@@ -41,6 +41,40 @@ import type {
 } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+function buildDailyCompleteMessage(
+  name: string,
+  day: number,
+  totalDays: number,
+  totalReps: number,
+  repsPerExercise: number,
+  exerciseCount: number,
+  hashtag: string,
+  isMakeUp: boolean
+): string {
+  if (isMakeUp) {
+    return pickRandom([
+      `@${name} went back and made up Day ${day} — ${totalReps} merkins. No unfinished business. 💪 ${hashtag}`,
+      `@${name} circled back to Day ${day} and knocked out ${totalReps} reps. Better late than never. 🔥 ${hashtag}`,
+      `Day ${day} wasn't getting left behind — @${name} came back and got it done. ${totalReps} reps. 💪 ${hashtag}`,
+      `@${name} didn't let Day ${day} slip — ${repsPerExercise} reps of all ${exerciseCount} variations in the books. 🏋️ ${hashtag}`,
+    ])
+  }
+  return pickRandom([
+    `@${name} just put in the work — Day ${day}/${totalDays}, ${totalReps} reps done. 💪 ${hashtag}`,
+    `@${name} got after it on Day ${day} — ${repsPerExercise} of each variation, ${totalReps} total. 🔥 ${hashtag}`,
+    `Day ${day} checked. @${name} knocked out ${totalReps} merkins. No days off. 💪 ${hashtag}`,
+    `@${name} showed up on Day ${day}/${totalDays} — ${totalReps} reps on the board. 🏋️ ${hashtag}`,
+    `${totalReps} merkins. Day ${day}. @${name} is getting after it. 🔥 ${hashtag}`,
+    `@${name} didn't come to play — Day ${day} of the Gauntlet complete. ${totalReps} reps. 💪 ${hashtag}`,
+    `Day ${day}/${totalDays} done. @${name} put up ${repsPerExercise} reps across all ${exerciseCount} variations. ${hashtag} 💪`,
+    `@${name} is ${Math.round((day / totalDays) * 100)}% through the Gauntlet. Day ${day} — ${totalReps} reps. 🔥 ${hashtag}`,
+  ])
+}
 
 function snapFraction(val: number): CompletionFraction {
   if (val >= 1)    return 1
@@ -232,10 +266,53 @@ export default function HomePage() {
       await upsertDailyLog(stripUndefined(log))
 
       // Update allLogs cache
-      setAllLogs(prev => {
-        const without = prev.filter(l => l.id !== log.id)
-        return [...without, log].sort((a, b) => a.date.localeCompare(b.date))
-      })
+      const updatedLogs = [...allLogs.filter(l => l.id !== log.id), log]
+        .sort((a, b) => a.date.localeCompare(b.date))
+      setAllLogs(updatedLogs)
+
+      // Daily completion feed post
+      const wasComplete = !!(existingLog && existingLog.completionFraction >= 1)
+      if (overallFraction >= 1 && !wasComplete) {
+        const dayNum = getDayNumber(challenge, date) ?? 1
+        const content = buildDailyCompleteMessage(
+          currentUser.displayName,
+          dayNum,
+          getTotalDays(challenge),
+          target.totalReps,
+          target.repsPerExercise,
+          challenge.exercises.length,
+          challenge.hashtag,
+          isMakeUp,
+        )
+        await createFeedPostOnce(stripUndefined({
+          id: `daily_complete_${currentUser.id}_${date}`,
+          type: 'system' as const,
+          authorId: 'system',
+          content,
+          hashtags: extractHashtags(content),
+          mentions: [currentUser.id],
+          challengeId: challenge.id,
+          createdAt: new Date().toISOString(),
+          deleted: false,
+        }))
+      }
+
+      // Monthly completion feed post
+      const completedDaysCount = updatedLogs.filter(l => l.completionFraction >= 1).length
+      if (completedDaysCount >= getTotalDays(challenge)) {
+        const content = `@${currentUser.displayName} just completed ${challenge.name} — every single day! 🏆 ${challenge.hashtag}`
+        await createFeedPostOnce(stripUndefined({
+          id: `monthly_complete_${currentUser.id}_${challenge.id}`,
+          type: 'system' as const,
+          authorId: 'system',
+          content,
+          hashtags: extractHashtags(content),
+          mentions: [currentUser.id],
+          challengeId: challenge.id,
+          createdAt: new Date().toISOString(),
+          deleted: false,
+        }))
+      }
 
       // Update streak
       const completedDates = [
@@ -344,8 +421,6 @@ export default function HomePage() {
   const dayNumber   = getDayNumber(challenge, today) ?? 1
   const totalDays   = getTotalDays(challenge)
   const progress    = monthProgress(challenge.startDate, challenge.endDate)
-  const exerciseIds = challenge.exercises.map(e => e.id)
-
   // Makeup: past days with fraction < 1
   const allDates = getChallengeDates(challenge)
   const logsMap  = Object.fromEntries(allLogs.map(l => [l.date, l]))
@@ -374,32 +449,6 @@ export default function HomePage() {
     setCalloutTarget(user)
     setCalloutDefaultContent(defaultContent)
     setCalloutOpen(true)
-  }
-
-  async function quickEncourage(targets: User[]) {
-    if (!currentUser || !challenge) return
-    const isAll = targets.length > 1
-    const content = isAll
-      ? `Let's go PAX! ${targets.length} of us haven't checked in yet — let's get everyone there! 💪 ${challenge.hashtag}`
-      : `Get after it @${targets[0].displayName}! 💪 ${challenge.hashtag}`
-    const post = stripUndefined({
-      id: generateId(),
-      type: 'shoutout' as const,
-      authorId: currentUser.id,
-      content,
-      hashtags: extractHashtags(content),
-      mentions: targets.map(u => u.id),
-      challengeId: challenge.id,
-      targetUserId: targets.length === 1 ? targets[0].id : undefined,
-      createdAt: new Date().toISOString(),
-      deleted: false,
-    })
-    await createFeedPost(post)
-    setEncouragedIds(prev => {
-      const next = new Set(prev)
-      targets.forEach(u => next.add(u.id))
-      return next
-    })
   }
 
   return (

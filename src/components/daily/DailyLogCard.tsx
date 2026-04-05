@@ -50,10 +50,6 @@ export function DailyLogCard({ log, target, onOpenLog }: DailyLogCardProps) {
   const isDone = fraction >= 1
   const pct = Math.round(fraction * 100)
 
-  // Compute total completed reps across all exercises
-  const totalCompleted = log
-    ? log.exerciseLogs.reduce((sum, el) => sum + el.completedReps, 0)
-    : 0
 
   const statusLabel = isDone
     ? 'All done today!'

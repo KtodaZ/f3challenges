@@ -3,14 +3,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@/contexts/UserContext'
-import { getCurrentChallenge, getTodayPT, getDayNumber, getTotalDays, getChallengeDates } from '@/lib/challenges'
-import { getAllUsers, getUserChallengeLogs, getChallengeParticipants, getDailyLog } from '@/lib/firestore'
-import { monthProgress, cn } from '@/lib/utils'
+import { getCurrentChallenge, getTodayPT, getChallengeDates } from '@/lib/challenges'
+import { getUserChallengeLogs, getChallengeParticipants, getDailyLog } from '@/lib/firestore'
+import { monthProgress } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
 import { GroupStats } from '@/components/leaderboard/GroupStats'
 import { CallOutCard } from '@/components/leaderboard/CallOutCard'
 import { ProgressBar } from '@/components/ui/ProgressBar'
-import type { LeaderboardEntry, DailyLog, ChallengeParticipation, User } from '@/types'
+import type { LeaderboardEntry, ChallengeParticipation } from '@/types'
 
 export default function LeaderboardPage() {
   const { currentUser, allUsers } = useUser()
@@ -34,8 +34,6 @@ export default function LeaderboardPage() {
     const participationMap = new Map<string, ChallengeParticipation>(
       participations.map(p => [p.userId, p])
     )
-    const dayNum = getDayNumber(challenge, today) ?? 1
-    const totalDays = getTotalDays(challenge)
     const challengeDates = getChallengeDates(challenge)
     const pastDates = challengeDates.filter(d => d <= today)
 
@@ -97,6 +95,7 @@ export default function LeaderboardPage() {
     setRefreshing(false)
   }, [challenge, allUsers])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadData() }, [loadData])
 
   async function handleRefresh() {

@@ -10,17 +10,13 @@ import {
   getDocs,
   setDoc,
   updateDoc,
-  deleteDoc,
   query,
   where,
   orderBy,
   limit,
   onSnapshot,
-  serverTimestamp,
-  Timestamp,
   arrayUnion,
   arrayRemove,
-  type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from './firebase'
 import type {
@@ -143,6 +139,14 @@ export async function getChallengeParticipants(challengeId: string): Promise<Cha
 
 export async function createFeedPost(post: FeedPost): Promise<void> {
   await setDoc(doc(feedCol(), post.id), post)
+}
+
+/** Creates a feed post only if a doc with that ID doesn't already exist. */
+export async function createFeedPostOnce(post: FeedPost): Promise<void> {
+  const ref = doc(feedCol(), post.id)
+  const snap = await getDoc(ref)
+  if (snap.exists()) return
+  await setDoc(ref, post)
 }
 
 export async function updateFeedPost(postId: string, updates: Partial<FeedPost>): Promise<void> {

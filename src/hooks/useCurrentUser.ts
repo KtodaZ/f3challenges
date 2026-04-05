@@ -12,6 +12,7 @@ export function useCurrentUser() {
 
   useEffect(() => {
     const id = getCurrentUserId()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUserId(id)
     if (!id) { setLoading(false); return }
 

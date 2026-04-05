@@ -89,8 +89,8 @@ async function sendPushNotification(
           fcmOptions: { link },
         },
       });
-    } catch (err: any) {
-      if (err?.code === "messaging/registration-token-not-registered") {
+    } catch (err: unknown) {
+      if ((err as { code?: string })?.code === "messaging/registration-token-not-registered") {
         await admin.firestore().doc(`users/${userId}`).update({
           fcmTokens: admin.firestore.FieldValue.arrayRemove(token),
         });

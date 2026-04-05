@@ -41,7 +41,7 @@ export function CallOutCard({ entries }: CallOutCardProps) {
         </div>
       </div>
       <ul>
-        {needsPush.map((entry, i) => (
+        {needsPush.map((entry) => (
           <li key={entry.user.id}>
             <button
               onClick={() => router.push(`/profile/${entry.user.id}`)}

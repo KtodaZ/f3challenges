@@ -126,8 +126,8 @@ export async function GET(req: NextRequest) {
                 fcmOptions: { link: '/' },
               },
             })
-          } catch (tokenErr: any) {
-            if (tokenErr?.code === 'messaging/registration-token-not-registered') {
+          } catch (tokenErr: unknown) {
+            if ((tokenErr as { code?: string })?.code === 'messaging/registration-token-not-registered') {
               await adminDb.collection('users').doc(user.id!).update({
                 fcmTokens: FieldValue.arrayRemove(token),
               })

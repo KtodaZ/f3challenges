@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/Avatar'
-import { ProgressBar } from '@/components/ui/ProgressBar'
 import { cn } from '@/lib/utils'
 import type { LeaderboardEntry } from '@/types'
 

@@ -35,6 +35,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Restore session — use cache for instant load, then refresh from Firestore in background
   useEffect(() => {
     const id = getCurrentUserId()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!id) { setLoading(false); return }
 
     // Show cached user immediately so the app doesn't flash to onboarding

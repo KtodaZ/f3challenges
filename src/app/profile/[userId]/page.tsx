@@ -10,7 +10,7 @@ import type { User } from '@/types'
 export default function ProfilePage() {
   const params = useParams()
   const userId = params.userId as string
-  const { currentUser, allUsers } = useUser()
+  const { allUsers } = useUser()
 
   // Try allUsers cache first, fall back to fetch
   const [profileUser, setProfileUser] = useState<User | null>(
@@ -20,6 +20,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const cached = allUsers.find(u => u.id === userId)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (cached) { setProfileUser(cached); setLoading(false); return }
     getUser(userId).then(u => { setProfileUser(u); setLoading(false) })
   }, [userId, allUsers])

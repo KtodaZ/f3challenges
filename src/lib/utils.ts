@@ -6,7 +6,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /** Strip undefined values from an object before passing to Firestore setDoc/updateDoc. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function stripUndefined<T extends object>(obj: T): T {
   return Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined)

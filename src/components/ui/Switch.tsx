@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
 import { cn } from '@/lib/utils'
 
@@ -13,7 +14,8 @@ interface SwitchProps {
 }
 
 export function Switch({ checked, onCheckedChange, label, description, disabled, id }: SwitchProps) {
-  const switchId = id ?? `switch-${Math.random().toString(36).slice(2)}`
+  const generatedId = useId()
+  const switchId = id ?? generatedId
   return (
     <div className="flex items-center justify-between gap-3">
       {(label || description) && (

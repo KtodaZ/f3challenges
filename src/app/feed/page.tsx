@@ -49,7 +49,7 @@ export default function FeedPage() {
           <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
             <span className="text-5xl mb-4">💪</span>
             <p className="text-zinc-300 font-semibold text-lg mb-1">Be the first to post today</p>
-            <p className="text-zinc-500 text-sm">Share what's on your mind or shout out a crew member.</p>
+            <p className="text-zinc-500 text-sm">Share what&apos;s on your mind or shout out a crew member.</p>
           </div>
         ) : (
           <ul className="divide-y divide-zinc-800/60">

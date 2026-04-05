@@ -43,7 +43,7 @@ export function PastChallengesStep({ onNext, existingBadges }: Props) {
   return (
     <div className="flex flex-col min-h-full px-6 py-8">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white mb-2">Any previous W's?</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">Any previous W&apos;s?</h2>
         <p className="text-zinc-400 text-sm">Tell us about past challenges so we can add badges to your profile.</p>
       </div>
 

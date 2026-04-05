@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useUser } from '@/contexts/UserContext'
 import { isOnboardingComplete } from '@/lib/storage'
-import type { OnboardingStep, User, NotificationPreferences, AchievementBadge } from '@/types'
+import type { OnboardingStep, NotificationPreferences, AchievementBadge } from '@/types'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 
 import { WelcomeStep }        from '@/components/onboarding/WelcomeStep'
@@ -61,7 +61,6 @@ function OnboardingInner() {
 
   // Visible step index for progress dots (exclude 'done' from dot count)
   const dotSteps = STEPS.filter(s => s !== 'done') as OnboardingStep[]
-  const dotIndex = dotSteps.indexOf(currentStep)
 
   if (loading) {
     return (

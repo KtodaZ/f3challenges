@@ -12,7 +12,8 @@ interface Props {
   notifPrefs?: NotificationPreferences
 }
 
-export function DoneStep({ earnedBadges, notifPrefs }: Props) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function DoneStep(_: Props) {
   const router = useRouter()
   const [checked, setChecked] = useState(false)
 
@@ -62,13 +63,13 @@ export function DoneStep({ earnedBadges, notifPrefs }: Props) {
       </div>
 
       <h2 className="text-3xl font-bold text-white mb-2">
-        You're all set! 💪
+        You&apos;re all set! 💪
       </h2>
-      <p className="text-zinc-400 mb-8">You're all set and ready to conquer.</p>
+      <p className="text-zinc-400 mb-8">You&apos;re all set and ready to conquer.</p>
 
       {challenge && target && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 w-full max-w-sm mb-8 text-left">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Today's challenge</p>
+          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Today&apos;s challenge</p>
           <p className="text-lg font-bold text-orange-400">{challenge.name}</p>
           <p className="text-white mt-1">
             <span className="text-2xl font-bold">{target.totalReps}</span>
@@ -86,7 +87,7 @@ export function DoneStep({ earnedBadges, notifPrefs }: Props) {
       )}
 
       <Button onClick={handleGo} size="lg" fullWidth className="max-w-sm">
-        Go to today's challenge →
+        Go to today&apos;s challenge →
       </Button>
     </div>
   )
