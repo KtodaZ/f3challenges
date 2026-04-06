@@ -106,7 +106,7 @@ Works in both client components and Next.js API routes — `NEXT_PUBLIC_` vars a
 | `src/contexts/UserContext.tsx` | currentUser, allUsers, login, logout, refreshCurrentUser |
 | `src/app/layout.tsx` | Root layout: QueryProvider > UserProvider > TooltipProvider |
 | `src/app/page.tsx` | Home: daily log, PAX completion count, shoutout section |
-| `src/app/onboarding/page.tsx` | 7-step wizard |
+| `src/app/onboarding/page.tsx` | 7-step wizard (pwa-install is step 1, auto-skips if already installed) |
 | `src/app/settings/page.tsx` | Settings root |
 | `src/app/settings/notifications/page.tsx` | Notification preferences |
 | `src/app/settings/notifications/troubleshoot/page.tsx` | Notification setup diagnostics + test send |
@@ -119,9 +119,10 @@ Works in both client components and Next.js API routes — `NEXT_PUBLIC_` vars a
 ## iOS/Android Notes
 - iOS: ads and premium features are Android-only
 - PWA install is required for push notifications on iOS (must use Safari, iOS 16.4+)
-- `PWAInstallStep` component is platform-aware (ios/android/installed/other)
+- `PWAInstallStep` component is platform-aware (ios/android/installed/other); shared `PWAInstallGuide` component used by both onboarding and the troubleshoot page
 
 ## Deployment
+- **Production URL**: `https://f3-bedrock-monthly-challenge.vercel.app`
 - **Vercel** — auto-deploys from `main` branch push
 - **Firebase Functions** — build with esbuild (bundles `@f3-bedrock/shared` inline), then deploy
 - **Firestore** — `firebase deploy --only firestore`
