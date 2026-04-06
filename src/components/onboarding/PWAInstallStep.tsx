@@ -108,7 +108,7 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
             </p>
           </div>
           <p className="text-xs text-zinc-500">
-            You can always enable this later from <span className="text-zinc-400">Settings → Notifications</span>.
+            Don&apos;t want reminders but still want to know when someone tags you? You can tune that in the notifications step coming up.
           </p>
           <div className="space-y-2">
             <Button onClick={onSkip} variant="secondary" size="lg" fullWidth>
