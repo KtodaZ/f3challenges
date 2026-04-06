@@ -23,36 +23,19 @@ function detectPlatform(): Platform {
 
 export function PWAInstallStep({ onNext, onSkip }: Props) {
   const [platform, setPlatform] = useState<Platform>('other')
-  const [deferredPrompt, setDeferredPrompt] = useState<Event & { prompt: () => Promise<void> } | null>(null)
-  const [installing, setInstalling] = useState(false)
   const [skipModalOpen, setSkipModalOpen] = useState(false)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlatform(detectPlatform())
-
-    const handler = (e: Event) => {
-      e.preventDefault()
-      setDeferredPrompt(e as Event & { prompt: () => Promise<void> })
-    }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
-  // Auto-skip if already installed
+  // Auto-skip if already installed or on Android (notifications work without PWA install)
   useEffect(() => {
-    if (platform === 'installed') onNext()
+    if (platform === 'installed' || platform === 'android') onNext()
   }, [platform, onNext])
 
-  async function handleInstallAndroid() {
-    if (!deferredPrompt) return
-    setInstalling(true)
-    await deferredPrompt.prompt()
-    setInstalling(false)
-    onNext()
-  }
-
-  if (platform === 'installed') return null
+  if (platform === 'installed' || platform === 'android') return null
 
   return (
     <div className="flex flex-col min-h-full px-6 py-8">
@@ -62,17 +45,13 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">Add to Home Screen</h2>
         <p className="text-zinc-400 text-sm">
-          Install the app for push notifications and a native experience.
+          Required on iOS to receive push notifications and a native experience.
         </p>
       </div>
 
-      {(platform === 'ios' || platform === 'android') && (
+      {platform === 'ios' && (
         <div className="flex-1">
-          <PWAInstallGuide
-            platform={platform}
-            onInstall={platform === 'android' && deferredPrompt ? handleInstallAndroid : undefined}
-            installing={installing}
-          />
+          <PWAInstallGuide platform="ios" />
         </div>
       )}
 
@@ -86,11 +65,9 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
       )}
 
       <div className="mt-8">
-        {platform !== 'android' && (
-          <Button onClick={onNext} size="lg" fullWidth>
-            I&apos;ve installed it →
-          </Button>
-        )}
+        <Button onClick={onNext} size="lg" fullWidth>
+          I&apos;ve installed it →
+        </Button>
         <button
           onClick={() => setSkipModalOpen(true)}
           className="w-full text-sm text-zinc-600 hover:text-zinc-400 py-2 mt-2 transition-colors"
