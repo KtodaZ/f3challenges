@@ -93,6 +93,11 @@ export function PWAInstallGuide({ platform, onInstall, installing }: Props) {
               </div>
             </div>
           ))}
+          {platform === 'ios' && (
+            <p className="text-xs text-zinc-500 pt-1">
+              After adding, close Safari and open the app from your Home Screen.
+            </p>
+          )}
         </div>
       )}
     </div>
