@@ -74,6 +74,25 @@ export default function SettingsPage() {
           </svg>
         </Link>
 
+        {/* Past challenges */}
+        <Link
+          href="/settings/past-challenges"
+          className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4 hover:border-zinc-700 transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <span className="text-lg">🏆</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">Past Challenges</p>
+              <p className="text-xs text-zinc-500">Update your badges for previous challenges</p>
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
+
         {/* Switch user */}
         <button
           onClick={handleSwitchUser}

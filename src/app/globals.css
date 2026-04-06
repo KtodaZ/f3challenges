@@ -52,6 +52,21 @@ html {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Emoji reaction burst particles */
+@keyframes emoji-burst {
+  0%   { opacity: 1; transform: translate(-50%, 0) scale(1.2); }
+  50%  { opacity: 0.85; transform: translate(calc(-50% + var(--burst-dx, 0px)), -55px) scale(1.7); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--burst-dx, 0px)), -95px) scale(0.5); }
+}
+
+/* Reaction chip pop when count changes */
+@keyframes chip-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.5); }
+  65%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
 /* Animated gradient text */
 .gradient-text {
   background: linear-gradient(135deg, #f97316, #fbbf24);

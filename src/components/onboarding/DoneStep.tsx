@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { getCurrentChallenge, getDailyTarget, getTodayPT } from '@/lib/challenges'
 import { setOnboardingComplete } from '@/lib/storage'
+import { updateUser } from '@/lib/firestore'
+import { useUser } from '@/contexts/UserContext'
 import type { AchievementBadge, NotificationPreferences } from '@/types'
 
 interface Props {
@@ -12,9 +14,9 @@ interface Props {
   notifPrefs?: NotificationPreferences
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function DoneStep(_: Props) {
+export function DoneStep({ earnedBadges, notifPrefs }: Props) {
   const router = useRouter()
+  const { currentUser } = useUser()
   const [checked, setChecked] = useState(false)
 
   useEffect(() => {
@@ -26,7 +28,15 @@ export function DoneStep(_: Props) {
   const today     = getTodayPT()
   const target    = challenge ? getDailyTarget(challenge, today) : null
 
-  function handleGo() {
+  async function handleGo() {
+    if (currentUser) {
+      const updates: Parameters<typeof updateUser>[1] = {}
+      if (earnedBadges !== undefined) updates.badges = earnedBadges
+      if (notifPrefs !== undefined) updates.notificationPreferences = notifPrefs
+      if (Object.keys(updates).length > 0) {
+        await updateUser(currentUser.id, updates)
+      }
+    }
     setOnboardingComplete()
     router.push('/')
   }
