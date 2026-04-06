@@ -107,7 +107,10 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
               Without installing, you won&apos;t receive daily workout reminders or shoutouts when your crew calls you out. The whole accountability side of this challenge runs through push notifications.
             </p>
           </div>
-          <div className="space-y-2 pt-1">
+          <p className="text-xs text-zinc-500">
+            You can always enable this later from <span className="text-zinc-400">Settings → Notifications</span>.
+          </p>
+          <div className="space-y-2">
             <Button onClick={onSkip} variant="secondary" size="lg" fullWidth>
               I don&apos;t want push notifications for tags or reminders
             </Button>
