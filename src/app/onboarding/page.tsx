@@ -18,8 +18,8 @@ import { StepDots }           from '@/components/onboarding/StepDots'
 
 // Steps in order — pwa-install may be skipped at runtime
 const STEPS: OnboardingStep[] = [
-  'pwa-install',
   'welcome',
+  'pwa-install',
   'disclaimer',
   'profile',
   'past-challenges',
@@ -39,7 +39,7 @@ function OnboardingInner() {
   // Determine initial step
   const joinParam = searchParams.get('join')
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(
-    joinParam === 'true' ? 'profile' : 'pwa-install'
+    joinParam === 'true' ? 'profile' : 'welcome'
   )
 
   // Redirect if already onboarded
