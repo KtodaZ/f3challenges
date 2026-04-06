@@ -115,7 +115,7 @@ export function PWAInstallStep({ onNext, onSkip }: Props) {
               I don&apos;t want push notifications for tags or reminders
             </Button>
             <Button onClick={() => setSkipModalOpen(false)} size="lg" fullWidth>
-              Let me install it
+              I want some notifications — let me install it
             </Button>
           </div>
         </div>
