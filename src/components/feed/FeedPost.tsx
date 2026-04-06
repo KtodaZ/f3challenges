@@ -20,27 +20,27 @@ interface FeedPostProps {
 function PostBody({ post }: { post: FeedPostType }) {
   const { allUsers } = useUser()
 
-  // Build a version of highlightMentions that wraps @mentions in links
-  // by replacing the orange spans with linked spans after rendering.
-  // We inject data-mention-name so a post-processing step can add hrefs.
   function buildContent() {
-    // Replace @mentions with linked spans
-    const html = post.content
-      .replace(
-        /@([\w ]+)/g,
-        (_, name: string) => {
-          const user = allUsers.find(
-            u => u.displayName.toLowerCase() === name.trim().toLowerCase()
-          )
-          if (user) {
-            return `<a href="/profile/${user.id}" class="text-orange-400 font-semibold hover:underline">@${name}</a>`
-          }
-          return `<span class="text-orange-400 font-semibold">@${name}</span>`
-        }
-      )
-      .replace(/#(\w+)/g, '<span class="text-green-400">#$1</span>')
+    if (!allUsers.length) {
+      return post.content
+        .replace(/@(\w+)/g, '<span class="text-orange-400 font-semibold">@$1</span>')
+        .replace(/#(\w+)/g, '<span class="text-green-400">#$1</span>')
+    }
 
-    return html
+    const sorted = [...allUsers].sort((a, b) => b.displayName.length - a.displayName.length)
+    const namePattern = sorted
+      .map(u => u.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')
+
+    return post.content
+      .replace(new RegExp(`@(${namePattern})`, 'gi'), (_, name: string) => {
+        const user = allUsers.find(u => u.displayName.toLowerCase() === name.toLowerCase())
+        if (user) {
+          return `<a href="/profile/${user.id}" class="text-orange-400 font-semibold hover:underline">@${name}</a>`
+        }
+        return `<span class="text-orange-400 font-semibold">@${name}</span>`
+      })
+      .replace(/#(\w+)/g, '<span class="text-green-400">#$1</span>')
   }
 
   return (
@@ -192,7 +192,7 @@ export function FeedPost({ post }: FeedPostProps) {
             <div className="flex-1 min-w-0">
               <p
                 className="text-xs text-zinc-400 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: highlightMentions(post.content) }}
+                dangerouslySetInnerHTML={{ __html: highlightMentions(post.content, allUsers) }}
               />
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-[10px] text-zinc-600">{timeAgo(post.createdAt)}</span>
@@ -270,7 +270,7 @@ export function FeedPost({ post }: FeedPostProps) {
           {/* Content */}
           <p
             className="text-sm text-zinc-200 leading-relaxed break-words"
-            dangerouslySetInnerHTML={{ __html: highlightMentions(post.content) }}
+            dangerouslySetInnerHTML={{ __html: highlightMentions(post.content, allUsers) }}
           />
 
           {/* Actions row */}

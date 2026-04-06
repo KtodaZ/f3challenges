@@ -67,7 +67,7 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
       const postId = generateId()
 
       // Resolve @mention names → user IDs
-      const mentionedNames = extractMentionNames(content)
+      const mentionedNames = extractMentionNames(content, allUsers)
       const mentionedUsers = allUsers.filter(u =>
         mentionedNames.some(name => name.toLowerCase() === u.displayName.toLowerCase())
       )

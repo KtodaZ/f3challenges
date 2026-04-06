@@ -96,7 +96,7 @@ export function CalloutModal({
     setSaving(true)
     try {
       // Resolve @mention names → user IDs (additive to targetUser)
-      const mentionedNames = extractMentionNames(content)
+      const mentionedNames = extractMentionNames(content, allUsers)
       const mentionedUsers = allUsers.filter(u =>
         mentionedNames.some(name => name.toLowerCase() === u.displayName.toLowerCase())
       )

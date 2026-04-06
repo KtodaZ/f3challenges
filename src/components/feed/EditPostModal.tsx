@@ -65,7 +65,7 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
 
     setSubmitting(true)
     try {
-      const mentionedNames = extractMentionNames(content)
+      const mentionedNames = extractMentionNames(content, allUsers)
       const mentions = allUsers
         .filter(u => mentionedNames.some(name => name.toLowerCase() === u.displayName.toLowerCase()))
         .map(u => u.id)

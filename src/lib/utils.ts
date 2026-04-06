@@ -45,15 +45,44 @@ export function extractHashtags(text: string): string[] {
 }
 
 /** Extract @mentions from text → user display names (need to resolve to IDs separately). */
-export function extractMentionNames(text: string): string[] {
-  return [...text.matchAll(/@([\w\s]+?)(?=\s|$|[^a-zA-Z\s])/g)].map(m => m[1].trim())
+export function extractMentionNames(
+  text: string,
+  users?: { displayName: string }[]
+): string[] {
+  if (users && users.length > 0) {
+    const sorted = [...users].sort((a, b) => b.displayName.length - a.displayName.length)
+    const namePattern = sorted
+      .map(u => u.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')
+    return [...text.matchAll(new RegExp(`@(${namePattern})`, 'gi'))].map(m => {
+      const lower = m[1].toLowerCase()
+      return users.find(u => u.displayName.toLowerCase() === lower)?.displayName ?? m[1]
+    })
+  }
+  return [...text.matchAll(/@(\w+)/g)].map(m => m[1])
 }
 
 /** Render post content with highlighted @mentions and #hashtags (returns plain string for now). */
-export function highlightMentions(content: string): string {
-  return content
-    .replace(/@([\w ]+)/g, '<span class="text-orange-400 font-semibold">@$1</span>')
-    .replace(/#(\w+)/g, '<span class="text-green-400">#$1</span>')
+export function highlightMentions(
+  content: string,
+  users?: { id: string; displayName: string }[]
+): string {
+  let result = content
+
+  if (users && users.length > 0) {
+    const sorted = [...users].sort((a, b) => b.displayName.length - a.displayName.length)
+    const namePattern = sorted
+      .map(u => u.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')
+    result = result.replace(
+      new RegExp(`@(${namePattern})`, 'gi'),
+      '<span class="text-orange-400 font-semibold">@$1</span>'
+    )
+  } else {
+    result = result.replace(/@(\w+)/g, '<span class="text-orange-400 font-semibold">@$1</span>')
+  }
+
+  return result.replace(/#(\w+)/g, '<span class="text-green-400">#$1</span>')
 }
 
 /** Streak from sorted array of YYYY-MM-DD log dates (most recent last). */
