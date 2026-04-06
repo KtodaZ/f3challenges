@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { PWAInstallGuide } from './PWAInstallGuide'
 
 interface Props {
   onNext: () => void
+  onSkip: () => void
 }
 
 type Platform = 'ios' | 'android' | 'installed' | 'other'
@@ -19,10 +21,11 @@ function detectPlatform(): Platform {
   return 'other'
 }
 
-export function PWAInstallStep({ onNext }: Props) {
+export function PWAInstallStep({ onNext, onSkip }: Props) {
   const [platform, setPlatform] = useState<Platform>('other')
   const [deferredPrompt, setDeferredPrompt] = useState<Event & { prompt: () => Promise<void> } | null>(null)
   const [installing, setInstalling] = useState(false)
+  const [skipModalOpen, setSkipModalOpen] = useState(false)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -88,7 +91,32 @@ export function PWAInstallStep({ onNext }: Props) {
             I&apos;ve installed it →
           </Button>
         )}
+        <button
+          onClick={() => setSkipModalOpen(true)}
+          className="w-full text-sm text-zinc-600 hover:text-zinc-400 py-2 mt-2 transition-colors"
+        >
+          Skip for now
+        </button>
       </div>
+
+      <Modal open={skipModalOpen} onClose={() => setSkipModalOpen(false)}>
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-lg font-bold text-white mb-1">You&apos;ll miss out on notifications</h3>
+            <p className="text-sm text-zinc-400">
+              Without installing, you won&apos;t receive daily workout reminders or shoutouts when your crew calls you out. The whole accountability side of this challenge runs through push notifications.
+            </p>
+          </div>
+          <div className="space-y-2 pt-1">
+            <Button onClick={onSkip} variant="secondary" size="lg" fullWidth>
+              I don&apos;t want push notifications for tags or reminders
+            </Button>
+            <Button onClick={() => setSkipModalOpen(false)} size="lg" fullWidth>
+              Let me install it
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

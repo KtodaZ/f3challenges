@@ -107,6 +107,7 @@ function OnboardingInner() {
         {currentStep === 'pwa-install' && (
           <PWAInstallStep
             onNext={() => nextStep('pwa-install')}
+            onSkip={() => nextStep('pwa-install')}
           />
         )}
         {currentStep === 'done' && (
