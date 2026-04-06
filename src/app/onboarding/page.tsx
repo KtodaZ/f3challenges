@@ -18,12 +18,12 @@ import { StepDots }           from '@/components/onboarding/StepDots'
 
 // Steps in order — pwa-install may be skipped at runtime
 const STEPS: OnboardingStep[] = [
+  'pwa-install',
   'welcome',
   'disclaimer',
   'profile',
   'past-challenges',
   'notifications',
-  'pwa-install',
   'done',
 ]
 
@@ -39,7 +39,7 @@ function OnboardingInner() {
   // Determine initial step
   const joinParam = searchParams.get('join')
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(
-    joinParam === 'true' ? 'profile' : 'welcome'
+    joinParam === 'true' ? 'profile' : 'pwa-install'
   )
 
   // Redirect if already onboarded
@@ -48,10 +48,6 @@ function OnboardingInner() {
       router.replace('/')
     }
   }, [loading, currentUser, router])
-
-  const goTo = useCallback((step: OnboardingStep) => {
-    setCurrentStep(step)
-  }, [])
 
   const nextStep = useCallback((from: OnboardingStep) => {
     const idx = STEPS.indexOf(from)
@@ -111,7 +107,6 @@ function OnboardingInner() {
         {currentStep === 'pwa-install' && (
           <PWAInstallStep
             onNext={() => nextStep('pwa-install')}
-            onSkip={() => goTo('done')}
           />
         )}
         {currentStep === 'done' && (

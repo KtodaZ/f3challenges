@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/contexts/UserContext'
 import { useFCM } from '@/hooks/useFCM'
+import { PWAInstallGuide } from '@/components/onboarding/PWAInstallGuide'
 
 const DBG = process.env.NEXT_PUBLIC_DEBUG_URL
 function dbg(label: string, data: unknown) {
@@ -84,106 +85,6 @@ function FixInstructions({ platform, permission }: { platform: Platform; permiss
   )
 }
 
-function PWAInstallInstructions({ platform }: { platform: Platform }) {
-  if (platform === 'ios-browser') {
-    return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4">
-        <p className="text-sm font-semibold text-white">Install the app first</p>
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 space-y-1.5">
-          <p className="text-amber-400 text-sm font-medium">
-            iOS requires the app to be installed to your Home Screen before push notifications work.
-          </p>
-          <p className="text-amber-500/80 text-xs">
-            Make sure you&apos;re using Safari — Chrome on iOS doesn&apos;t support push notifications.
-          </p>
-          <p className="text-amber-500/60 text-xs">Requires iOS 16.4+</p>
-        </div>
-        <div className="space-y-3">
-          {[
-            {
-              icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                </svg>
-              ),
-              label: 'Tap the Share button',
-              desc: 'The box with an arrow at the bottom of Safari',
-            },
-            {
-              icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              ),
-              label: 'Tap "Add to Home Screen"',
-              desc: 'Scroll down in the share sheet to find it',
-            },
-            {
-              icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              ),
-              label: 'Tap "Add" to confirm',
-              desc: 'Then open the app from your Home Screen',
-            },
-          ].map(({ icon, label, desc }, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <div className="w-9 h-9 bg-orange-500/20 text-orange-400 rounded-xl flex items-center justify-center shrink-0">
-                {icon}
-              </div>
-              <div className="pt-0.5">
-                <p className="text-sm font-medium text-white">{label}</p>
-                <p className="text-xs text-zinc-500 mt-0.5">{desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (platform === 'android') {
-    return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4">
-        <p className="text-sm font-semibold text-white">Install the app</p>
-        <p className="text-sm text-zinc-400">
-          Installing to your Home Screen gives you a native app experience and more reliable notifications.
-        </p>
-        <div className="space-y-3">
-          {[
-            {
-              icon: <span className="text-lg leading-none">⋮</span>,
-              label: 'Tap the menu (⋮)',
-              desc: 'Top right corner of Chrome',
-            },
-            {
-              icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              ),
-              label: 'Tap "Add to Home Screen"',
-              desc: 'Then confirm to install',
-            },
-          ].map(({ icon, label, desc }, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <div className="w-9 h-9 bg-orange-500/20 text-orange-400 rounded-xl flex items-center justify-center shrink-0">
-                {icon}
-              </div>
-              <div className="pt-0.5">
-                <p className="text-sm font-medium text-white">{label}</p>
-                <p className="text-xs text-zinc-500 mt-0.5">{desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  return null
-}
 
 export default function NotificationTroubleshootPage() {
   const { currentUser, loading, refreshCurrentUser } = useUser()
@@ -345,12 +246,12 @@ export default function NotificationTroubleshootPage() {
 
         {/* iOS browser: needs PWA install (required for notifications) */}
         {needsPWAInstall && (
-          <PWAInstallInstructions platform={platform!} />
+          <PWAInstallGuide platform="ios" />
         )}
 
         {/* Android: suggest PWA install when setup is incomplete */}
         {platform === 'android' && !hasTokens && !permissionDenied && (
-          <PWAInstallInstructions platform="android" />
+          <PWAInstallGuide platform="android" />
         )}
 
         {/* Permission denied: show fix instructions */}
