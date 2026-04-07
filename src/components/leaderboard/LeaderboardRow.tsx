@@ -115,13 +115,14 @@ export function LeaderboardRow({ entry, rank, isCurrentUser, onClick }: Leaderbo
       {/* Today badge */}
       <TodayBadge entry={entry} />
 
-      {/* Streak */}
-      <div className="shrink-0 text-sm text-zinc-300 min-w-[2.5rem] text-right">
-        {entry.currentStreak > 0 ? (
-          <span>🔥 {entry.currentStreak}</span>
-        ) : (
-          <span className="text-zinc-600">—</span>
-        )}
+      {/* Reps + streak */}
+      <div className="shrink-0 text-right space-y-0.5 min-w-[3.5rem]">
+        <div className="text-sm font-semibold text-zinc-200">
+          {entry.totalReps > 0 ? entry.totalReps.toLocaleString() : <span className="text-zinc-600">—</span>}
+        </div>
+        <div className="text-[10px] text-zinc-500">
+          {entry.currentStreak > 0 ? `🔥 ${entry.currentStreak}d` : ''}
+        </div>
       </div>
     </button>
   )

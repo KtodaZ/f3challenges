@@ -8,7 +8,9 @@ import { getUserChallengeLogs, getChallengeParticipants, getDailyLog } from '@/l
 import { monthProgress } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
 import { GroupStats } from '@/components/leaderboard/GroupStats'
+import { GroupHeatMap } from '@/components/leaderboard/GroupHeatMap'
 import { CallOutCard } from '@/components/leaderboard/CallOutCard'
+import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import type { LeaderboardEntry, ChallengeParticipation } from '@/types'
 
@@ -18,6 +20,7 @@ export default function LeaderboardPage() {
   const challenge = getCurrentChallenge()
 
   const [entries, setEntries]   = useState<LeaderboardEntry[]>([])
+  const [dayCompletionCounts, setDayCompletionCounts] = useState<Record<string, number>>({})
   const [loading, setLoading]   = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -37,21 +40,31 @@ export default function LeaderboardPage() {
     const challengeDates = getChallengeDates(challenge)
     const pastDates = challengeDates.filter(d => d <= today)
 
+    const dayCounts: Record<string, number> = {}
+
     const entriesData = await Promise.all(
       allUsers.map(async (user, idx) => {
         const logs       = await getUserChallengeLogs(user.id, challenge.id)
         const todayLog   = allTodayLogs[idx]
         const part       = participationMap.get(user.id)
 
-        const completedDays = logs.filter(l => l.completionFraction >= 0.25).length
+        const completedLogs = logs.filter(l => l.completionFraction >= 0.25)
+        const completedDays = completedLogs.length
         const completionPct = pastDates.length > 0
           ? Math.round((completedDays / pastDates.length) * 100)
           : 0
+        const totalReps = logs.reduce(
+          (sum, l) => sum + l.exerciseLogs.reduce((s, e) => s + e.completedReps, 0),
+          0
+        )
+
+        // Accumulate per-day group completion counts
+        for (const log of completedLogs) {
+          dayCounts[log.date] = (dayCounts[log.date] ?? 0) + 1
+        }
 
         // Compute streak — don't dock mid-day, start from yesterday if today isn't done
-        const completedSet = new Set(
-          logs.filter(l => l.completionFraction >= 0.25).map(l => l.date)
-        )
+        const completedSet = new Set(completedLogs.map(l => l.date))
         const todayDone = completedSet.has(today)
         let streakCheck = todayDone
           ? today
@@ -74,6 +87,7 @@ export default function LeaderboardPage() {
           completedDays,
           totalDays: pastDates.length,
           completionPct,
+          totalReps,
           currentStreak: streak,
           todayComplete: (todayLog?.completionFraction ?? 0) >= 1,
           todayLog: todayLog ?? undefined,
@@ -81,16 +95,18 @@ export default function LeaderboardPage() {
       })
     )
 
-    // Sort: opted-out last, then by completionPct desc, streak as tiebreaker
+    // Sort: opted-out last, then total reps desc, days desc, streak as tiebreaker
     entriesData.sort((a, b) => {
       const aOut = a.participation?.status === 'opted-out'
       const bOut = b.participation?.status === 'opted-out'
       if (aOut !== bOut) return aOut ? 1 : -1
-      if (b.completionPct !== a.completionPct) return b.completionPct - a.completionPct
+      if (b.totalReps !== a.totalReps) return b.totalReps - a.totalReps
+      if (b.completedDays !== a.completedDays) return b.completedDays - a.completedDays
       return b.currentStreak - a.currentStreak
     })
 
     setEntries(entriesData)
+    setDayCompletionCounts(dayCounts)
     setLoading(false)
     setRefreshing(false)
   }, [challenge, allUsers])
@@ -147,6 +163,21 @@ export default function LeaderboardPage() {
         {/* Group stats */}
         {!loading && entries.length > 0 && <GroupStats entries={entries} />}
 
+        {/* Group heatmap */}
+        {!loading && entries.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Group Activity</CardTitle>
+              <span className="text-xs text-zinc-500 font-normal">completion by day</span>
+            </CardHeader>
+            <GroupHeatMap
+              challenge={challenge}
+              dayCompletionCounts={dayCompletionCounts}
+              activeCount={entries.filter(e => e.participation?.status !== 'opted-out').length}
+            />
+          </Card>
+        )}
+
         {/* Leaderboard rows */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
           {loading ? (
@@ -168,7 +199,8 @@ export default function LeaderboardPage() {
               // Dense ranking: find the first entry with the same sort key
               const denseRank = entries.findIndex(
                 e => e.participation?.status !== 'opted-out' &&
-                  e.completionPct === entry.completionPct &&
+                  e.totalReps === entry.totalReps &&
+                  e.completedDays === entry.completedDays &&
                   e.currentStreak === entry.currentStreak
               )
               const rank = entry.participation?.status === 'opted-out' ? idx + 1 : denseRank + 1

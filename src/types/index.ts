@@ -147,6 +147,7 @@ export interface LeaderboardEntry {
   completedDays: number
   totalDays: number
   completionPct: number
+  totalReps: number
   currentStreak: number
   todayComplete: boolean
   todayLog?: DailyLog
