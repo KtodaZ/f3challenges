@@ -57,6 +57,55 @@ function buildDailyCompleteMessage(
   hashtag: string,
   isMakeUp: boolean
 ): string {
+  const quarterDay = Math.round(totalDays * 0.25)
+  const halfDay = Math.round(totalDays * 0.5)
+  const threeQuarterDay = Math.round(totalDays * 0.75)
+
+  if (!isMakeUp && day === 1) {
+    return pickRandom([
+      `The Gauntlet begins. @${name} posted Day 1 — ${totalReps} reps, no hesitation. Let's go. 🔥 ${hashtag}`,
+      `@${name} didn't come to watch. Day 1 of ${totalDays} — ${totalReps} reps on the board. ${hashtag} 💪`,
+      `First day, first reps. @${name} opens ${hashtag} the right way — ${totalReps} on the board. 🔥`,
+      `@${name} opened the Gauntlet with ${totalReps} reps. Day 1 of ${totalDays}. This is how it's done. 💪 ${hashtag}`,
+      `The first rep is always the hardest. @${name} knocked out ${totalReps} of them on Day 1. 🔥 ${hashtag}`,
+      `Day 1 of ${totalDays} is in the books for @${name}. ${totalReps} reps — first of many. 💪 ${hashtag}`,
+      `@${name} is in — Day 1 starts now. ${totalReps} reps on the board. Who's next? ${hashtag} 🔥`,
+    ])
+  }
+
+  if (!isMakeUp && day === quarterDay) {
+    return pickRandom([
+      `One quarter down. @${name} has cleared ${day} of ${totalDays} days — ${totalReps} reps today and no signs of stopping. 💪 ${hashtag}`,
+      `25% complete. @${name} is through the first quarter of the Gauntlet — Day ${day} done, ${totalReps} reps. 🔥 ${hashtag}`,
+      `@${name} just hit the quarter mark. Day ${day}/${totalDays}, ${totalReps} reps — three-quarters of the Gauntlet still to go. 💪 ${hashtag}`,
+      `Through the first quarter and @${name} hasn't blinked. Day ${day}, ${totalReps} reps. ${totalDays - day} days remain. 🔥 ${hashtag}`,
+      `@${name} — Day ${day} of ${totalDays} means 25% of the Gauntlet is behind them. ${totalReps} reps down. Who's keeping up? ${hashtag}`,
+      `First quarter logged. @${name} with ${totalReps} reps on Day ${day} — looking like this might go all the way. 💪 ${hashtag}`,
+    ])
+  }
+
+  if (!isMakeUp && day === halfDay) {
+    return pickRandom([
+      `Halfway. @${name} has reached the midpoint of the Gauntlet — Day ${day}/${totalDays}, ${totalReps} reps. The second half starts now. 🔥 ${hashtag}`,
+      `@${name} is exactly halfway through. Day ${day} of ${totalDays} — ${totalReps} reps. You either quit now or you don't. 💪 ${hashtag}`,
+      `Day ${day}/${totalDays}. @${name} just crossed the halfway line. ${totalReps} reps. Same distance to go as already covered. 🔥 ${hashtag}`,
+      `50% complete. @${name} hit the halfway mark — Day ${day}, ${totalReps} reps. No looking back now. 💪 ${hashtag}`,
+      `@${name} punched through the midpoint of ${hashtag}. ${day} down, ${totalDays - day} to go. ${totalReps} reps today — stay hungry.`,
+      `The halfway point belongs to @${name}. Day ${day} of ${totalDays} done — ${totalReps} reps, no quit in sight. ${hashtag} 💪`,
+    ])
+  }
+
+  if (!isMakeUp && day === threeQuarterDay) {
+    return pickRandom([
+      `@${name} is in the home stretch — Day ${day}/${totalDays}, ${totalReps} reps. 75% through the Gauntlet. Finish what you started. 🔥 ${hashtag}`,
+      `Three-quarters done. @${name} just logged Day ${day} — ${totalReps} reps. Only ${totalDays - day} days to a clean finish. 💪 ${hashtag}`,
+      `Day ${day} of ${totalDays} and @${name} is still here. ${totalReps} reps at 75% complete. The end is in sight. 🔥 ${hashtag}`,
+      `75% done. @${name} — Day ${day}, ${totalReps} reps. One final push to close this out. 💪 ${hashtag}`,
+      `@${name} with ${totalReps} reps on Day ${day} — three-quarters of the Gauntlet in the books. Don't stop now. 🔥 ${hashtag}`,
+      `Day ${day} of ${totalDays} — @${name} has ${totalDays - day} days left to finish what they started. ${totalReps} reps logged. 💪 ${hashtag}`,
+    ])
+  }
+
   if (isMakeUp) {
     return pickRandom([
       `@${name} went back and made up Day ${day} — ${totalReps} reps. No unfinished business. 💪 ${hashtag}`,
