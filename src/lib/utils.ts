@@ -76,7 +76,13 @@ export function highlightMentions(
       .join('|')
     result = result.replace(
       new RegExp(`@(${namePattern})`, 'gi'),
-      '<span class="text-orange-400 font-semibold">@$1</span>'
+      (_, name: string) => {
+        const user = sorted.find(u => u.displayName.toLowerCase() === name.toLowerCase())
+        if (user) {
+          return `<a href="/profile/${user.id}" class="text-orange-400 font-semibold hover:underline">@${name}</a>`
+        }
+        return `<span class="text-orange-400 font-semibold">@${name}</span>`
+      }
     )
   } else {
     result = result.replace(/@(\w+)/g, '<span class="text-orange-400 font-semibold">@$1</span>')
