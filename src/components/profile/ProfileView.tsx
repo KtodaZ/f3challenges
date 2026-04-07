@@ -188,6 +188,24 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
                 </span>
               </div>
 
+              {/* No-notifications indicator */}
+              {!user.fcmTokens?.length && (
+                <div className="mt-1.5">
+                  {isOwnProfile ? (
+                    <a
+                      href="/settings/notifications"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-900/30 border border-amber-700/40 text-amber-400 text-xs"
+                    >
+                      🔕 Notifications off — set up
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-500 text-xs">
+                      🔕 No push notifications
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Participation status */}
               {participation && (
                 <div className="mt-2">

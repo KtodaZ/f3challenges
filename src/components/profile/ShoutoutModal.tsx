@@ -79,6 +79,15 @@ export function ShoutoutModal({ open, onClose, targetUser, challengeId }: Shouto
           </div>
         </div>
 
+        {!targetUser.fcmTokens?.length && (
+          <div className="flex items-start gap-2.5 p-3 bg-amber-900/20 border border-amber-700/40 rounded-xl">
+            <span className="text-base leading-none mt-0.5">🔕</span>
+            <p className="text-xs text-amber-300">
+              {targetUser.displayName} hasn&apos;t set up push notifications — they may not see this shoutout right away.
+            </p>
+          </div>
+        )}
+
         <Textarea
           label="Your message"
           placeholder={PLACEHOLDERS[placeholderIdx](targetUser.displayName)}

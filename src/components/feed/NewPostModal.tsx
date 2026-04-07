@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { MentionAutocomplete } from './MentionAutocomplete'
@@ -109,6 +109,16 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
     }
   }
 
+  // Users mentioned in the current content who have no FCM tokens
+  const noNotifMentions = useMemo(() => {
+    const names = extractMentionNames(content, allUsers)
+    return allUsers.filter(u =>
+      u.id !== currentUser?.id &&
+      names.some(n => n.toLowerCase() === u.displayName.toLowerCase()) &&
+      !u.fcmTokens?.length
+    )
+  }, [content, allUsers, currentUser?.id])
+
   const remaining = MAX_CHARS - content.length
   const canSubmit = content.trim().length > 0 && !submitting
 
@@ -140,6 +150,16 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
             />
           )}
         </div>
+
+        {noNotifMentions.length > 0 && (
+          <div className="flex items-start gap-2.5 p-3 bg-amber-900/20 border border-amber-700/40 rounded-xl">
+            <span className="text-base leading-none mt-0.5">🔕</span>
+            <p className="text-xs text-amber-300">
+              {noNotifMentions.map(u => u.displayName).join(', ')}
+              {noNotifMentions.length === 1 ? ' hasn\'t' : ' haven\'t'} set up push notifications — {noNotifMentions.length === 1 ? 'they' : 'they'} may not see this post.
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center justify-between">
           <span className={`text-xs tabular-nums ${remaining < 50 ? 'text-orange-400' : 'text-zinc-500'}`}>
