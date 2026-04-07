@@ -1,16 +1,15 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Avatar } from '@/components/ui/Avatar'
-import type { LeaderboardEntry } from '@/types'
+import type { LeaderboardEntry, User } from '@/types'
 
 interface CallOutCardProps {
   entries: LeaderboardEntry[]
+  onCallOut: (user: User) => void
 }
 
-export function CallOutCard({ entries }: CallOutCardProps) {
-  const router = useRouter()
+export function CallOutCard({ entries, onCallOut }: CallOutCardProps) {
 
   // Show only active/modifying users who haven't completed today
   const needsPush = entries.filter(
@@ -44,7 +43,7 @@ export function CallOutCard({ entries }: CallOutCardProps) {
         {needsPush.map((entry) => (
           <li key={entry.user.id}>
             <button
-              onClick={() => router.push(`/profile/${entry.user.id}`)}
+              onClick={() => onCallOut(entry.user)}
               className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/50 active:bg-zinc-700/50 transition-colors border-b border-zinc-800 last:border-b-0 text-left"
             >
               <Avatar name={entry.user.displayName} size="sm" />

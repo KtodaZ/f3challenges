@@ -10,9 +10,10 @@ import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
 import { GroupStats } from '@/components/leaderboard/GroupStats'
 import { GroupHeatMap } from '@/components/leaderboard/GroupHeatMap'
 import { CallOutCard } from '@/components/leaderboard/CallOutCard'
+import { CalloutModal } from '@/components/daily/CalloutModal'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProgressBar } from '@/components/ui/ProgressBar'
-import type { LeaderboardEntry, ChallengeParticipation } from '@/types'
+import type { LeaderboardEntry, ChallengeParticipation, User } from '@/types'
 
 export default function LeaderboardPage() {
   const { currentUser, allUsers } = useUser()
@@ -23,6 +24,7 @@ export default function LeaderboardPage() {
   const [dayCompletionCounts, setDayCompletionCounts] = useState<Record<string, number>>({})
   const [loading, setLoading]   = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [calloutTarget, setCalloutTarget] = useState<User | null>(null)
 
   const loadData = useCallback(async () => {
     if (!challenge || allUsers.length === 0) { setLoading(false); return }
@@ -219,9 +221,21 @@ export default function LeaderboardPage() {
 
         {/* Call-out section */}
         {!loading && needsPush.length > 0 && (
-          <CallOutCard entries={needsPush} />
+          <CallOutCard entries={needsPush} onCallOut={setCalloutTarget} />
         )}
       </div>
+
+      {/* Callout modal */}
+      {currentUser && challenge && (
+        <CalloutModal
+          open={calloutTarget !== null}
+          onClose={() => setCalloutTarget(null)}
+          currentUser={currentUser}
+          allUsers={allUsers}
+          challengeId={challenge.id}
+          defaultTarget={calloutTarget}
+        />
+      )}
     </div>
   )
 }
