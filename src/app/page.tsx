@@ -768,9 +768,12 @@ export default function HomePage() {
                     return (
                       <div key={u.id} className="flex items-center gap-3">
                         <Avatar name={u.displayName} size="sm" />
-                        <span className="flex-1 text-sm text-zinc-300 font-medium truncate">
+                        <Link
+                          href={`/profile/${u.id}`}
+                          className="flex-1 text-sm text-zinc-300 font-medium truncate hover:text-orange-400 transition-colors"
+                        >
                           {u.displayName}
-                        </span>
+                        </Link>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             onClick={() => openCalloutFor(u, `Get after it @${u.displayName}! 💪 ${challenge.hashtag}`)}
