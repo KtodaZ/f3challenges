@@ -134,7 +134,7 @@ describe('extractHashtags', () => {
   })
 
   it('lowercases hashtags', () => {
-    expect(extractHashtags('#TheMerkingGauntlet')).toEqual(['themerkinggauntlet'])
+    expect(extractHashtags('#TheMerkinGauntlet')).toEqual(['themerkingauntlet'])
   })
 
   it('returns empty array when no hashtags', () => {

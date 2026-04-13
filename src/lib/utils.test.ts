@@ -22,14 +22,14 @@ describe('highlightMentions — no users (fallback)', () => {
   })
 
   it('highlights a hashtag', () => {
-    expect(highlightMentions('nice work #TheMerkingGauntlet')).toBe(
-      `nice work ${tag('TheMerkingGauntlet')}`
+    expect(highlightMentions('nice work #TheMerkinGauntlet')).toBe(
+      `nice work ${tag('TheMerkinGauntlet')}`
     )
   })
 
   it('highlights both mention and hashtag', () => {
-    expect(highlightMentions('@Airmail crushed it #TheMerkingGauntlet')).toBe(
-      `${span('Airmail')} crushed it ${tag('TheMerkingGauntlet')}`
+    expect(highlightMentions('@Airmail crushed it #TheMerkinGauntlet')).toBe(
+      `${span('Airmail')} crushed it ${tag('TheMerkinGauntlet')}`
     )
   })
 })
@@ -89,8 +89,8 @@ describe('highlightMentions — with users list', () => {
   })
 
   it('highlights hashtags alongside mentions', () => {
-    expect(highlightMentions('@Snuggles crushed it #TheMerkingGauntlet', users)).toBe(
-      `${span('Snuggles')} crushed it ${tag('TheMerkingGauntlet')}`
+    expect(highlightMentions('@Snuggles crushed it #TheMerkinGauntlet', users)).toBe(
+      `${span('Snuggles')} crushed it ${tag('TheMerkinGauntlet')}`
     )
   })
 

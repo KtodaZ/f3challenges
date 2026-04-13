@@ -38,7 +38,7 @@ const scenarios = [
   {
     label: 'Morning, not done, some PAX already finished',
     ctx: {
-      userName: 'Kyle', challengeName: 'The Merking Gauntlet',
+      userName: 'Kyle', challengeName: 'The Merkin Gauntlet',
       dayNumber: 2, totalDays: 30, todayTarget: 20,
       userCompleted: false, completionFraction: 0,
       groupCompletedCount: 4, groupTotalCount: 16, userStreak: 1,
@@ -50,7 +50,7 @@ const scenarios = [
   {
     label: 'Evening, not done, most PAX already finished',
     ctx: {
-      userName: 'Kyle', challengeName: 'The Merking Gauntlet',
+      userName: 'Kyle', challengeName: 'The Merkin Gauntlet',
       dayNumber: 2, totalDays: 30, todayTarget: 20,
       userCompleted: false, completionFraction: 0,
       groupCompletedCount: 13, groupTotalCount: 16, userStreak: 0,
@@ -62,7 +62,7 @@ const scenarios = [
   {
     label: 'Completed, a few PAX still need a nudge',
     ctx: {
-      userName: 'Kyle', challengeName: 'The Merking Gauntlet',
+      userName: 'Kyle', challengeName: 'The Merkin Gauntlet',
       dayNumber: 2, totalDays: 30, todayTarget: 20,
       userCompleted: true, completionFraction: 1,
       groupCompletedCount: 10, groupTotalCount: 16, userStreak: 2,
@@ -74,7 +74,7 @@ const scenarios = [
   {
     label: 'Completed, everyone else is done too',
     ctx: {
-      userName: 'Kyle', challengeName: 'The Merking Gauntlet',
+      userName: 'Kyle', challengeName: 'The Merkin Gauntlet',
       dayNumber: 2, totalDays: 30, todayTarget: 20,
       userCompleted: true, completionFraction: 1,
       groupCompletedCount: 16, groupTotalCount: 16, userStreak: 2,
@@ -86,7 +86,7 @@ const scenarios = [
   {
     label: 'Day 25 evening, not done, late in the month',
     ctx: {
-      userName: 'Kyle', challengeName: 'The Merking Gauntlet',
+      userName: 'Kyle', challengeName: 'The Merkin Gauntlet',
       dayNumber: 25, totalDays: 30, todayTarget: 250,
       userCompleted: false, completionFraction: 0,
       groupCompletedCount: 10, groupTotalCount: 16, userStreak: 0,
@@ -98,7 +98,7 @@ const scenarios = [
   {
     label: 'Modifying (bad shoulder), morning',
     ctx: {
-      userName: 'Kyle', challengeName: 'The Merking Gauntlet',
+      userName: 'Kyle', challengeName: 'The Merkin Gauntlet',
       dayNumber: 2, totalDays: 30, todayTarget: 20,
       userCompleted: false, completionFraction: 0.5,
       groupCompletedCount: 3, groupTotalCount: 16, userStreak: 1,

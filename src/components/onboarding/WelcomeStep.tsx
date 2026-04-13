@@ -38,7 +38,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
 
         {/* Challenge name */}
         <div className="space-y-2">
-          <p className="text-xl font-bold text-white">The Merking Gauntlet</p>
+          <p className="text-xl font-bold text-white">The Merkin Gauntlet</p>
           <p className="text-sm text-zinc-400">April 2026</p>
         </div>
 

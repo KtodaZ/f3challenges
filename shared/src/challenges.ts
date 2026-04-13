@@ -42,8 +42,8 @@ export const CHALLENGES: ChallengeTemplate[] = [
   },
   {
     id: 'apr-2026',
-    name: 'The Merking Gauntlet',
-    hashtag: '#TheMerkingGauntlet',
+    name: 'The Merkin Gauntlet',
+    hashtag: '#TheMerkinGauntlet',
     tagline: 'ONE MONTH. NO EXCUSES. CONQUER EM ALL',
     month: 4,
     year: 2026,
