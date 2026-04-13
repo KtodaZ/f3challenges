@@ -15,8 +15,8 @@ import {
 
 const APR: ChallengeTemplate = {
   id: 'apr-2026',
-  name: 'The Merking Gauntlet',
-  hashtag: '#TheMerkingGauntlet',
+  name: 'The Merkin Gauntlet',
+  hashtag: '#TheMerkinGauntlet',
   tagline: 'Test',
   month: 4,
   year: 2026,
@@ -75,7 +75,7 @@ describe('getChallengeForDate', () => {
 
 describe('getChallengeById', () => {
   it('finds a challenge by id', () => {
-    expect(getChallengeById('apr-2026')?.name).toBe('The Merking Gauntlet')
+    expect(getChallengeById('apr-2026')?.name).toBe('The Merkin Gauntlet')
   })
 
   it('returns undefined for unknown id', () => {
