@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { getDailyTarget } from '@/lib/challenges'
 import { LogDayModal } from './LogDayModal'
-import type { ChallengeTemplate, DailyLog, CompletionFraction } from '@/types'
+import type { ChallengeTemplate, DailyLog } from '@/types'
 
 interface MakeupDayPickerProps {
   challenge: ChallengeTemplate
@@ -12,7 +12,7 @@ interface MakeupDayPickerProps {
   logs: Record<string, DailyLog>      // keyed by date
   onSave: (
     date: string,
-    exerciseFractions: Record<string, CompletionFraction>,
+    exerciseReps: Record<string, number>,
     notes: string,
     modificationNote: string,
     isMakeUp: boolean
@@ -38,13 +38,13 @@ export function MakeupDayPicker({
   }
 
   async function handleSave(
-    fractions: Record<string, CompletionFraction>,
+    repsMap: Record<string, number>,
     notes: string,
     modificationNote: string,
     isMakeUp: boolean
   ) {
     if (!selectedDate) return
-    await onSave(selectedDate, fractions, notes, modificationNote, isMakeUp)
+    await onSave(selectedDate, repsMap, notes, modificationNote, isMakeUp)
   }
 
   return (
