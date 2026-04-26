@@ -53,7 +53,7 @@ export default function SettingsPage() {
           </svg>
         </Link>
 
-        {/* Notification troubleshoot */}
+        {/* App install troubleshoot */}
         <Link
           href="/settings/notifications/troubleshoot"
           className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4 hover:border-zinc-700 transition-colors group"
@@ -65,8 +65,8 @@ export default function SettingsPage() {
               </svg>
             </div>
             <div>
-              <p className="text-sm font-medium text-white">Notification Troubleshoot</p>
-              <p className="text-xs text-zinc-500">Test and fix push notification delivery</p>
+              <p className="text-sm font-medium text-white">App Install Troubleshooting</p>
+              <p className="text-xs text-zinc-500">Fix app install and notification setup</p>
             </div>
           </div>
           <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

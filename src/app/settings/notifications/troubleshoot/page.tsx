@@ -212,8 +212,8 @@ export default function NotificationTroubleshootPage() {
           </svg>
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-white">Notification Setup</h1>
-          <p className="text-xs text-zinc-500">Diagnose and fix push notifications</p>
+          <h1 className="text-xl font-bold text-white">App Install Troubleshooting</h1>
+          <p className="text-xs text-zinc-500">Diagnose and fix app install and notifications</p>
         </div>
       </div>
 

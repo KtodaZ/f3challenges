@@ -610,7 +610,7 @@ export default function HomePage() {
           <div className="bg-amber-900/20 border border-amber-700/50 rounded-2xl p-4 flex items-start gap-3">
             <span className="text-amber-400 mt-0.5 text-lg shrink-0">🔔</span>
             <div className="flex-1 min-w-0">
-              <p className="text-amber-200 text-sm font-medium">Notifications aren&apos;t set up</p>
+              <p className="text-amber-200 text-sm font-medium">App isn&apos;t fully installed</p>
               <p className="text-amber-400/80 text-xs mt-0.5">Your device isn&apos;t registered to receive push notifications.</p>
               <Link
                 href="/settings/notifications/troubleshoot"
