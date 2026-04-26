@@ -110,6 +110,7 @@ export function LogDayModal({
             completedReps={repsMap[exercise.id] ?? 0}
             onChange={handleRepsChange}
             disabled={saving}
+            unit={exercise.unit}
           />
         ))}
       </div>

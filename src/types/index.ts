@@ -2,7 +2,7 @@
 // Defined in shared/src/types.ts — re-exported here so app code importing
 // from '@/types' continues to work unchanged.
 
-export type { Exercise, ChallengeTemplate, DailyTarget } from '@f3-bedrock/shared'
+export type { ExerciseUnit, Exercise, ChallengeTemplate, DailyTarget, WeekTier, ConditionalRestDate } from '@f3-bedrock/shared'
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 

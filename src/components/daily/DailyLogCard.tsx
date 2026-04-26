@@ -61,7 +61,9 @@ export function DailyLogCard({ log, target, onOpenLog }: DailyLogCardProps) {
     ? log.exerciseLogs
         .map(el => {
           const ex = target.exercises.find(e => e.exercise.id === el.exerciseId)
-          return ex ? `${el.completedReps} ${ex.exercise.shortName}` : null
+          if (!ex) return null
+          const unit = ex.exercise.unit ?? 'reps'
+          return `${el.completedReps}${unit === 'seconds' ? 's' : ''} ${ex.exercise.shortName}`
         })
         .filter(Boolean)
         .join(' · ')
@@ -88,7 +90,10 @@ export function DailyLogCard({ log, target, onOpenLog }: DailyLogCardProps) {
           <p className="text-xs text-zinc-500 mt-0.5 truncate">{exerciseSummary}</p>
         ) : (
           <p className="text-xs text-zinc-500 mt-0.5">
-            Goal: {target.totalReps} total reps today
+            {target.totalReps > 0
+              ? `Goal: ${target.totalReps} reps today`
+              : `Goal: ${target.exercises.map(e => `${e.reps}${(e.exercise.unit ?? 'reps') === 'seconds' ? 's' : ''} ${e.exercise.shortName}`).join(' · ')}`
+            }
           </p>
         )}
       </div>

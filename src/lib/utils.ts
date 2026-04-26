@@ -91,18 +91,35 @@ export function highlightMentions(
   return result.replace(/#(\w+)/g, '<span class="text-green-400">#$1</span>')
 }
 
-/** Streak from sorted array of YYYY-MM-DD log dates (most recent last). */
-export function calculateStreak(sortedDates: string[]): { current: number; longest: number } {
+/** Streak from sorted array of YYYY-MM-DD log dates (most recent last).
+ *  Rest dates are skipped — a gap is bridged only if every day in it is a rest day. */
+export function calculateStreak(sortedDates: string[], restDates: string[] = []): { current: number; longest: number } {
   if (!sortedDates.length) return { current: 0, longest: 0 }
+
+  const restSet = new Set(restDates)
+  const logSet  = new Set(sortedDates)
+
+  function nextDay(date: string): string {
+    const d = new Date(date + 'T00:00:00')
+    d.setDate(d.getDate() + 1)
+    return d.toLocaleDateString('en-CA')
+  }
+
+  // True only when every calendar day strictly between a and b is a rest day.
+  function allGapDaysAreRest(a: string, b: string): boolean {
+    let d = nextDay(a)
+    while (d < b) {
+      if (!restSet.has(d)) return false
+      d = nextDay(d)
+    }
+    return true
+  }
 
   let longest = 1
   let run = 1
 
   for (let i = 1; i < sortedDates.length; i++) {
-    const prev = new Date(sortedDates[i - 1] + 'T00:00:00')
-    const curr = new Date(sortedDates[i] + 'T00:00:00')
-    const diff = Math.round((curr.getTime() - prev.getTime()) / 86_400_000)
-    if (diff === 1) {
+    if (allGapDaysAreRest(sortedDates[i - 1], sortedDates[i])) {
       run++
       if (run > longest) longest = run
     } else {
@@ -110,15 +127,18 @@ export function calculateStreak(sortedDates: string[]): { current: number; longe
     }
   }
 
-  // Check if streak extends to today or yesterday
+  // Streak is alive if every non-rest day between the last log (exclusive) and today
+  // (exclusive — today can be pending) was also logged.
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   const last  = sortedDates[sortedDates.length - 1]
-  const daysSinceLast = Math.round(
-    (new Date(today + 'T00:00:00').getTime() - new Date(last + 'T00:00:00').getTime()) / 86_400_000
-  )
-  const current = daysSinceLast <= 1 ? run : 0
+  let alive = true
+  let d = nextDay(last)
+  while (d < today) {
+    if (!restSet.has(d) && !logSet.has(d)) { alive = false; break }
+    d = nextDay(d)
+  }
 
-  return { current, longest }
+  return { current: alive ? run : 0, longest }
 }
 
 /** Progress through the month as a percentage (0–100). */

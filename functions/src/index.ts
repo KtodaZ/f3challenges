@@ -7,6 +7,7 @@ import {
   getDayNumber,
   getTotalDays,
   getTodayPT,
+  getDailyTarget,
 } from "@f3-bedrock/shared";
 
 admin.initializeApp()
@@ -56,10 +57,17 @@ interface NotifPrefs {
   mentions:    boolean;
 }
 
+interface ExerciseLogEntry {
+  exerciseId: string;
+  targetReps: number;
+  completedReps: number;
+}
+
 interface DailyLog {
   completionFraction: number;
   date: string;
   userId: string;
+  exerciseLogs?: ExerciseLogEntry[];
 }
 
 interface ChallengeParticipation {
@@ -337,6 +345,155 @@ function generateNotification(ctx: {
   const progressNote = repsCompleted > 0
     ? `${repsCompleted} done, ${repsRemaining} to go`
     : `${repsRemaining} reps to go`;
+
+  // --- Milestone days ---
+  const quarterDay = Math.round(totalDays * 0.25);
+  const halfDay = Math.round(totalDays * 0.5);
+  const threeQuarterDay = Math.round(totalDays * 0.75);
+
+  if (dayNumber === 1) {
+    if (userCompleted) {
+      const titles = [
+        `Day 1 Done, ${fn}! 🔥`,
+        `The Gauntlet Is Open`,
+        `First Rep, First Check ✅`,
+        `You Started — Now Finish`,
+        `Day 1 In the Books, ${fn}`,
+      ];
+      const bodies = [
+        `Day 1 of ${totalDays} logged. You set the tone — ${totalDays - 1} more days to the finish line.`,
+        `First day down. The Gauntlet has started and ${fn} showed up. ${totalDays - 1} days to go.`,
+        `Day 1 done. The hardest part was starting — you already did that. ${totalDays - 1} days left.`,
+        `${fn} opened the Gauntlet right. Day 1 complete. Keep this up and the finish line takes care of itself.`,
+        `The challenge is on. Day 1 is yours, ${fn} — ${totalDays - 1} more to close it out clean.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else {
+      const titles = [
+        `Day 1 Starts Now, ${fn}`,
+        `The Gauntlet Is Open`,
+        `First Reps of the Month`,
+        `Start Strong, ${fn}`,
+        `Day 1 — Don't Wait`,
+      ];
+      const bodies = [
+        `Day 1 of ${totalDays}: ${repsRemaining} reps. The crew is watching — go first.`,
+        `The Gauntlet kicked off today. ${repsRemaining} reps on Day 1 — get it done, ${fn}.`,
+        `First day of ${challengeName}. ${repsRemaining} reps standing between you and Day 1. Go.`,
+        `${fn}, Day 1 is now. ${repsRemaining} reps — first PAX to finish sets the standard.`,
+        `It starts today. ${repsRemaining} reps, Day 1 of ${totalDays}. Lock in, ${fn}.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    }
+  }
+
+  if (dayNumber === quarterDay) {
+    if (userCompleted) {
+      const titles = [
+        `One Quarter Done, ${fn}! 💪`,
+        `25% Through the Gauntlet`,
+        `First Quarter Logged ✅`,
+        `Day ${dayNumber} — Quarter Mark`,
+        `You're 25% There, ${fn}`,
+      ];
+      const bodies = [
+        `Day ${dayNumber} logged. First quarter of ${challengeName} in the books — ${totalDays - dayNumber} days to the finish.`,
+        `Through the first quarter and still standing. ${totalDays - dayNumber} days left, ${fn} — keep the pace.`,
+        `25% complete. Day ${dayNumber} done. Three-quarters of the Gauntlet still ahead — don't slow down now.`,
+        `${fn}, you cleared the first quarter. ${totalDays - dayNumber} days remain. Same energy.`,
+        `Quarter mark reached. Day ${dayNumber} of ${totalDays} done — the hardest quarter is behind you.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else {
+      const titles = [
+        `Quarter Mark, ${fn}`,
+        `Day ${dayNumber} — 25% Milestone`,
+        `First Quarter on the Line`,
+        `Close the Quarter, ${fn}`,
+        `25% — Finish Day ${dayNumber}`,
+      ];
+      const bodies = [
+        `Day ${dayNumber} is the quarter mark. ${repsRemaining} reps to close out the first 25% strong.`,
+        `You're a quarter of the way through ${challengeName}. ${repsRemaining} reps left on Day ${dayNumber} — don't let it slip.`,
+        `Day ${dayNumber} of ${totalDays}: the first quarter ends today. ${repsRemaining} reps — go earn it, ${fn}.`,
+        `${fn}, close the first quarter right. ${repsRemaining} reps on Day ${dayNumber}. Don't leave it unfinished.`,
+        `25% milestone. ${repsRemaining} reps stand between you and a clean first quarter. Go, ${fn}.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    }
+  }
+
+  if (dayNumber === halfDay) {
+    if (userCompleted) {
+      const titles = [
+        `Halfway There, ${fn}! 🔥`,
+        `The Midpoint Is Yours`,
+        `Day ${dayNumber} — 50% Done`,
+        `Halfway Through the Gauntlet ✅`,
+        `You're Half Done, ${fn}`,
+      ];
+      const bodies = [
+        `Day ${dayNumber} done. Halfway through ${challengeName}. Same distance to the finish as you've already covered — don't stop.`,
+        `Midpoint reached. ${fn}, you've logged ${dayNumber} straight days. ${totalDays - dayNumber} to go — finish what you started.`,
+        `50% complete. Day ${dayNumber} logged. The second half of the Gauntlet starts now — keep the momentum.`,
+        `You're halfway through ${challengeName}, ${fn}. Day ${dayNumber} done. The back half is where it gets decided.`,
+        `Day ${dayNumber} of ${totalDays} — half the Gauntlet behind you. Stay locked in for the finish.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else {
+      const titles = [
+        `Halfway Mark, ${fn}`,
+        `Day ${dayNumber} — The Midpoint`,
+        `50% Milestone Today`,
+        `Finish the First Half, ${fn}`,
+        `Don't Let Halfway Slip`,
+      ];
+      const bodies = [
+        `Day ${dayNumber} is the halfway mark. ${repsRemaining} reps to close the first half — don't let it slip, ${fn}.`,
+        `You're at the midpoint of ${challengeName}. ${repsRemaining} reps left on Day ${dayNumber}. Finish the half strong.`,
+        `Day ${dayNumber} of ${totalDays}: halfway. ${repsRemaining} reps — you either quit now or you don't. Go, ${fn}.`,
+        `${fn}, the halfway line is right there. ${repsRemaining} reps on Day ${dayNumber}. Cross it.`,
+        `50% milestone. ${repsRemaining} reps stand between you and the halfway point. Make it count, ${fn}.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    }
+  }
+
+  if (dayNumber === threeQuarterDay) {
+    if (userCompleted) {
+      const titles = [
+        `Home Stretch, ${fn}! 🔥`,
+        `75% Done — Finish It`,
+        `Three-Quarters Through ✅`,
+        `Day ${dayNumber} — Almost There`,
+        `${totalDays - dayNumber} Days Left, ${fn}`,
+      ];
+      const bodies = [
+        `Day ${dayNumber} logged. Three-quarters through ${challengeName} — ${totalDays - dayNumber} days to a clean finish.`,
+        `75% complete, ${fn}. You've come too far to fold now. ${totalDays - dayNumber} days left — lock in.`,
+        `Three-quarters of the Gauntlet behind you. Day ${dayNumber} done. The finish line is real from here.`,
+        `Day ${dayNumber} of ${totalDays} — ${fn}, you're in the home stretch. ${totalDays - dayNumber} days. Don't let up.`,
+        `75% done. Day ${dayNumber} checked. ${totalDays - dayNumber} days between you and a complete Gauntlet — go get it.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else {
+      const titles = [
+        `Home Stretch, ${fn}`,
+        `75% Milestone — Close It`,
+        `Day ${dayNumber} — Three-Quarter Mark`,
+        `Almost There, Don't Fold`,
+        `${totalDays - dayNumber} Days Left After This`,
+      ];
+      const bodies = [
+        `Day ${dayNumber}: 75% through the Gauntlet. ${repsRemaining} reps — don't let up this close to done.`,
+        `Three-quarter mark, ${fn}. ${repsRemaining} reps on Day ${dayNumber}. Finish it and you're in the home stretch.`,
+        `You're 75% through ${challengeName}. ${repsRemaining} reps left on Day ${dayNumber} — close this out right.`,
+        `${fn}, ${totalDays - dayNumber} days after today. ${repsRemaining} reps right now. Don't leave the three-quarter mark unfinished.`,
+        `75% milestone. ${repsRemaining} reps on Day ${dayNumber}. This is where the Gauntlet gets separated from the excuses. Go.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    }
+  }
 
   // --- Weekly recap ---
   if (notificationType === "weekly_recap") {
@@ -642,7 +799,12 @@ export const sendScheduledNotifications = onSchedule(
     }
     const dayNumber = getDayNumber(challenge, today)!;
     const totalDays = getTotalDays(challenge);
-    const todayReps = dayNumber * challenge.dailyMultiplier;
+    const todayTarget = getDailyTarget(challenge, today);
+    if (!todayTarget || todayTarget.isRestDay) {
+      console.log(`[notify] rest day or no target for ${today}, exiting`);
+      return;
+    }
+    const todayReps = todayTarget.totalReps;
     console.log(`[notify] challenge=${challenge.name} day=${dayNumber}/${totalDays}`);
 
     const usersSnap = await admin.firestore().collection("users").get();
@@ -734,10 +896,17 @@ export const sendScheduledNotifications = onSchedule(
         console.log(`[notify]   → participation: ${statusStr}`);
 
         try {
-          const fraction        = userLog?.completionFraction ?? 0;
-          const repsCompleted   = Math.round(todayReps * fraction);
-          const repsRemaining   = todayReps - repsCompleted;
-          const repsPerExercise = challenge.exercises.length > 0 ? Math.round(todayReps / challenge.exercises.length) : todayReps;
+          const fraction      = userLog?.completionFraction ?? 0;
+          // Sum completed reps from exercise logs (rep-type only) for accuracy on mixed-unit challenges.
+          // Fall back to fraction × totalReps if logs aren't available yet.
+          const repsCompleted = userLog?.exerciseLogs?.length
+            ? userLog.exerciseLogs.reduce((sum, el) => {
+                const ex = challenge.exercises.find(e => e.id === el.exerciseId);
+                return (ex?.unit ?? 'reps') === 'reps' ? sum + Math.min(el.completedReps, el.targetReps) : sum;
+              }, 0)
+            : Math.round(todayReps * fraction);
+          const repsRemaining   = Math.max(0, todayReps - repsCompleted);
+          const repsPerExercise = todayTarget.repsPerExercise;
 
           const { title, body } = generateNotification({
             userName:            user.displayName,
@@ -814,7 +983,9 @@ export const sendTestPush = onRequest(
 
       const dayNumber = getDayNumber(challenge, today)!;
       const totalDays = getTotalDays(challenge);
-      const todayReps = dayNumber * challenge.dailyMultiplier;
+      const testTarget = getDailyTarget(challenge, today);
+      if (!testTarget || testTarget.isRestDay) { res.status(400).json({ error: "Today is a rest day — no notification to send" }); return; }
+      const todayReps = testTarget.totalReps;
 
       const [userLogSnap, partSnap, usersSnap, allLogsSnap] = await Promise.all([
         admin.firestore().doc(`dailyLogs/${userId}_${today}`).get(),
@@ -833,10 +1004,15 @@ export const sendTestPush = onRequest(
       const completedNames = [...completedIds].filter(id => id !== userId).map(id => userById.get(id) ?? "").filter(Boolean);
       const notDoneNames   = usersSnap.docs.filter(d => d.id !== userId && !completedIds.has(d.id)).map(d => (d.data() as User).displayName);
 
-      const fraction          = userLog?.completionFraction ?? 0;
-      const repsCompleted     = Math.round(todayReps * fraction);
-      const repsRemaining     = todayReps - repsCompleted;
-      const repsPerExercise   = challenge.exercises.length > 0 ? Math.round(todayReps / challenge.exercises.length) : todayReps;
+      const fraction        = userLog?.completionFraction ?? 0;
+      const repsCompleted   = userLog?.exerciseLogs?.length
+        ? userLog.exerciseLogs.reduce((sum, el) => {
+            const ex = challenge.exercises.find(e => e.id === el.exerciseId);
+            return (ex?.unit ?? 'reps') === 'reps' ? sum + Math.min(el.completedReps, el.targetReps) : sum;
+          }, 0)
+        : Math.round(todayReps * fraction);
+      const repsRemaining   = Math.max(0, todayReps - repsCompleted);
+      const repsPerExercise = testTarget.repsPerExercise;
 
       const result = generateNotification({
         userName: user.displayName, challengeName: challenge.name,

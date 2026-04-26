@@ -21,6 +21,9 @@ import {
   getTodayPT,
   getDayNumber,
   getTotalDays,
+  getRequiredDays,
+  isRestDay,
+  conditionalRestApplies,
   getChallengeDates,
 } from '@/lib/challenges'
 import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak } from '@/lib/utils'
@@ -411,7 +414,7 @@ export default function HomePage() {
 
       // Monthly completion feed post
       const completedDaysCount = updatedLogs.filter(l => l.completionFraction >= 1).length
-      if (completedDaysCount >= getTotalDays(challenge)) {
+      if (completedDaysCount >= getRequiredDays(challenge)) {
         const content = `@${currentUser.displayName} just completed ${challenge.name} — every single day! 🏆 ${challenge.hashtag}`
         await createFeedPostOnce(stripUndefined({
           id: `monthly_complete_${currentUser.id}_${challenge.id}`,
@@ -435,29 +438,15 @@ export default function HomePage() {
       ].sort()
 
       if (completedDates.length > 0) {
-        let streak = 0
-        const todayDate = getTodayPT()
-        // Don't dock streak mid-day — start from yesterday if today isn't done yet
-        const todayDone = completedDates.includes(todayDate)
-        let check = todayDone
-          ? todayDate
-          : (() => {
-              const d = new Date(todayDate + 'T00:00:00')
-              d.setDate(d.getDate() - 1)
-              return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-            })()
-
-        while (completedDates.includes(check)) {
-          streak++
-          const d = new Date(check + 'T00:00:00')
-          d.setDate(d.getDate() - 1)
-          check = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-        }
-
-        if (streak !== currentUser.currentStreak) {
+        const fixedRest = challenge.restDates ?? []
+        const conditionalRest = (challenge.conditionalRestDates ?? [])
+          .filter(cr => conditionalRestApplies(challenge, cr.date, completedDates))
+          .map(cr => cr.date)
+        const { current: newStreak, longest } = calculateStreak(completedDates, [...fixedRest, ...conditionalRest])
+        if (newStreak !== currentUser.currentStreak) {
           await updateUser(currentUser.id, {
-            currentStreak: streak,
-            longestStreak: Math.max(currentUser.longestStreak ?? 0, streak),
+            currentStreak: newStreak,
+            longestStreak: Math.max(currentUser.longestStreak ?? 0, longest),
           })
         }
       }
@@ -514,13 +503,23 @@ export default function HomePage() {
   // ─────────────────────────────────────────────────────────────────────────
 
   // Must be above early returns — hooks can't be called conditionally
-  const streak = useMemo(() => {
-    const completedDates = allLogs
-      .filter(l => l.completionFraction >= 1)
-      .map(l => l.date)
-      .sort()
-    return calculateStreak(completedDates).current
-  }, [allLogs])
+  const completedLogDates = useMemo(() =>
+    allLogs.filter(l => l.completionFraction >= 1).map(l => l.date).sort()
+  , [allLogs])
+
+  const userRestDates = useMemo(() => {
+    if (!challenge) return []
+    return [
+      ...(challenge.restDates ?? []),
+      ...(challenge.conditionalRestDates ?? [])
+        .filter(cr => conditionalRestApplies(challenge, cr.date, completedLogDates))
+        .map(cr => cr.date),
+    ]
+  }, [challenge, completedLogDates])
+
+  const streak = useMemo(() =>
+    calculateStreak(completedLogDates, userRestDates).current
+  , [completedLogDates, userRestDates])
 
   if (userLoading) return <Spinner />
   if (!currentUser) return null // redirect in progress
@@ -538,6 +537,8 @@ export default function HomePage() {
   const logsMap  = Object.fromEntries(allLogs.map(l => [l.date, l]))
   const incompletePastDates = allDates.filter(d => {
     if (d >= today) return false
+    if (isRestDay(challenge, d)) return false
+    if (conditionalRestApplies(challenge, d, completedLogDates)) return false
     const log = logsMap[d]
     return !log || log.completionFraction < 1
   })
@@ -698,15 +699,40 @@ export default function HomePage() {
           incompleteNames={incompleteUsers.map(u => u.displayName)}
         />
 
+        {/* ── Rest day banner (fixed rest day — no log required) ── */}
+        {target.isRestDay && (
+          <div className="rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-5 flex items-center gap-4">
+            <span className="text-3xl shrink-0">🏖️</span>
+            <div>
+              <p className="text-white font-bold text-base">Rest Day</p>
+              <p className="text-zinc-500 text-sm mt-0.5">No workout required today — rest up and come back strong.</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Conditional rest day notice (only shown when the condition applies for this user) ── */}
+        {!target.isRestDay && target.isConditionalRestDay &&
+          conditionalRestApplies(challenge, today, completedLogDates) && (
+          <div className="rounded-2xl bg-amber-950/30 border border-amber-700/40 px-4 py-3 flex items-start gap-3">
+            <span className="text-amber-400 mt-0.5 shrink-0">💡</span>
+            <p className="text-amber-300 text-sm">
+              <span className="font-semibold">Optional rest day — </span>
+              You logged a workout yesterday. Feel free to skip today if you need the recovery.
+            </p>
+          </div>
+        )}
+
         {/* ── Summary log card ── */}
-        <DailyLogCard
-          log={todayLog}
-          target={target}
-          onOpenLog={() => setLogModalOpen(true)}
-        />
+        {!target.isRestDay && (
+          <DailyLogCard
+            log={todayLog}
+            target={target}
+            onOpenLog={() => setLogModalOpen(true)}
+          />
+        )}
 
         {/* ── Quick-tap exercise cards ── */}
-        {!isDayDone && <div className="space-y-2">
+        {!target.isRestDay && !isDayDone && <div className="space-y-2">
           <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider px-1">
             Quick Tap
           </p>
@@ -719,6 +745,7 @@ export default function HomePage() {
               completedReps={quickReps[exercise.id] ?? 0}
               onChange={handleQuickReps}
               disabled={quickSaving}
+              unit={exercise.unit}
             />
           ))}
         </div>}
@@ -847,14 +874,16 @@ export default function HomePage() {
       </div>
 
       {/* ── Log day modal ── */}
-      <LogDayModal
-        open={logModalOpen}
-        onClose={() => setLogModalOpen(false)}
-        target={target}
-        existingLog={todayLog}
-        onSave={saveTodayLog}
-        isMakeUp={false}
-      />
+      {!target.isRestDay && (
+        <LogDayModal
+          open={logModalOpen}
+          onClose={() => setLogModalOpen(false)}
+          target={target}
+          existingLog={todayLog}
+          onSave={saveTodayLog}
+          isMakeUp={false}
+        />
+      )}
 
       {/* ── Callout modal ── */}
       <CalloutModal
