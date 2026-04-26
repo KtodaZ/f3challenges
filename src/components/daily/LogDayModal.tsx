@@ -14,7 +14,7 @@ interface LogDayModalProps {
   target: DailyTarget
   existingLog: DailyLog | null
   onSave: (
-    exerciseFractions: Record<string, CompletionFraction>,
+    exerciseReps: Record<string, number>,
     notes: string,
     modificationNote: string,
     isMakeUp: boolean
@@ -23,13 +23,15 @@ interface LogDayModalProps {
 }
 
 function computeOverallFraction(
-  fractions: Record<string, CompletionFraction>,
-  exerciseIds: string[]
+  repsMap: Record<string, number>,
+  exercises: DailyTarget['exercises']
 ): CompletionFraction {
-  if (exerciseIds.length === 0) return 0
-  const sum = exerciseIds.reduce((acc, id) => acc + (fractions[id] ?? 0), 0)
-  const avg = sum / exerciseIds.length
-  // Snap to nearest valid CompletionFraction
+  if (exercises.length === 0) return 0
+  const sum = exercises.reduce((acc, { exercise, reps }) => {
+    const completed = repsMap[exercise.id] ?? 0
+    return acc + (reps > 0 ? Math.min(completed / reps, 1) : 0)
+  }, 0)
+  const avg = sum / exercises.length
   if (avg >= 1)    return 1
   if (avg >= 0.75) return 0.75
   if (avg >= 0.5)  return 0.5
@@ -45,9 +47,7 @@ export function LogDayModal({
   onSave,
   isMakeUp = false,
 }: LogDayModalProps) {
-  const exerciseIds = target.exercises.map(e => e.exercise.id)
-
-  const [fractions, setFractions] = useState<Record<string, CompletionFraction>>({})
+  const [repsMap, setRepsMap] = useState<Record<string, number>>({})
   const [notes, setNotes] = useState('')
   const [modificationNote, setModificationNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -56,48 +56,41 @@ export function LogDayModal({
   useEffect(() => {
     if (!open) return
     if (existingLog) {
-      const map: Record<string, CompletionFraction> = {}
+      const map: Record<string, number> = {}
       for (const el of existingLog.exerciseLogs) {
-        const f = el.targetReps > 0 ? el.completedReps / el.targetReps : 0
-        // Snap to valid fraction
-        let snapped: CompletionFraction = 0
-        if (f >= 1) snapped = 1
-        else if (f >= 0.75) snapped = 0.75
-        else if (f >= 0.5) snapped = 0.5
-        else if (f >= 0.25) snapped = 0.25
-        map[el.exerciseId] = snapped
+        map[el.exerciseId] = el.completedReps
       }
-      setFractions(map)
+      setRepsMap(map)
       setNotes(existingLog.notes ?? '')
       setModificationNote(existingLog.modificationNote ?? '')
     } else {
-      const map: Record<string, CompletionFraction> = {}
-      for (const id of exerciseIds) map[id] = 0
-      setFractions(map)
+      const map: Record<string, number> = {}
+      for (const { exercise } of target.exercises) map[exercise.id] = 0
+      setRepsMap(map)
       setNotes('')
       setModificationNote('')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, existingLog])
 
-  function handleFractionChange(exerciseId: string, fraction: CompletionFraction) {
-    setFractions(prev => ({ ...prev, [exerciseId]: fraction }))
+  function handleRepsChange(exerciseId: string, reps: number) {
+    setRepsMap(prev => ({ ...prev, [exerciseId]: reps }))
   }
 
   async function handleSave(markComplete: boolean) {
     setSaving(true)
     try {
-      const finalFractions = markComplete
-        ? Object.fromEntries(exerciseIds.map(id => [id, 1 as CompletionFraction]))
-        : fractions
-      await onSave(finalFractions, notes, modificationNote, isMakeUp)
+      const finalReps = markComplete
+        ? Object.fromEntries(target.exercises.map(({ exercise, reps }) => [exercise.id, reps]))
+        : repsMap
+      await onSave(finalReps, notes, modificationNote, isMakeUp)
       onClose()
     } finally {
       setSaving(false)
     }
   }
 
-  const overallFraction = computeOverallFraction(fractions, exerciseIds)
+  const overallFraction = computeOverallFraction(repsMap, target.exercises)
   const pct = Math.round(overallFraction * 100)
   const allDone = overallFraction >= 1
 
@@ -114,8 +107,8 @@ export function LogDayModal({
             exerciseId={exercise.id}
             name={exercise.name}
             targetReps={reps}
-            fraction={fractions[exercise.id] ?? 0}
-            onChange={handleFractionChange}
+            completedReps={repsMap[exercise.id] ?? 0}
+            onChange={handleRepsChange}
             disabled={saving}
           />
         ))}

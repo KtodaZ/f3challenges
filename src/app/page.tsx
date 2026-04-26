@@ -193,12 +193,15 @@ function snapFraction(val: number): CompletionFraction {
 }
 
 function computeOverallFraction(
-  fractions: Record<string, CompletionFraction>,
-  exerciseIds: string[]
+  repsMap: Record<string, number>,
+  exercises: Array<{ exercise: { id: string }, reps: number }>
 ): CompletionFraction {
-  if (exerciseIds.length === 0) return 0
-  const sum = exerciseIds.reduce((acc, id) => acc + (fractions[id] ?? 0), 0)
-  return snapFraction(sum / exerciseIds.length)
+  if (exercises.length === 0) return 0
+  const sum = exercises.reduce((acc, { exercise, reps }) => {
+    const completed = repsMap[exercise.id] ?? 0
+    return acc + (reps > 0 ? Math.min(completed / reps, 1) : 0)
+  }, 0)
+  return snapFraction(sum / exercises.length)
 }
 
 // ─── Loading Spinner ──────────────────────────────────────────────────────────
@@ -246,8 +249,8 @@ export default function HomePage() {
   // Past incomplete logs (for makeup)
   const [allLogs, setAllLogs] = useState<DailyLog[]>([])
 
-  // Exercise fractions for quick-tap (mirrors today's log state)
-  const [quickFractions, setQuickFractions] = useState<Record<string, CompletionFraction>>({})
+  // Exact reps per exercise for quick-tap (mirrors today's log state)
+  const [quickReps, setQuickReps] = useState<Record<string, number>>({})
 
   // Modal state
   const [logModalOpen, setLogModalOpen] = useState(false)
@@ -289,12 +292,11 @@ export default function HomePage() {
     const unsub = subscribeToDailyLog(currentUser.id, today, log => {
       setTodayLog(log)
       if (log) {
-        const map: Record<string, CompletionFraction> = {}
+        const map: Record<string, number> = {}
         for (const el of log.exerciseLogs) {
-          const f = el.targetReps > 0 ? el.completedReps / el.targetReps : 0
-          map[el.exerciseId] = snapFraction(f)
+          map[el.exerciseId] = el.completedReps
         }
-        setQuickFractions(map)
+        setQuickReps(map)
       }
     })
     return unsub
@@ -339,7 +341,7 @@ export default function HomePage() {
   const saveLog = useCallback(
     async (
       date: string,
-      exerciseFractions: Record<string, CompletionFraction>,
+      exerciseReps: Record<string, number>,
       notes: string,
       modificationNote: string,
       isMakeUp: boolean
@@ -349,13 +351,12 @@ export default function HomePage() {
       const target = getDailyTarget(challenge, date)
       if (!target) return
 
-      const exerciseIds = target.exercises.map(e => e.exercise.id)
-      const overallFraction = computeOverallFraction(exerciseFractions, exerciseIds)
+      const overallFraction = computeOverallFraction(exerciseReps, target.exercises)
 
       const exerciseLogs: ExerciseLog[] = target.exercises.map(({ exercise, reps }) => ({
         exerciseId: exercise.id,
         targetReps: reps,
-        completedReps: Math.round(reps * (exerciseFractions[exercise.id] ?? 0)),
+        completedReps: exerciseReps[exercise.id] ?? 0,
       }))
 
       const existingLog = allLogs.find(l => l.date === date) ?? (date === today ? todayLog : null)
@@ -466,34 +467,34 @@ export default function HomePage() {
 
   const saveTodayLog = useCallback(
     (
-      fractions: Record<string, CompletionFraction>,
+      repsMap: Record<string, number>,
       notes: string,
       modificationNote: string,
       isMakeUp: boolean
-    ) => saveLog(today, fractions, notes, modificationNote, isMakeUp),
+    ) => saveLog(today, repsMap, notes, modificationNote, isMakeUp),
     [saveLog, today]
   )
 
   // ── Quick-tap handler (immediate save) ─────────────────────────────────
 
-  const handleQuickFraction = useCallback(
-    async (exerciseId: string, fraction: CompletionFraction) => {
+  const handleQuickReps = useCallback(
+    async (exerciseId: string, reps: number) => {
       if (!challenge) return
-      const newFractions: Record<string, CompletionFraction> = {
-        ...quickFractions,
-        [exerciseId]: fraction,
+      const newReps: Record<string, number> = {
+        ...quickReps,
+        [exerciseId]: reps,
       }
-      setQuickFractions(newFractions)
+      setQuickReps(newReps)
 
       if (quickSaving) return
       setQuickSaving(true)
       try {
-        await saveTodayLog(newFractions, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false)
+        await saveTodayLog(newReps, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false)
       } finally {
         setQuickSaving(false)
       }
     },
-    [quickFractions, quickSaving, saveTodayLog, todayLog, challenge]
+    [quickReps, quickSaving, saveTodayLog, todayLog, challenge]
   )
 
   // ── Rejoin challenge ────────────────────────────────────────────────────
@@ -715,8 +716,8 @@ export default function HomePage() {
               exerciseId={exercise.id}
               name={exercise.name}
               targetReps={reps}
-              fraction={quickFractions[exercise.id] ?? 0}
-              onChange={handleQuickFraction}
+              completedReps={quickReps[exercise.id] ?? 0}
+              onChange={handleQuickReps}
               disabled={quickSaving}
             />
           ))}
@@ -729,8 +730,8 @@ export default function HomePage() {
               challenge={challenge}
               incompleteDates={incompletePastDates}
               logs={logsMap}
-              onSave={(date, fractions, notes, modNote, isMakeUp) =>
-                saveLog(date, fractions, notes, modNote, isMakeUp)
+              onSave={(date, repsMap, notes, modNote, isMakeUp) =>
+                saveLog(date, repsMap, notes, modNote, isMakeUp)
               }
             />
           </div>
