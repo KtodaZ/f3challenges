@@ -64,7 +64,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
   {
     id: 'may-2026',
     name: 'Death by Basics',
-    hashtag: '#MayChallengeDrop',
+    hashtag: '#DeathByMurph',
     tagline: 'Back to fundamentals. Every. Single. Day.',
     month: 5,
     year: 2026,
