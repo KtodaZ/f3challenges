@@ -64,7 +64,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
   {
     id: 'may-2026',
     name: 'Death by Basics',
-    hashtag: '#DeathByBasics',
+    hashtag: '#MayChallengeDrop',
     tagline: 'Back to fundamentals. Every. Single. Day.',
     month: 5,
     year: 2026,
@@ -81,36 +81,36 @@ export const CHALLENGES: ChallengeTemplate[] = [
       {
         startDay: 1, endDay: 8,
         targets: [
-          { exerciseId: 'pullup',    amount: 20 },
-          { exerciseId: 'pushup',    amount: 30 },
-          { exerciseId: 'air-squat', amount: 40 },
+          { exerciseId: 'pullup',    amount: 10 },
+          { exerciseId: 'pushup',    amount: 20 },
+          { exerciseId: 'air-squat', amount: 30 },
           { exerciseId: 'dead-hang', amount: 30 },
         ],
       },
       {
         startDay: 9, endDay: 16,
         targets: [
-          { exerciseId: 'pullup',    amount: 30 },
-          { exerciseId: 'pushup',    amount: 40 },
-          { exerciseId: 'air-squat', amount: 50 },
+          { exerciseId: 'pullup',    amount: 20 },
+          { exerciseId: 'pushup',    amount: 30 },
+          { exerciseId: 'air-squat', amount: 40 },
           { exerciseId: 'dead-hang', amount: 60 },
         ],
       },
       {
         startDay: 17, endDay: 23,
         targets: [
-          { exerciseId: 'pullup',    amount: 40 },
-          { exerciseId: 'pushup',    amount: 50 },
-          { exerciseId: 'air-squat', amount: 60 },
+          { exerciseId: 'pullup',    amount: 30 },
+          { exerciseId: 'pushup',    amount: 40 },
+          { exerciseId: 'air-squat', amount: 50 },
           { exerciseId: 'dead-hang', amount: 90 },
         ],
       },
       {
         startDay: 24, endDay: 31,
         targets: [
-          { exerciseId: 'pullup',    amount: 50 },
-          { exerciseId: 'pushup',    amount: 60 },
-          { exerciseId: 'air-squat', amount: 70 },
+          { exerciseId: 'pullup',    amount: 40 },
+          { exerciseId: 'pushup',    amount: 50 },
+          { exerciseId: 'air-squat', amount: 60 },
           { exerciseId: 'dead-hang', amount: 120 },
         ],
       },
