@@ -1092,17 +1092,25 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
       pendingCelebration: { challengeId: CHALLENGE_ID },
     });
 
-    // Create in-app notification (shows in notification bell as secondary touchpoint)
+    // Create in-app notification (shows in notification bell)
     const notifId = nanoid();
+    const notifTitle = "🏆 Badge Awarded!";
+    const notifBody = "You completed The Merkin Gauntlet (April 2026) — every single day. Your completion badge is now on your profile!";
     await db.doc(`notifications/${userId}/items/${notifId}`).set({
       id: notifId,
       userId,
       type: "system",
-      title: "🏆 Badge Awarded!",
-      body: `You completed The Merkin Gauntlet (April 2026) — every single day. Your completion badge is now on your profile!`,
+      title: notifTitle,
+      body: notifBody,
       read: false,
       createdAt: new Date().toISOString(),
     });
+
+    // Send push notification if the user has registered devices
+    const tokens: string[] = data.fcmTokens ?? [];
+    if (tokens.length > 0) {
+      await sendPushNotification(userId, tokens, notifTitle, notifBody);
+    }
 
     results.push({ userId, name, action: "badge_awarded" });
   }
