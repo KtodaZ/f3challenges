@@ -17,6 +17,7 @@ import {
   onSnapshot,
   arrayUnion,
   arrayRemove,
+  deleteField,
 } from 'firebase/firestore'
 import { db } from './firebase'
 import type {
@@ -60,6 +61,14 @@ export async function upsertUser(user: User): Promise<void> {
 
 export async function updateUser(userId: string, updates: Partial<User>): Promise<void> {
   await updateDoc(doc(usersCol(), userId), updates as Record<string, unknown>)
+}
+
+export async function awardBadge(userId: string, badge: import('@/types').AchievementBadge): Promise<void> {
+  await updateDoc(doc(usersCol(), userId), { badges: arrayUnion(badge) })
+}
+
+export async function clearPendingCelebration(userId: string): Promise<void> {
+  await updateDoc(doc(usersCol(), userId), { pendingCelebration: deleteField() })
 }
 
 export function subscribeToUsers(callback: (users: User[]) => void) {

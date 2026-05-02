@@ -1037,3 +1037,75 @@ export const sendTestPush = onRequest(
     res.json({ ok: true, sentTo: user.displayName, tokenCount: user.fcmTokens.length, title: finalTitle, body: finalBody });
   }
 );
+
+// ---------------------------------------------------------------------------
+// backfillAprilBadges — one-time HTTP function to award completion badges
+// and trigger the celebration modal for users who finished April 2026.
+// Idempotent: skips users who already have the badge.
+// Call once: curl -X POST <function-url>/backfillAprilBadges
+// ---------------------------------------------------------------------------
+
+export const backfillAprilBadges = onRequest(async (_req, res) => {
+  const CHALLENGE_ID = "apr-2026";
+  const REQUIRED_DAYS = 30;
+  const db = admin.firestore();
+
+  const usersSnap = await db.collection("users").get();
+
+  const results: Array<{ userId: string; name: string; action: string }> = [];
+
+  for (const userDoc of usersSnap.docs) {
+    const data = userDoc.data();
+    const userId = userDoc.id;
+    const name: string = data.displayName ?? userId;
+
+    // Skip if badge already awarded
+    const badges: Array<{ challengeId: string; type: string }> = data.badges ?? [];
+    if (badges.some(b => b.challengeId === CHALLENGE_ID && b.type === "completed")) {
+      results.push({ userId, name, action: "already_has_badge" });
+      continue;
+    }
+
+    // Count completed days
+    const logsSnap = await db.collection("dailyLogs")
+      .where("userId", "==", userId)
+      .where("challengeId", "==", CHALLENGE_ID)
+      .get();
+
+    const completedDays = logsSnap.docs.filter(
+      d => (d.data().completionFraction ?? 0) >= 1
+    ).length;
+
+    if (completedDays < REQUIRED_DAYS) {
+      results.push({ userId, name, action: `incomplete (${completedDays}/${REQUIRED_DAYS})` });
+      continue;
+    }
+
+    // Award badge
+    const badge = {
+      challengeId: CHALLENGE_ID,
+      type: "completed",
+      awardedAt: new Date().toISOString(),
+    };
+    await db.doc(`users/${userId}`).update({
+      badges: admin.firestore.FieldValue.arrayUnion(badge),
+      pendingCelebration: { challengeId: CHALLENGE_ID },
+    });
+
+    // Create in-app notification (shows in notification bell as secondary touchpoint)
+    const notifId = nanoid();
+    await db.doc(`notifications/${userId}/items/${notifId}`).set({
+      id: notifId,
+      userId,
+      type: "system",
+      title: "🏆 Badge Awarded!",
+      body: `You completed The Merkin Gauntlet (April 2026) — every single day. Your completion badge is now on your profile!`,
+      read: false,
+      createdAt: new Date().toISOString(),
+    });
+
+    results.push({ userId, name, action: "badge_awarded" });
+  }
+
+  res.json({ ok: true, results });
+});

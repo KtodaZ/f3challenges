@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import { upsertParticipation, participationId } from '@/lib/firestore'
+import { stripUndefined } from '@/lib/utils'
 import type { ChallengeParticipation } from '@/types'
 
 interface OptOutModalProps {
@@ -56,7 +57,7 @@ export function OptOutModal({
         joinedAt: currentParticipation?.joinedAt ?? now,
         updatedAt: now,
       }
-      await upsertParticipation(updated)
+      await upsertParticipation(stripUndefined(updated))
       onSuccess(updated)
       onClose()
     } catch {

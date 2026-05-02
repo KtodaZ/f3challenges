@@ -14,6 +14,8 @@ import {
   updateUser,
   getLogsForDate,
   createFeedPostOnce,
+  awardBadge,
+  clearPendingCelebration,
 } from '@/lib/firestore'
 import {
   getCurrentChallenge,
@@ -25,6 +27,7 @@ import {
   isRestDay,
   conditionalRestApplies,
   getChallengeDates,
+  CHALLENGES,
 } from '@/lib/challenges'
 import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak } from '@/lib/utils'
 import { ProgressBar } from '@/components/ui/ProgressBar'
@@ -36,12 +39,15 @@ import { DailyExerciseCard } from '@/components/daily/DailyExerciseCard'
 import { LogDayModal } from '@/components/daily/LogDayModal'
 import { MakeupDayPicker } from '@/components/daily/MakeupDayPicker'
 import { CalloutModal } from '@/components/daily/CalloutModal'
+import { CelebrationModal } from '@/components/ui/CelebrationModal'
 import type {
   User,
   DailyLog,
   ChallengeParticipation,
   CompletionFraction,
   ExerciseLog,
+  AchievementBadge,
+  ChallengeTemplate,
 } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -279,6 +285,10 @@ export default function HomePage() {
   // Notification setup banner — dismissed for this session
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false)
 
+  // Challenge completion celebration modal
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [celebrationChallenge, setCelebrationChallenge] = useState<ChallengeTemplate | null>(null)
+
   // ── Redirect if no user ──────────────────────────────────────────────────
 
   useEffect(() => {
@@ -286,6 +296,18 @@ export default function HomePage() {
       router.replace('/onboarding')
     }
   }, [userLoading, currentUser, router])
+
+  // ── Show celebration for retroactively awarded badges (backfill) ─────────
+
+  useEffect(() => {
+    if (!currentUser?.pendingCelebration) return
+    const found = CHALLENGES.find(c => c.id === currentUser.pendingCelebration!.challengeId)
+    if (found) {
+      setCelebrationChallenge(found)
+      setShowCelebration(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.pendingCelebration?.challengeId])
 
   // ── Subscribe to today's log ────────────────────────────────────────────
 
@@ -412,9 +434,23 @@ export default function HomePage() {
         }))
       }
 
-      // Monthly completion feed post
+      // Monthly completion: award badge + celebrate (first time only) + feed post
       const completedDaysCount = updatedLogs.filter(l => l.completionFraction >= 1).length
       if (completedDaysCount >= getRequiredDays(challenge)) {
+        const alreadyHasBadge = currentUser.badges?.some(
+          b => b.challengeId === challenge.id && b.type === 'completed'
+        )
+        if (!alreadyHasBadge) {
+          const badge: AchievementBadge = {
+            challengeId: challenge.id,
+            type: 'completed',
+            awardedAt: new Date().toISOString(),
+          }
+          await awardBadge(currentUser.id, badge)
+          setCelebrationChallenge(challenge)
+          setShowCelebration(true)
+        }
+
         const content = `@${currentUser.displayName} just completed ${challenge.name} — every single day! 🏆 ${challenge.hashtag}`
         await createFeedPostOnce(stripUndefined({
           id: `monthly_complete_${currentUser.id}_${challenge.id}`,
@@ -490,12 +526,12 @@ export default function HomePage() {
 
   async function handleRejoin() {
     if (!currentUser || !challenge || !participation) return
-    const updated: ChallengeParticipation = {
+    const updated: ChallengeParticipation = stripUndefined({
       ...participation,
       status: 'active',
       optOutReason: undefined,
       updatedAt: new Date().toISOString(),
-    }
+    })
     await upsertParticipation(updated)
     setParticipation(updated)
   }
@@ -882,6 +918,19 @@ export default function HomePage() {
           existingLog={todayLog}
           onSave={saveTodayLog}
           isMakeUp={false}
+        />
+      )}
+
+      {/* ── Challenge completion celebration ── */}
+      {showCelebration && celebrationChallenge && (
+        <CelebrationModal
+          challenge={celebrationChallenge}
+          onClose={async () => {
+            setShowCelebration(false)
+            if (currentUser?.pendingCelebration) {
+              await clearPendingCelebration(currentUser.id)
+            }
+          }}
         />
       )}
 
