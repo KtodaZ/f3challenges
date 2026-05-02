@@ -63,9 +63,9 @@ export const CHALLENGES: ChallengeTemplate[] = [
   },
   {
     id: 'may-2026',
-    name: 'Death by Basics',
+    name: 'PPSD',
     hashtag: '#DeathByMurph',
-    tagline: 'Back to fundamentals. Every. Single. Day.',
+    tagline: 'Pullup. Pushup. Squat. DeadHang.',
     month: 5,
     year: 2026,
     type: 'weekly-tiers',
