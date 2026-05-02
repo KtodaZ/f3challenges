@@ -255,6 +255,9 @@ export default function HomePage() {
   // Participation
   const [participation, setParticipation] = useState<ChallengeParticipation | null>(null)
 
+  // Past challenge logs (for cross-challenge makeup)
+  const [pastChallengeLogs, setPastChallengeLogs] = useState<Record<string, DailyLog[]>>({})
+
   // Past incomplete logs (for makeup)
   const [allLogs, setAllLogs] = useState<DailyLog[]>([])
 
@@ -310,6 +313,21 @@ export default function HomePage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.pendingCelebration?.challengeId])
+
+  // ── Load logs for ended challenges (for makeup across challenge boundaries) ──
+
+  useEffect(() => {
+    if (!currentUser) return
+    const ended = CHALLENGES.filter(c => c.endDate < today)
+    if (ended.length === 0) return
+    Promise.all(
+      ended.map(c => getUserChallengeLogs(currentUser.id, c.id).then(logs => ({ id: c.id, logs })))
+    ).then(results => {
+      const map: Record<string, DailyLog[]> = {}
+      for (const { id, logs } of results) map[id] = logs
+      setPastChallengeLogs(map)
+    })
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Subscribe to today's log ────────────────────────────────────────────
 
@@ -524,6 +542,68 @@ export default function HomePage() {
     },
     [quickReps, quickSaving, saveTodayLog, todayLog, challenge]
   )
+
+  // ── Save a log for a past (ended) challenge ─────────────────────────────
+
+  const savePastChallengeLog = useCallback(async (
+    pastChallenge: ChallengeTemplate,
+    date: string,
+    repsMap: Record<string, number>,
+    notes: string,
+    modNote: string,
+  ) => {
+    if (!currentUser) return
+    const target = getDailyTarget(pastChallenge, date)
+    if (!target) return
+
+    const fraction = computeOverallFraction(repsMap, target.exercises)
+    const exerciseLogs: ExerciseLog[] = target.exercises.map(({ exercise, reps }) => ({
+      exerciseId: exercise.id,
+      targetReps: reps,
+      completedReps: repsMap[exercise.id] ?? 0,
+    }))
+
+    const existing = (pastChallengeLogs[pastChallenge.id] ?? []).find(l => l.date === date)
+    const newLog: DailyLog = stripUndefined({
+      id: dailyLogId(currentUser.id, date),
+      userId: currentUser.id,
+      challengeId: pastChallenge.id,
+      date,
+      completionFraction: fraction,
+      exerciseLogs,
+      modificationNote: modNote || undefined,
+      isMakeUp: true,
+      notes: notes || undefined,
+      loggedAt: existing?.loggedAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+
+    await upsertDailyLog(newLog)
+
+    const updatedLogs = [
+      ...(pastChallengeLogs[pastChallenge.id] ?? []).filter(l => l.date !== date),
+      newLog,
+    ]
+    setPastChallengeLogs(prev => ({ ...prev, [pastChallenge.id]: updatedLogs }))
+
+    // Award badge if this makeup completes the challenge
+    const completedDays = updatedLogs.filter(l => l.completionFraction >= 1).length
+    if (completedDays >= getRequiredDays(pastChallenge)) {
+      const alreadyHasBadge = currentUser.badges?.some(
+        b => b.challengeId === pastChallenge.id && b.type === 'completed'
+      )
+      if (!alreadyHasBadge) {
+        const badge: AchievementBadge = {
+          challengeId: pastChallenge.id,
+          type: 'completed',
+          awardedAt: new Date().toISOString(),
+        }
+        await awardBadge(currentUser.id, badge)
+        setCelebrationChallenge(pastChallenge)
+        setShowCelebration(true)
+      }
+    }
+  }, [currentUser, pastChallengeLogs])
 
   // ── Rejoin challenge ────────────────────────────────────────────────────
 
@@ -789,7 +869,7 @@ export default function HomePage() {
           ))}
         </div>}
 
-        {/* ── Makeup section ── */}
+        {/* ── Makeup section (current challenge) ── */}
         {incompletePastDates.length > 0 && (
           <div className="pt-2">
             <MakeupDayPicker
@@ -802,6 +882,31 @@ export default function HomePage() {
             />
           </div>
         )}
+
+        {/* ── Makeup section (past challenges) ── */}
+        {CHALLENGES.filter(c => c.endDate < today).map(pastChallenge => {
+          const logs = pastChallengeLogs[pastChallenge.id] ?? []
+          const pastLogsMap = Object.fromEntries(logs.map(l => [l.date, l]))
+          const incomplete = getChallengeDates(pastChallenge).filter(d => {
+            if (isRestDay(pastChallenge, d)) return false
+            const log = pastLogsMap[d]
+            return !log || log.completionFraction < 1
+          })
+          if (incomplete.length === 0) return null
+          return (
+            <div key={pastChallenge.id} className="pt-2">
+              <p className="text-xs text-zinc-500 px-1 mb-1">{pastChallenge.name} — missed days</p>
+              <MakeupDayPicker
+                challenge={pastChallenge}
+                incompleteDates={incomplete}
+                logs={pastLogsMap}
+                onSave={(date, repsMap, notes, modNote) =>
+                  savePastChallengeLog(pastChallenge, date, repsMap, notes, modNote)
+                }
+              />
+            </div>
+          )
+        })}
 
         {/* ── Celebration banner (shown briefly after completing) ── */}
         {dayJustCompleted && (
