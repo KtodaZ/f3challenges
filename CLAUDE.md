@@ -122,49 +122,11 @@ Works in both client components and Next.js API routes — `NEXT_PUBLIC_` vars a
 - `PWAInstallStep` component is platform-aware (ios/android/installed/other); shared `PWAInstallGuide` component used by both onboarding and the troubleshoot page
 
 ## Deployment
-
-### How deploys work (zero local setup required)
-This project is fully deployable from the cloud — **no local dev environment needed**.
-
-| What changed | Who deploys | How |
-|---|---|---|
-| Next.js app (`src/`) | Vercel | Auto on push to `main` |
-| Cloud Functions (`functions/src/`) | GitHub Actions | Auto on push to `main` |
-| Firestore rules/indexes | GitHub Actions | Auto on push to `main` |
-| Challenge data (`shared/src/`) | GitHub Actions | Auto on push to `main` (functions rebuild) |
-
-### GitHub Actions — Firebase auto-deploy
-`.github/workflows/firebase-deploy.yml` triggers on push to `main` when any of these paths change:
-- `functions/src/**`
-- `shared/src/**`
-- `firestore.rules`
-- `firestore.indexes.json`
-
-It installs pnpm, builds functions with esbuild (including the `@f3-bedrock/shared` alias), then runs:
-```
-firebase deploy --only functions,firestore --force
-```
-Credential: `FIREBASE_TOKEN` secret in GitHub repo settings (generated once via `firebase login:ci`).
-
-### Building features from Claude web (claude.ai)
-You can build and ship features entirely from claude.ai without touching a terminal:
-1. Describe the feature to Claude
-2. Claude edits the files and commits to `main`
-3. Vercel auto-deploys the Next.js app
-4. GitHub Actions auto-deploys any Firebase changes
-5. Users get the update within ~2 minutes
-
-**The only things that still require local access:**
-- Rotating the `FIREBASE_TOKEN` secret (when it expires — regenerate with `firebase login:ci`)
-- Adding new environment variables to Vercel dashboard
-- One-time admin tasks like calling `backfillAprilBadges` via curl
-
-### Other deployment details
 - **Production URL**: `https://f3-bedrock-monthly-challenge.vercel.app`
-- **Firebase project**: `f3-bedrock-monthly-challenge`
+- **Vercel** — auto-deploys from `main` branch push
+- **Firebase Functions + Firestore** — auto-deployed by GitHub Actions (`.github/workflows/firebase-deploy.yml`) on push to `main`; no local deploy needed
+- Firebase project: `f3-bedrock-monthly-challenge`
 - All env vars must be set in Vercel dashboard (copy from `.env.local`)
-
-**Claude no longer needs to run local Firebase deploys.** The GitHub Actions workflow handles it. Do not run `firebase deploy` locally after pushing to `main` — the workflow will do it.
 
 ### shared/ package notes
 - `functions/` is NOT in `pnpm-workspace.yaml` — it has its own `pnpm-lock.yaml` and `pnpm-workspace.yaml` (empty, makes it a standalone root so Firebase Cloud Build can install deps)
