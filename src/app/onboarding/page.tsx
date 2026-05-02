@@ -4,17 +4,16 @@ import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useUser } from '@/contexts/UserContext'
 import { isOnboardingComplete } from '@/lib/storage'
-import type { OnboardingStep, NotificationPreferences, AchievementBadge } from '@/types'
+import type { OnboardingStep, NotificationPreferences } from '@/types'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 
-import { WelcomeStep }        from '@/components/onboarding/WelcomeStep'
-import { DisclaimerStep }     from '@/components/onboarding/DisclaimerStep'
-import { ProfileStep }        from '@/components/onboarding/ProfileStep'
-import { PastChallengesStep } from '@/components/onboarding/PastChallengesStep'
-import { NotificationsStep }  from '@/components/onboarding/NotificationsStep'
-import { PWAInstallStep }     from '@/components/onboarding/PWAInstallStep'
-import { DoneStep }           from '@/components/onboarding/DoneStep'
-import { StepDots }           from '@/components/onboarding/StepDots'
+import { WelcomeStep }       from '@/components/onboarding/WelcomeStep'
+import { DisclaimerStep }    from '@/components/onboarding/DisclaimerStep'
+import { ProfileStep }       from '@/components/onboarding/ProfileStep'
+import { NotificationsStep } from '@/components/onboarding/NotificationsStep'
+import { PWAInstallStep }    from '@/components/onboarding/PWAInstallStep'
+import { DoneStep }          from '@/components/onboarding/DoneStep'
+import { StepDots }          from '@/components/onboarding/StepDots'
 
 // Steps in order — pwa-install may be skipped at runtime
 const STEPS: OnboardingStep[] = [
@@ -22,7 +21,6 @@ const STEPS: OnboardingStep[] = [
   'pwa-install',
   'disclaimer',
   'profile',
-  'past-challenges',
   'notifications',
   'done',
 ]
@@ -34,7 +32,6 @@ function OnboardingInner() {
 
   // Collected data across steps
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFS)
-  const [earnedBadges, setEarnedBadges] = useState<AchievementBadge[]>([])
 
   // Determine initial step
   const joinParam = searchParams.get('join')
@@ -86,15 +83,6 @@ function OnboardingInner() {
         {currentStep === 'profile' && (
           <ProfileStep onNext={() => nextStep('profile')} />
         )}
-        {currentStep === 'past-challenges' && (
-          <PastChallengesStep
-            existingBadges={currentUser?.badges}
-            onNext={(badges) => {
-              setEarnedBadges(badges)
-              nextStep('past-challenges')
-            }}
-          />
-        )}
         {currentStep === 'notifications' && (
           <NotificationsStep
             existingPrefs={currentUser?.notificationPreferences}
@@ -111,10 +99,7 @@ function OnboardingInner() {
           />
         )}
         {currentStep === 'done' && (
-          <DoneStep
-            earnedBadges={earnedBadges}
-            notifPrefs={notifPrefs}
-          />
+          <DoneStep notifPrefs={notifPrefs} />
         )}
       </div>
     </div>

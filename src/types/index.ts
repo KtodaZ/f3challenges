@@ -159,7 +159,6 @@ export type OnboardingStep =
   | 'welcome'
   | 'disclaimer'
   | 'profile'
-  | 'past-challenges'
   | 'notifications'
   | 'pwa-install'
   | 'done'
