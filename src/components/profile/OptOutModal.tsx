@@ -47,7 +47,7 @@ export function OptOutModal({
 
     try {
       const now = new Date().toISOString()
-      const updated: ChallengeParticipation = {
+      const stripped = stripUndefined<ChallengeParticipation>({
         id: participationId(userId, challengeId),
         userId,
         challengeId,
@@ -56,9 +56,9 @@ export function OptOutModal({
         modificationNote: mode === 'modifying' ? note.trim() : undefined,
         joinedAt: currentParticipation?.joinedAt ?? now,
         updatedAt: now,
-      }
-      await upsertParticipation(stripUndefined(updated))
-      onSuccess(updated)
+      })
+      await upsertParticipation(stripped)
+      onSuccess(stripped)
       onClose()
     } catch {
       setError('Something went wrong. Please try again.')

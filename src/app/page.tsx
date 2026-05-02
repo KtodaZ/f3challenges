@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/contexts/UserContext'
@@ -288,6 +288,8 @@ export default function HomePage() {
   // Challenge completion celebration modal
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationChallenge, setCelebrationChallenge] = useState<ChallengeTemplate | null>(null)
+  // Prevents double-modal if saveLog is called twice rapidly on the final day
+  const celebrationFiredRef = useRef(false)
 
   // ── Redirect if no user ──────────────────────────────────────────────────
 
@@ -440,7 +442,8 @@ export default function HomePage() {
         const alreadyHasBadge = currentUser.badges?.some(
           b => b.challengeId === challenge.id && b.type === 'completed'
         )
-        if (!alreadyHasBadge) {
+        if (!alreadyHasBadge && !celebrationFiredRef.current) {
+          celebrationFiredRef.current = true
           const badge: AchievementBadge = {
             challengeId: challenge.id,
             type: 'completed',
