@@ -15,7 +15,6 @@ import {
   getLogsForDate,
   createFeedPostOnce,
   awardBadge,
-  clearPendingCelebration,
 } from '@/lib/firestore'
 import {
   getCurrentChallenge,
@@ -301,18 +300,6 @@ export default function HomePage() {
       router.replace('/onboarding')
     }
   }, [userLoading, currentUser, router])
-
-  // ── Show celebration for retroactively awarded badges (backfill) ─────────
-
-  useEffect(() => {
-    if (!currentUser?.pendingCelebration) return
-    const found = CHALLENGES.find(c => c.id === currentUser.pendingCelebration!.challengeId)
-    if (found) {
-      setCelebrationChallenge(found)
-      setShowCelebration(true)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.pendingCelebration?.challengeId])
 
   // ── Load logs for ended challenges (for makeup across challenge boundaries) ──
 
@@ -1033,12 +1020,7 @@ export default function HomePage() {
       {showCelebration && celebrationChallenge && (
         <CelebrationModal
           challenge={celebrationChallenge}
-          onClose={async () => {
-            setShowCelebration(false)
-            if (currentUser?.pendingCelebration) {
-              await clearPendingCelebration(currentUser.id)
-            }
-          }}
+          onClose={() => setShowCelebration(false)}
         />
       )}
 
