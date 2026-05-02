@@ -256,6 +256,12 @@ export default function HomePage() {
 
   // Past challenge logs (for cross-challenge makeup)
   const [pastChallengeLogs, setPastChallengeLogs] = useState<Record<string, DailyLog[]>>({})
+  const [dismissedMakeups, setDismissedMakeups] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('dismissedMakeups')
+      return new Set(stored ? JSON.parse(stored) : [])
+    } catch { return new Set() }
+  })
 
   // Past incomplete logs (for makeup)
   const [allLogs, setAllLogs] = useState<DailyLog[]>([])
@@ -873,6 +879,8 @@ export default function HomePage() {
         {/* ── Makeup section (past challenges) ── */}
         {CHALLENGES.filter(c => c.endDate < today).map(pastChallenge => {
           const logs = pastChallengeLogs[pastChallenge.id] ?? []
+          if (logs.length === 0) return null
+          if (dismissedMakeups.has(pastChallenge.id)) return null
           const pastLogsMap = Object.fromEntries(logs.map(l => [l.date, l]))
           const incomplete = getChallengeDates(pastChallenge).filter(d => {
             if (isRestDay(pastChallenge, d)) return false
@@ -882,7 +890,20 @@ export default function HomePage() {
           if (incomplete.length === 0) return null
           return (
             <div key={pastChallenge.id} className="pt-2">
-              <p className="text-xs text-zinc-500 px-1 mb-1">{pastChallenge.name} — missed days</p>
+              <div className="flex items-center justify-between px-1 mb-1">
+                <p className="text-xs text-zinc-500">{pastChallenge.name} — missed days</p>
+                <button
+                  onClick={() => {
+                    const next = new Set(dismissedMakeups).add(pastChallenge.id)
+                    setDismissedMakeups(next)
+                    try { localStorage.setItem('dismissedMakeups', JSON.stringify([...next])) } catch { /* ignore */ }
+                  }}
+                  className="text-zinc-600 hover:text-zinc-400 transition-colors text-xs"
+                  aria-label="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
               <MakeupDayPicker
                 challenge={pastChallenge}
                 incompleteDates={incomplete}
