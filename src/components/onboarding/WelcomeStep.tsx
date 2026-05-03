@@ -1,12 +1,19 @@
 'use client'
 
 import { Button } from '@/components/ui/Button'
+import { getCurrentChallenge } from '@/lib/challenges'
 
 interface WelcomeStepProps {
   onNext: () => void
 }
 
 export function WelcomeStep({ onNext }: WelcomeStepProps) {
+  const challenge = getCurrentChallenge()
+  const challengeDisplay = challenge?.name ?? 'Monthly Challenge'
+  const monthDisplay = challenge
+    ? new Date(challenge.startDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : ''
+
   return (
     <div className="flex-1 flex flex-col items-center justify-between px-6 py-12">
       {/* Logo area */}
@@ -38,8 +45,8 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
 
         {/* Challenge name */}
         <div className="space-y-2">
-          <p className="text-xl font-bold text-white">The Merkin Gauntlet</p>
-          <p className="text-sm text-zinc-400">April 2026</p>
+          <p className="text-xl font-bold text-white">{challengeDisplay}</p>
+          {monthDisplay && <p className="text-sm text-zinc-400">{monthDisplay}</p>}
         </div>
 
         {/* Tagline */}
