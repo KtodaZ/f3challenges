@@ -182,7 +182,7 @@ function buildDailyCompleteMessage(
       `@${name} could do this in their sleep. Day ${day} knocked out — ${totalReps} reps. 😏 ${hashtag}`,
       `${totalReps} reps and @${name} didn't even break a sweat. Day ${day}. Someone stop them. 😂 ${hashtag}`,
       `@${name} out here doing ${totalReps} reps like it's a warm-up. Somebody tell ${challengeName} to try harder. 😏 ${hashtag}`,
-      `Day ${day} and @${name} is still here. ${totalReps} reps. At this point the ${exerciseName.toLowerCase()}s owe HIM rent. 😂 ${hashtag}`,
+      ...(exerciseCount === 1 ? [`Day ${day} and @${name} is still here. ${totalReps} reps. At this point the ${exerciseName.toLowerCase()}s owe HIM rent. 😂 ${hashtag}`] : []),
       `@${name} with ${totalReps} reps on Day ${day}. If you're not even gonna have the decency to struggle, at least pretend. 😏 ${hashtag}`,
       `${totalReps} reps and @${name} acts like nothing happened. ${challengeName} is starting to take it personally. 😂 ${hashtag}`,
       `Will the real @${name} please stand up? ${totalReps} reps on Day ${day}/${totalDays}. Man refuses to lose. 😏 ${hashtag}`,

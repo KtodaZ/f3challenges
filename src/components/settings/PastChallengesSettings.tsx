@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
-import { CHALLENGES, getTotalDays, getMonthlyTotal } from '@/lib/challenges'
+import { CHALLENGES, getTotalDays, getMonthlyTotal, getTodayPT } from '@/lib/challenges'
 import { updateUser } from '@/lib/firestore'
 import { setCachedUser } from '@/lib/storage'
 import { useUser } from '@/contexts/UserContext'
@@ -12,7 +12,7 @@ import type { AchievementBadge } from '@/types'
 
 type Selection = 'completed' | 'participant' | 'skipped'
 
-const HISTORICAL = CHALLENGES.filter(c => c.id !== 'apr-2026')
+const HISTORICAL = CHALLENGES.filter(c => c.endDate < getTodayPT())
 
 function selectionsFromBadges(badges: AchievementBadge[] = []): Record<string, Selection> {
   const byId = Object.fromEntries(badges.map(b => [b.challengeId, b.type as Selection]))

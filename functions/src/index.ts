@@ -4,6 +4,8 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest } from "firebase-functions/v2/https";
 import {
   getChallengeForDate,
+  getChallengeById,
+  getRequiredDays,
   getDayNumber,
   getTotalDays,
   getTodayPT,
@@ -574,7 +576,7 @@ function generateNotification(ctx: {
       `${modNote}${progressNote}. ${daysRemaining} ${daysWord} in ${challengeName}. Don't quit this close to done.`,
       `${fn}, ${daysRemaining} ${daysWord} left — ${repsRemaining} reps now. The crew is watching.`,
       `You've come too far to stop. ${repsRemaining} reps, ${daysRemaining} ${daysWord} to go — finish strong.`,
-      `${peerLine}${repsPerExercise} per variant = ${repsRemaining} reps. ${daysRemaining} ${daysWord} left — make it count.`,
+      `${peerLine}${progressNote}. ${daysRemaining} ${daysWord} left — make it count.`,
       `${daysRemaining} ${daysWord} left in ${challengeName}. ${repsRemaining} reps today — this is what you trained for.`,
       `${modNote}${repsRemaining} reps left. ${daysRemaining} ${daysWord} remaining — leave nothing on the table, ${fn}.`,
     ];
@@ -620,10 +622,10 @@ function generateNotification(ctx: {
       ];
       const bodies = [
         `${peerStr} already crushed Day ${dayNumber}. Your ${repsRemaining} reps aren't going to do themselves.`,
-        `${peerStr} have completed today's challenge. ${fn}, ${repsPerExercise} per variant — start your first set now.`,
+        `${peerStr} have completed today's challenge. ${fn}, ${repsRemaining} reps — start your first set now.`,
         `${peerStr} put in the work. Day ${dayNumber}: ${repsRemaining} reps — be next.`,
         `${peerStr} have completed today's challenge — don't let them show you up. ${repsRemaining} reps, ${fn}.`,
-        `${peerStr} already done. Day ${dayNumber}: ${repsPerExercise} each variant. Get moving, ${fn}.`,
+        `${peerStr} already done. Day ${dayNumber}: ${progressNote}. Get moving, ${fn}.`,
         `${peerStr} led the way today. ${fn}, ${repsRemaining} reps — go now, thank yourself later.`,
         `${peerStr} have completed today's challenge. ${modNote}${repsRemaining} reps — you're next, ${fn}.`,
       ];
@@ -632,7 +634,7 @@ function generateNotification(ctx: {
       const titles = [
         `Day ${dayNumber} Starts Now`,
         `Rise Up, ${fn}!`,
-        `Morning ${primaryExercise}s, ${fn}`,
+        `Morning Reps, ${fn}`,
         `PAX Don't Wait`,
         `First Set, ${fn}`,
         `Lead the PAX, ${fn}`,
@@ -641,11 +643,11 @@ function generateNotification(ctx: {
       const bodies = [
         `${partnerStr} haven't started yet — be the first PAX to finish Day ${dayNumber}.`,
         `${modNote}${progressNote}. Day is young — knock out a set and be the one who leads today.`,
-        `${repsPerExercise} each variant = ${repsRemaining} reps. ${fn}, go first — set the tone.`,
+        `${progressNote}. ${fn}, go first — set the tone.`,
         `Nobody's done yet. ${fn}, be the standard — ${repsRemaining} reps on Day ${dayNumber}.`,
         `You and ${partnerStr} are all still in it. First one done fires up the rest — go.`,
         `Morning sets pay dividends. ${fn}, ${repsRemaining} reps — lead the crew.`,
-        `${partnerStr} haven't finished yet. ${fn}: ${repsPerExercise} per variant, ${repsRemaining} total — lead the charge.`,
+        `${partnerStr} haven't finished yet. ${fn}: ${progressNote} — lead the charge.`,
       ];
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     } else {
@@ -658,7 +660,7 @@ function generateNotification(ctx: {
       ];
       const bodies = [
         `Day ${dayNumber} of ${totalDays}: ${repsRemaining} reps. Morning sets pay dividends — start now.`,
-        `${repsPerExercise} per variant = ${repsRemaining} reps. Day is young, ${fn} — get moving.`,
+        `${progressNote}. Day is young, ${fn} — get moving.`,
         `Day ${dayNumber} on ${challengeName}. Be the first PAX to finish today.`,
         `${fn}, ${repsRemaining} reps today. Knock your first set out early and thank yourself later.`,
         `${modNote}${repsRemaining} reps waiting, ${fn}. Morning is the best time — go.`,
@@ -681,7 +683,7 @@ function generateNotification(ctx: {
       const bodies = [
         `${peerStr} have completed today's challenge. ${fn}: ${progressNote} — do it now, not tonight.`,
         `${peerStr} already done. ${repsRemaining} reps on Day ${dayNumber} — don't let it pile up.`,
-        `${peerStr} checked in. ${fn}, ${repsPerExercise} per variant — knock a set out before dinner.`,
+        `${peerStr} checked in. ${fn}, ${repsRemaining} reps — knock a set out before dinner.`,
         `${peerStr} have completed today's challenge. ${modNote}${progressNote} — you've got time, use it.`,
         `${peerStr} are done for the day. ${fn}: ${repsRemaining} reps left, go now.`,
         `${peerStr} already crushed it. Afternoon's the sweet spot — ${repsRemaining} reps, ${fn}.`,
@@ -714,7 +716,7 @@ function generateNotification(ctx: {
       const bodies = [
         `${modNote}${progressNote} on Day ${dayNumber}. Afternoon's the sweet spot — knock it out now.`,
         `Day ${dayNumber}: ${repsRemaining} reps. Don't let it pile up for tonight.`,
-        `${fn}, ${repsPerExercise} per variant = ${repsRemaining} total. Go now while it's light.`,
+        `${fn}, ${progressNote}. Go now while it's light.`,
         `${modNote}${repsRemaining} reps left on Day ${dayNumber}. Afternoons are for grinding — go.`,
       ];
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -736,7 +738,7 @@ function generateNotification(ctx: {
       `${peerStr} have completed today's challenge. ${fn}: ${repsRemaining} reps before midnight — let's go.`,
       `${peerStr} already done. Day ${dayNumber} ends soon — ${repsRemaining} reps, ${fn}.`,
       `${peerStr} have completed today's challenge. ${modNote}${progressNote} — last chance to close Day ${dayNumber}.`,
-      `${peerStr} checked in. ${fn}, ${repsPerExercise} per variant, ${repsRemaining} total — do it now.`,
+      `${peerStr} checked in. ${fn}, ${progressNote} — do it now.`,
       `${peerStr} are done for the day. ${fn}: clock's running — ${repsRemaining} reps left.`,
       `${peerStr} have completed today's challenge. Don't let Day ${dayNumber} slip — ${repsRemaining} reps now.`,
       `${peerStr} put it in. ${fn}, ${repsRemaining} reps — don't be the one who didn't finish today.`,
@@ -770,7 +772,7 @@ function generateNotification(ctx: {
       `${fn}, ${repsRemaining} reps before midnight. Don't break the streak.`,
       `Day ${dayNumber} ends soon — ${repsRemaining} reps left, ${fn}. Get it done.`,
       `Tonight's your last shot on Day ${dayNumber}. ${modNote}${repsRemaining} reps — go.`,
-      `${fn}: ${repsPerExercise} per variant, ${repsRemaining} total. Don't let Day ${dayNumber} slip.`,
+      `${fn}: ${progressNote}. Don't let Day ${dayNumber} slip.`,
       `${modNote}${repsRemaining} reps stand between you and Day ${dayNumber}. Close it out, ${fn}.`,
     ];
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -1039,19 +1041,18 @@ export const sendTestPush = onRequest(
 );
 
 // ---------------------------------------------------------------------------
-// backfillAprilBadges — one-time HTTP function to award completion badges
-// and trigger the celebration modal for users who finished April 2026.
-// Idempotent: skips users who already have the badge.
-// Call once: curl -X POST <function-url>/backfillAprilBadges
+// badgeBackfill — reusable helper for awarding completion badges after a
+// challenge ends. Idempotent: skips users who already have the badge.
 // ---------------------------------------------------------------------------
 
-export const backfillAprilBadges = onRequest(async (_req, res) => {
-  const CHALLENGE_ID = "apr-2026";
-  const REQUIRED_DAYS = 30;
+async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: string; name: string; action: string }>> {
+  const challenge = getChallengeById(challengeId);
+  if (!challenge) throw new Error(`Unknown challengeId: ${challengeId}`);
+  const requiredDays = getRequiredDays(challenge);
+  const challengeLabel = challenge.name;
   const db = admin.firestore();
 
   const usersSnap = await db.collection("users").get();
-
   const results: Array<{ userId: string; name: string; action: string }> = [];
 
   for (const userDoc of usersSnap.docs) {
@@ -1059,17 +1060,15 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
     const userId = userDoc.id;
     const name: string = data.displayName ?? userId;
 
-    // Skip if already has any badge for this challenge
     const badges: Array<{ challengeId: string; type: string }> = data.badges ?? [];
-    if (badges.some(b => b.challengeId === CHALLENGE_ID)) {
+    if (badges.some(b => b.challengeId === challengeId)) {
       results.push({ userId, name, action: "already_has_badge" });
       continue;
     }
 
-    // Count completed days
     const logsSnap = await db.collection("dailyLogs")
       .where("userId", "==", userId)
-      .where("challengeId", "==", CHALLENGE_ID)
+      .where("challengeId", "==", challengeId)
       .get();
 
     const completedDays = logsSnap.docs.filter(
@@ -1077,42 +1076,29 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
     ).length;
 
     if (completedDays === 0) {
-      results.push({ userId, name, action: `no_logs` });
+      results.push({ userId, name, action: "no_logs" });
       continue;
     }
 
-    const isCompleted = completedDays >= REQUIRED_DAYS;
+    const isCompleted = completedDays >= requiredDays;
     const badgeType = isCompleted ? "completed" : "participant";
 
-    // Award badge (replace existing for this challenge)
-    const filteredBadges = badges.filter(b => b.challengeId !== CHALLENGE_ID);
-    const badge = {
-      challengeId: CHALLENGE_ID,
-      type: badgeType,
-      awardedAt: new Date().toISOString(),
-    };
+    const filteredBadges = badges.filter(b => b.challengeId !== challengeId);
     await db.doc(`users/${userId}`).update({
-      badges: [...filteredBadges, badge],
-      pendingCelebration: { challengeId: CHALLENGE_ID, badgeType },
+      badges: [...filteredBadges, { challengeId, type: badgeType, awardedAt: new Date().toISOString() }],
+      pendingCelebration: { challengeId, badgeType },
     });
 
-    // Create in-app notification (shows in notification bell)
     const notifId = nanoid();
     const notifTitle = isCompleted ? "🏆 Badge Awarded!" : "💪 Participation Badge Awarded!";
     const notifBody = isCompleted
-      ? "You completed The Merkin Gauntlet (April 2026) — every single day. Your completion badge is now on your profile!"
-      : `You put in the work on The Merkin Gauntlet (April 2026) — ${completedDays} days logged. Your participation badge is on your profile. Make up missed days to earn the completion badge!`;
+      ? `You completed ${challengeLabel} — every single day. Your completion badge is now on your profile!`
+      : `You put in the work on ${challengeLabel} — ${completedDays} days logged. Your participation badge is on your profile. Make up missed days to earn the completion badge!`;
     await db.doc(`notifications/${userId}/items/${notifId}`).set({
-      id: notifId,
-      userId,
-      type: "system",
-      title: notifTitle,
-      body: notifBody,
-      read: false,
-      createdAt: new Date().toISOString(),
+      id: notifId, userId, type: "system", title: notifTitle, body: notifBody,
+      read: false, createdAt: new Date().toISOString(),
     });
 
-    // Send push notification if the user has registered devices
     const tokens: string[] = data.fcmTokens ?? [];
     if (tokens.length > 0) {
       await sendPushNotification(userId, tokens, notifTitle, notifBody);
@@ -1121,5 +1107,17 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
     results.push({ userId, name, action: `${badgeType}_badge_awarded (${completedDays} days)` });
   }
 
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// backfillAprilBadges — one-time HTTP trigger for April 2026.
+// Idempotent. Call once: curl -X POST <function-url>/backfillAprilBadges
+// To backfill a future challenge, export a new onRequest that calls
+// runBadgeBackfill("<challenge-id>").
+// ---------------------------------------------------------------------------
+
+export const backfillAprilBadges = onRequest(async (_req, res) => {
+  const results = await runBadgeBackfill("apr-2026");
   res.json({ ok: true, results });
 });
