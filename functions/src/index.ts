@@ -334,7 +334,7 @@ function generateNotification(ctx: {
   const {
     challenge,
     userName, challengeName, dayNumber, totalDays,
-    repsCompleted, repsRemaining, repsPerExercise, primaryExercise,
+    repsCompleted, repsRemaining,
     userCompleted, groupCompletedCount, groupTotalCount,
     notificationType, completedNames, notDoneNames,
     participationStatus, userStreak,
