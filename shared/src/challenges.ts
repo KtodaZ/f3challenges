@@ -64,7 +64,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
   {
     id: 'may-2026',
     name: 'PPSD',
-    hashtag: '#PPSDChallenge',
+    hashtag: '#PPSD',
     tagline: 'Pullup. Pushup. Squat. DeadHang.',
     month: 5,
     year: 2026,
@@ -129,15 +129,15 @@ export const CHALLENGES: ChallengeTemplate[] = [
       welcomeTagline: 'Pull-ups. Push-ups. Squats. Dead hangs. Four movements, one month, no excuses.',
       feedPost: {
         day1: [
-          "@{name} opens #PPSDChallenge right — {totalReps} reps across pull-ups, push-ups, and squats plus a dead hang. Day 1 of {totalDays} logged. 🔥 {hashtag}",
+          "@{name} opens #PPSD right — {totalReps} reps across pull-ups, push-ups, and squats plus a dead hang. Day 1 of {totalDays} logged. 🔥 {hashtag}",
           "Pull-up. Push-up. Squat. Dead hang. @{name} knocked out all four on Day 1. {totalReps} reps. {hashtag} 💪",
-          "@{name} sets the bar on Day 1 of #PPSDChallenge — {totalReps} reps, four movements. Now you know what's up. 🔥 {hashtag}",
-          "Day 1: checked. @{name} started #PPSDChallenge with {totalReps} reps. Pull, push, squat, hang — all of it. {hashtag} 💪",
+          "@{name} sets the bar on Day 1 of #PPSD — {totalReps} reps, four movements. Now you know what's up. 🔥 {hashtag}",
+          "Day 1: checked. @{name} started #PPSD with {totalReps} reps. Pull, push, squat, hang — all of it. {hashtag} 💪",
         ],
         regular: [
-          "@{name} — Day {day}/{totalDays} of #PPSDChallenge. Pull-ups, push-ups, squats, dead hang: all done. {totalReps} reps. 💪 {hashtag}",
+          "@{name} — Day {day}/{totalDays} of #PPSD. Pull-ups, push-ups, squats, dead hang: all done. {totalReps} reps. 💪 {hashtag}",
           "Pull. Push. Squat. Hang. @{name} checked every box on Day {day}. {totalReps} reps total. {hashtag} 🔥",
-          "@{name} knocked out {totalReps} reps on Day {day} of #PPSDChallenge. Four movements, zero excuses. 💪 {hashtag}",
+          "@{name} knocked out {totalReps} reps on Day {day} of #PPSD. Four movements, zero excuses. 💪 {hashtag}",
           "Day {day} logged. @{name} worked through pull-ups, push-ups, squats, and dead hangs — {totalReps} reps. {hashtag} 💪",
           "@{name} put in the work across all four PPSD movements. Day {day}/{totalDays}, {totalReps} reps. Who else is posting? {hashtag}",
         ],
@@ -157,7 +157,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
         day1Pending: {
           titles: [
             "PPSD Starts Now, {fn}",
-            "Day 1 of #PPSDChallenge",
+            "Day 1 of #PPSD",
           ],
           bodies: [
             "Pull-ups, push-ups, squats, and a dead hang — that's what Day 1 asks for. Get after it, {fn}.",
@@ -170,7 +170,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
           ],
           bodies: [
             "Pull, push, squat, hang — Day 1 is behind you, {fn}. {daysRemaining} more days to build on it.",
-            "Four movements. One day down. {fn} locked in Day 1 of #PPSDChallenge. {daysRemaining} days to go.",
+            "Four movements. One day down. {fn} locked in Day 1 of #PPSD. {daysRemaining} days to go.",
           ],
         },
         halfPending: {
@@ -202,7 +202,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
             "75% of PPSD Done! 🔥",
           ],
           bodies: [
-            "Three-quarters through #PPSDChallenge, {fn}. Day {dayNumber} done. {daysRemaining} days left — you've come too far to stop.",
+            "Three-quarters through #PPSD, {fn}. Day {dayNumber} done. {daysRemaining} days left — you've come too far to stop.",
           ],
         },
       },
