@@ -75,11 +75,13 @@ function ConfettiCanvas() {
 
 interface CelebrationModalProps {
   challenge: ChallengeTemplate
+  badgeType?: 'completed' | 'participant'
   onClose: () => void
 }
 
-export function CelebrationModal({ challenge, onClose }: CelebrationModalProps) {
+export function CelebrationModal({ challenge, badgeType = 'completed', onClose }: CelebrationModalProps) {
   const days = getRequiredDays(challenge)
+  const isCompleted = badgeType === 'completed'
 
   if (typeof document === 'undefined') return null
 
@@ -96,29 +98,56 @@ export function CelebrationModal({ challenge, onClose }: CelebrationModalProps) 
         className="relative z-10 text-center px-8 max-w-sm w-full"
         onClick={e => e.stopPropagation()}
       >
-        <div className="text-8xl mb-5" role="img" aria-label="trophy">🏆</div>
-
-        <h1 className="text-4xl font-black text-white uppercase tracking-tight mb-1 leading-none">
-          Challenge<br />Complete!
-        </h1>
-
-        <p className="text-orange-400 font-bold text-xl mt-3 mb-1">{challenge.name}</p>
-        <p className="text-zinc-400 text-sm mb-8">
-          {days} days &mdash; every single one
-        </p>
-
-        <div className="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-5 mb-8">
-          <div className="text-4xl mb-2">🏅</div>
-          <p className="text-amber-400 font-bold text-base">Completion Badge Earned</p>
-          <p className="text-zinc-400 text-xs mt-1">{challenge.hashtag}</p>
-        </div>
-
-        <button
-          onClick={onClose}
-          className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-black text-xl py-4 rounded-2xl transition-colors"
-        >
-          LET&apos;S GO! 💪
-        </button>
+        {isCompleted ? (
+          <>
+            <div className="text-8xl mb-5" role="img" aria-label="trophy">🏆</div>
+            <h1 className="text-4xl font-black text-white uppercase tracking-tight mb-1 leading-none">
+              Challenge<br />Complete!
+            </h1>
+            <p className="text-orange-400 font-bold text-xl mt-3 mb-1">{challenge.name}</p>
+            <p className="text-zinc-400 text-sm mb-8">
+              {days} days &mdash; every single one
+            </p>
+            <div className="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-5 mb-8">
+              <div className="text-4xl mb-2">🏅</div>
+              <p className="text-amber-400 font-bold text-base">Completion Badge Earned</p>
+              <p className="text-zinc-400 text-xs mt-1">{challenge.hashtag}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-black text-xl py-4 rounded-2xl transition-colors"
+            >
+              LET&apos;S GO! 💪
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="text-8xl mb-5" role="img" aria-label="muscle">💪</div>
+            <h1 className="text-4xl font-black text-white uppercase tracking-tight mb-1 leading-none">
+              You Showed<br />Up!
+            </h1>
+            <p className="text-orange-400 font-bold text-xl mt-3 mb-1">{challenge.name}</p>
+            <p className="text-zinc-400 text-sm mb-6">
+              You put in the work. That counts.
+            </p>
+            <div className="bg-zinc-700/30 border border-zinc-600/40 rounded-2xl p-5 mb-4">
+              <div className="text-4xl mb-2">🥈</div>
+              <p className="text-zinc-200 font-bold text-base">Participant Badge Earned</p>
+              <p className="text-zinc-400 text-xs mt-1">{challenge.hashtag}</p>
+            </div>
+            <div className="bg-amber-500/10 border border-amber-600/30 rounded-2xl p-3 mb-7 text-left">
+              <p className="text-amber-400 text-sm font-semibold">
+                🏆 Complete your missed days to upgrade to the Completion Badge
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-black text-xl py-4 rounded-2xl transition-colors"
+            >
+              LET&apos;S FINISH IT 💪
+            </button>
+          </>
+        )}
       </div>
     </div>,
     document.body

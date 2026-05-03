@@ -1059,9 +1059,9 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
     const userId = userDoc.id;
     const name: string = data.displayName ?? userId;
 
-    // Skip if badge already awarded
+    // Skip if already has any badge for this challenge
     const badges: Array<{ challengeId: string; type: string }> = data.badges ?? [];
-    if (badges.some(b => b.challengeId === CHALLENGE_ID && b.type === "completed")) {
+    if (badges.some(b => b.challengeId === CHALLENGE_ID)) {
       results.push({ userId, name, action: "already_has_badge" });
       continue;
     }
@@ -1076,26 +1076,32 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
       d => (d.data().completionFraction ?? 0) >= 1
     ).length;
 
-    if (completedDays < REQUIRED_DAYS) {
-      results.push({ userId, name, action: `incomplete (${completedDays}/${REQUIRED_DAYS})` });
+    if (completedDays === 0) {
+      results.push({ userId, name, action: `no_logs` });
       continue;
     }
 
-    // Award badge
+    const isCompleted = completedDays >= REQUIRED_DAYS;
+    const badgeType = isCompleted ? "completed" : "participant";
+
+    // Award badge (replace existing for this challenge)
+    const filteredBadges = badges.filter(b => b.challengeId !== CHALLENGE_ID);
     const badge = {
       challengeId: CHALLENGE_ID,
-      type: "completed",
+      type: badgeType,
       awardedAt: new Date().toISOString(),
     };
     await db.doc(`users/${userId}`).update({
-      badges: admin.firestore.FieldValue.arrayUnion(badge),
-      pendingCelebration: { challengeId: CHALLENGE_ID },
+      badges: [...filteredBadges, badge],
+      pendingCelebration: { challengeId: CHALLENGE_ID, badgeType },
     });
 
     // Create in-app notification (shows in notification bell)
     const notifId = nanoid();
-    const notifTitle = "🏆 Badge Awarded!";
-    const notifBody = "You completed The Merkin Gauntlet (April 2026) — every single day. Your completion badge is now on your profile!";
+    const notifTitle = isCompleted ? "🏆 Badge Awarded!" : "💪 Participation Badge Awarded!";
+    const notifBody = isCompleted
+      ? "You completed The Merkin Gauntlet (April 2026) — every single day. Your completion badge is now on your profile!"
+      : `You put in the work on The Merkin Gauntlet (April 2026) — ${completedDays} days logged. Your participation badge is on your profile. Make up missed days to earn the completion badge!`;
     await db.doc(`notifications/${userId}/items/${notifId}`).set({
       id: notifId,
       userId,
@@ -1112,7 +1118,7 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
       await sendPushNotification(userId, tokens, notifTitle, notifBody);
     }
 
-    results.push({ userId, name, action: "badge_awarded" });
+    results.push({ userId, name, action: `${badgeType}_badge_awarded (${completedDays} days)` });
   }
 
   res.json({ ok: true, results });

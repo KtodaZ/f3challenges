@@ -14,7 +14,7 @@ import {
   updateUser,
   getLogsForDate,
   createFeedPostOnce,
-  awardBadge,
+  setBadge,
 } from '@/lib/firestore'
 import {
   getCurrentChallenge,
@@ -460,7 +460,7 @@ export default function HomePage() {
             type: 'completed',
             awardedAt: new Date().toISOString(),
           }
-          await awardBadge(currentUser.id, badge)
+          await setBadge(currentUser.id, badge, currentUser.badges ?? [])
           setCelebrationChallenge(challenge)
           setShowCelebration(true)
         }
@@ -591,7 +591,7 @@ export default function HomePage() {
           type: 'completed',
           awardedAt: new Date().toISOString(),
         }
-        await awardBadge(currentUser.id, badge)
+        await setBadge(currentUser.id, badge, currentUser.badges ?? [])
         setCelebrationChallenge(pastChallenge)
         setShowCelebration(true)
       }

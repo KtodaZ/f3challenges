@@ -42,7 +42,7 @@ export interface User {
   badges: AchievementBadge[]
   currentStreak: number
   longestStreak: number
-  pendingCelebration?: { challengeId: string }
+  pendingCelebration?: { challengeId: string; badgeType?: 'completed' | 'participant' }
 }
 
 // ─── Daily Logs ───────────────────────────────────────────────────────────────

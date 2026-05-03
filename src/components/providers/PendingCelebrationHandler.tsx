@@ -16,6 +16,7 @@ export function PendingCelebrationHandler() {
   return (
     <CelebrationModal
       challenge={challenge}
+      badgeType={currentUser.pendingCelebration.badgeType ?? 'completed'}
       onClose={async () => {
         await clearPendingCelebration(currentUser.id)
       }}

@@ -63,8 +63,13 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
   await updateDoc(doc(usersCol(), userId), updates as Record<string, unknown>)
 }
 
-export async function awardBadge(userId: string, badge: import('@/types').AchievementBadge): Promise<void> {
-  await updateDoc(doc(usersCol(), userId), { badges: arrayUnion(badge) })
+export async function setBadge(
+  userId: string,
+  badge: import('@/types').AchievementBadge,
+  currentBadges: import('@/types').AchievementBadge[]
+): Promise<void> {
+  const filtered = currentBadges.filter(b => b.challengeId !== badge.challengeId)
+  await updateDoc(doc(usersCol(), userId), { badges: [...filtered, badge] })
 }
 
 export async function clearPendingCelebration(userId: string): Promise<void> {
