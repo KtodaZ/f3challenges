@@ -22,6 +22,7 @@ import {
   getTodayPT,
   getDayNumber,
   getTotalDays,
+  getMilestoneDays,
   getRequiredDays,
   isRestDay,
   conditionalRestApplies,
@@ -63,9 +64,7 @@ function buildDailyCompleteMessage(
   isMakeUp: boolean,
 ): string {
   const totalDays = getTotalDays(challenge)
-  const quarterDay = Math.round(totalDays * 0.25)
-  const halfDay = Math.round(totalDays * 0.5)
-  const threeQuarterDay = Math.round(totalDays * 0.75)
+  const { quarter: quarterDay, half: halfDay, threeQuarter: threeQuarterDay } = getMilestoneDays(challenge)
 
   type FeedSection = keyof NonNullable<ChallengeTemplateCopy['feedPost']>
   let section: FeedSection

@@ -4,7 +4,7 @@
 // Templates use {placeholder} syntax. Available vars per surface:
 //   Feed posts:     {name} {day} {totalDays} {totalReps} {exerciseCount}
 //                   {hashtag} {challengeName} {exerciseName} {daysLeft}
-//                   {percent} {weekNumber}
+//                   {percent} {weekNumber} (weekly-tier challenges only)
 //   Notifications:  {fn} {dayNumber} {totalDays} {daysRemaining}
 //                   {repsRemaining} {challengeName}
 //

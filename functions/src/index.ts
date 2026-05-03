@@ -8,6 +8,7 @@ import {
   getRequiredDays,
   getDayNumber,
   getTotalDays,
+  getMilestoneDays,
   getTodayPT,
   getDailyTarget,
   getNotificationTemplates,
@@ -356,9 +357,7 @@ function generateNotification(ctx: {
     : `${repsRemaining} reps to go`;
 
   // --- Milestone days ---
-  const quarterDay = Math.round(totalDays * 0.25);
-  const halfDay = Math.round(totalDays * 0.5);
-  const threeQuarterDay = Math.round(totalDays * 0.75);
+  const { quarter: quarterDay, half: halfDay, threeQuarter: threeQuarterDay } = getMilestoneDays(challenge);
 
   if (dayNumber === 1) {
     const section = userCompleted ? "day1Completed" as const : "day1Pending" as const;

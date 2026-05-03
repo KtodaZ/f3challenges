@@ -327,6 +327,16 @@ export function getTotalDays(challenge: ChallengeTemplate): number {
   return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1
 }
 
+/** Returns the day numbers of the 25%/50%/75% milestones for a challenge. */
+export function getMilestoneDays(challenge: ChallengeTemplate): { quarter: number; half: number; threeQuarter: number } {
+  const total = getTotalDays(challenge)
+  return {
+    quarter:      Math.round(total * 0.25),
+    half:         Math.round(total * 0.5),
+    threeQuarter: Math.round(total * 0.75),
+  }
+}
+
 /**
  * Days that require a log — excludes only fixed rest days.
  * Conditional rest days are per-user and not subtracted here; callers handle
