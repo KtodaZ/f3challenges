@@ -13,6 +13,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
   const monthDisplay = challenge
     ? new Date(challenge.startDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : ''
+  const tagline = challenge?.copy?.welcomeTagline ?? 'Hold each other accountable. Log daily. Conquer together.'
 
   return (
     <div className="flex-1 flex flex-col items-center justify-between px-6 py-12">
@@ -51,8 +52,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
 
         {/* Tagline */}
         <p className="text-base text-zinc-300 leading-relaxed max-w-xs text-center">
-          Hold each other accountable.<br />
-          Log daily. Conquer together.
+          {tagline}
         </p>
       </div>
 

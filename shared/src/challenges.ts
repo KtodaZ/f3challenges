@@ -125,6 +125,88 @@ export const CHALLENGES: ChallengeTemplate[] = [
         conditionType: 'logged-previous-day',
       },
     ],
+    copy: {
+      welcomeTagline: 'Pull-ups. Push-ups. Squats. Dead hangs. Four movements, one month, no excuses.',
+      feedPost: {
+        day1: [
+          "@{name} opens #PPSDChallenge right — {totalReps} reps across pull-ups, push-ups, and squats plus a dead hang. Day 1 of {totalDays} logged. 🔥 {hashtag}",
+          "Pull-up. Push-up. Squat. Dead hang. @{name} knocked out all four on Day 1. {totalReps} reps. {hashtag} 💪",
+          "@{name} sets the bar on Day 1 of #PPSDChallenge — {totalReps} reps, four movements. Now you know what's up. 🔥 {hashtag}",
+          "Day 1: checked. @{name} started #PPSDChallenge with {totalReps} reps. Pull, push, squat, hang — all of it. {hashtag} 💪",
+        ],
+        regular: [
+          "@{name} — Day {day}/{totalDays} of #PPSDChallenge. Pull-ups, push-ups, squats, dead hang: all done. {totalReps} reps. 💪 {hashtag}",
+          "Pull. Push. Squat. Hang. @{name} checked every box on Day {day}. {totalReps} reps total. {hashtag} 🔥",
+          "@{name} knocked out {totalReps} reps on Day {day} of #PPSDChallenge. Four movements, zero excuses. 💪 {hashtag}",
+          "Day {day} logged. @{name} worked through pull-ups, push-ups, squats, and dead hangs — {totalReps} reps. {hashtag} 💪",
+          "@{name} put in the work across all four PPSD movements. Day {day}/{totalDays}, {totalReps} reps. Who else is posting? {hashtag}",
+        ],
+        regularLate: [
+          "Week {weekNumber} of PPSD hits harder — {totalReps} reps and @{name} didn't even flinch. Day {day}. 😏 {hashtag}",
+          "@{name} on Day {day}: {totalReps} reps across four movements, and still has energy to trash-talk. 😂 {hashtag}",
+          "Dead hangs getting long, reps getting heavy — @{name} still doesn't care. Day {day}, {totalReps} done. 😏 {hashtag}",
+          "Week {weekNumber} asked for more. @{name} delivered {totalReps} reps on Day {day} without a complaint. 😏 {hashtag}",
+        ],
+        makeUp: [
+          "@{name} came back for Day {day} — {totalReps} reps of pull-ups, push-ups, squats, and dead hangs. No skips. {hashtag} ✅",
+          "Day {day} wasn't getting left behind. @{name} came back and knocked out {totalReps} PPSD reps. {hashtag}",
+          "@{name} patched Day {day} — {totalReps} reps. Four movements. All accounted for. {hashtag} ✅",
+        ],
+      },
+      notification: {
+        day1Pending: {
+          titles: [
+            "PPSD Starts Now, {fn}",
+            "Day 1 of #PPSDChallenge",
+          ],
+          bodies: [
+            "Pull-ups, push-ups, squats, and a dead hang — that's what Day 1 asks for. Get after it, {fn}.",
+            "{fn}, four movements stand between you and Day 1. Pull, push, squat, hang. Start now.",
+          ],
+        },
+        day1Completed: {
+          titles: [
+            "PPSD Day 1 Done, {fn}! 🔥",
+          ],
+          bodies: [
+            "Pull, push, squat, hang — Day 1 is behind you, {fn}. {daysRemaining} more days to build on it.",
+            "Four movements. One day down. {fn} locked in Day 1 of #PPSDChallenge. {daysRemaining} days to go.",
+          ],
+        },
+        halfPending: {
+          titles: [
+            "PPSD Halfway, {fn}",
+          ],
+          bodies: [
+            "Day {dayNumber}: the halfway point. {repsRemaining} reps across four PPSD movements — finish the half strong, {fn}.",
+          ],
+        },
+        halfCompleted: {
+          titles: [
+            "Halfway Through PPSD! 💪",
+          ],
+          bodies: [
+            "Day {dayNumber} logged. Four movements, halfway through PPSD. The second half is where it gets real, {fn}.",
+          ],
+        },
+        threeQuarterPending: {
+          titles: [
+            "PPSD Home Stretch, {fn}",
+          ],
+          bodies: [
+            "Three-quarter mark, {fn}. {repsRemaining} reps across pull-ups, push-ups, squats, and dead hangs. Almost there — don't fold now.",
+          ],
+        },
+        threeQuarterCompleted: {
+          titles: [
+            "75% of PPSD Done! 🔥",
+          ],
+          bodies: [
+            "Three-quarters through #PPSDChallenge, {fn}. Day {dayNumber} done. {daysRemaining} days left — you've come too far to stop.",
+          ],
+        },
+      },
+    },
   },
 ]
 

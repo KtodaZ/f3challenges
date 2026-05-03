@@ -51,6 +51,65 @@ export interface ChallengeTemplate {
 
   startDate: string // YYYY-MM-DD
   endDate: string   // YYYY-MM-DD
+
+  // Per-challenge copy overrides — augments the generic defaults in copy.ts
+  copy?: ChallengeTemplateCopy
+}
+
+// ─── Copy / Template Types ────────────────────────────────────────────────────
+// Defined here (not copy.ts) to avoid circular imports: ChallengeTemplate → copy.
+
+export interface FeedPostVars {
+  name: string
+  day: number
+  totalDays: number
+  totalReps: number
+  exerciseCount: number
+  hashtag: string
+  challengeName: string
+  exerciseName: string
+  daysLeft: number
+  percent: number
+  weekNumber?: number
+}
+
+export interface NotificationVars {
+  fn: string
+  dayNumber: number
+  totalDays: number
+  daysRemaining: number
+  repsRemaining: number
+  challengeName: string
+}
+
+export interface NotificationTemplatePair {
+  titles: string[]
+  bodies: string[]
+}
+
+export interface ChallengeTemplateCopy {
+  welcomeTagline?: string
+
+  feedPost?: {
+    day1?: string[]
+    quarter?: string[]
+    half?: string[]
+    threeQuarter?: string[]
+    makeUp?: string[]
+    regular?: string[]
+    regularLate?: string[]
+  }
+
+  notification?: {
+    day1Completed?: NotificationTemplatePair
+    day1Pending?: NotificationTemplatePair
+    quarterCompleted?: NotificationTemplatePair
+    quarterPending?: NotificationTemplatePair
+    halfCompleted?: NotificationTemplatePair
+    halfPending?: NotificationTemplatePair
+    threeQuarterCompleted?: NotificationTemplatePair
+    threeQuarterPending?: NotificationTemplatePair
+  }
 }
 
 export interface DailyTarget {

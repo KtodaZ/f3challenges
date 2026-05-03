@@ -27,7 +27,9 @@ import {
   conditionalRestApplies,
   getChallengeDates,
   CHALLENGES,
+  buildFeedPost,
 } from '@/lib/challenges'
+import type { FeedPostVars } from '@/lib/challenges'
 import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak } from '@/lib/utils'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
@@ -47,151 +49,53 @@ import type {
   ExerciseLog,
   AchievementBadge,
   ChallengeTemplate,
+  ChallengeTemplateCopy,
 } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
-}
-
 function buildDailyCompleteMessage(
+  challenge: ChallengeTemplate,
   name: string,
   day: number,
-  totalDays: number,
   totalReps: number,
-  repsPerExercise: number,
   exerciseCount: number,
-  hashtag: string,
   isMakeUp: boolean,
-  challengeName: string,
-  exerciseName: string,
 ): string {
+  const totalDays = getTotalDays(challenge)
   const quarterDay = Math.round(totalDays * 0.25)
   const halfDay = Math.round(totalDays * 0.5)
   const threeQuarterDay = Math.round(totalDays * 0.75)
 
-  if (!isMakeUp && day === 1) {
-    return pickRandom([
-      `${challengeName} begins. @${name} posted Day 1 — ${totalReps} reps, no hesitation. Let's go. 🔥 ${hashtag}`,
-      `@${name} didn't come to watch. Day 1 of ${totalDays} — ${totalReps} reps on the board. ${hashtag} 💪`,
-      `First day, first reps. @${name} opens ${hashtag} the right way — ${totalReps} on the board. 🔥`,
-      `@${name} opened ${challengeName} with ${totalReps} reps. Day 1 of ${totalDays}. This is how it's done. 💪 ${hashtag}`,
-      `The first rep is always the hardest. @${name} knocked out ${totalReps} of them on Day 1. 🔥 ${hashtag}`,
-      `Day 1 of ${totalDays} is in the books for @${name}. ${totalReps} reps — first of many. 💪 ${hashtag}`,
-      `@${name} is in — Day 1 starts now. ${totalReps} reps on the board. Who's next? ${hashtag} 🔥`,
-    ])
+  type FeedSection = keyof NonNullable<ChallengeTemplateCopy['feedPost']>
+  let section: FeedSection
+  if (!isMakeUp && day === 1) section = 'day1'
+  else if (!isMakeUp && day === quarterDay) section = 'quarter'
+  else if (!isMakeUp && day === halfDay) section = 'half'
+  else if (!isMakeUp && day === threeQuarterDay) section = 'threeQuarter'
+  else if (isMakeUp) section = 'makeUp'
+  else if (day > totalDays / 2) section = 'regularLate'
+  else section = 'regular'
+
+  const weekNumber = challenge.weeklyTiers
+    ? (challenge.weeklyTiers.findIndex(t => day >= t.startDay && day <= t.endDay) + 1) || undefined
+    : undefined
+
+  const vars: FeedPostVars = {
+    name,
+    day,
+    totalDays,
+    totalReps,
+    exerciseCount,
+    hashtag: challenge.hashtag,
+    challengeName: challenge.name,
+    exerciseName: challenge.exercises[0]?.shortName ?? 'Rep',
+    daysLeft: totalDays - day,
+    percent: Math.round((day / totalDays) * 100),
+    weekNumber,
   }
 
-  if (!isMakeUp && day === quarterDay) {
-    return pickRandom([
-      `One quarter down. @${name} has cleared ${day} of ${totalDays} days — ${totalReps} reps today and no signs of stopping. 💪 ${hashtag}`,
-      `25% complete. @${name} is through the first quarter of ${challengeName} — Day ${day} done, ${totalReps} reps. 🔥 ${hashtag}`,
-      `@${name} just hit the quarter mark. Day ${day}/${totalDays}, ${totalReps} reps — three-quarters of ${challengeName} still to go. 💪 ${hashtag}`,
-      `Through the first quarter and @${name} hasn't blinked. Day ${day}, ${totalReps} reps. ${totalDays - day} days remain. 🔥 ${hashtag}`,
-      `@${name} — Day ${day} of ${totalDays} means 25% of ${challengeName} is behind them. ${totalReps} reps down. Who's keeping up? ${hashtag}`,
-      `First quarter logged. @${name} with ${totalReps} reps on Day ${day} — looking like this might go all the way. 💪 ${hashtag}`,
-    ])
-  }
-
-  if (!isMakeUp && day === halfDay) {
-    return pickRandom([
-      `Halfway. @${name} has reached the midpoint of ${challengeName} — Day ${day}/${totalDays}, ${totalReps} reps. The second half starts now. 🔥 ${hashtag}`,
-      `@${name} is exactly halfway through. Day ${day} of ${totalDays} — ${totalReps} reps. You either quit now or you don't. 💪 ${hashtag}`,
-      `Day ${day}/${totalDays}. @${name} just crossed the halfway line. ${totalReps} reps. Same distance to go as already covered. 🔥 ${hashtag}`,
-      `50% complete. @${name} hit the halfway mark — Day ${day}, ${totalReps} reps. No looking back now. 💪 ${hashtag}`,
-      `@${name} punched through the midpoint of ${hashtag}. ${day} down, ${totalDays - day} to go. ${totalReps} reps today — stay hungry.`,
-      `The halfway point belongs to @${name}. Day ${day} of ${totalDays} done — ${totalReps} reps, no quit in sight. ${hashtag} 💪`,
-    ])
-  }
-
-  if (!isMakeUp && day === threeQuarterDay) {
-    return pickRandom([
-      `@${name} is in the home stretch — Day ${day}/${totalDays}, ${totalReps} reps. 75% through ${challengeName}. Finish what you started. 🔥 ${hashtag}`,
-      `Three-quarters done. @${name} just logged Day ${day} — ${totalReps} reps. Only ${totalDays - day} days to a clean finish. 💪 ${hashtag}`,
-      `Day ${day} of ${totalDays} and @${name} is still here. ${totalReps} reps at 75% complete. The end is in sight. 🔥 ${hashtag}`,
-      `75% done. @${name} — Day ${day}, ${totalReps} reps. One final push to close this out. 💪 ${hashtag}`,
-      `@${name} with ${totalReps} reps on Day ${day} — three-quarters of ${challengeName} in the books. Don't stop now. 🔥 ${hashtag}`,
-      `Day ${day} of ${totalDays} — @${name} has ${totalDays - day} days left to finish what they started. ${totalReps} reps logged. 💪 ${hashtag}`,
-    ])
-  }
-
-  if (isMakeUp) {
-    return pickRandom([
-      `@${name} went back and made up Day ${day} — ${totalReps} reps. No unfinished business. 💪 ${hashtag}`,
-      `@${name} circled back to Day ${day} and knocked out ${totalReps} reps. Better late than never. 🔥 ${hashtag}`,
-      `Day ${day} wasn't getting left behind — @${name} came back and got it done. ${totalReps} reps. ✅ ${hashtag}`,
-      `@${name} didn't let Day ${day} slip — ${totalReps} reps in the books. 🏋️ ${hashtag}`,
-      `No gaps — @${name} patched Day ${day} with ${totalReps} reps. ✅ ${hashtag}`,
-      `@${name} said Day ${day} doesn't count as a miss. ${totalReps} reps later, they're right. 💪 ${hashtag}`,
-      `Make-up day done. @${name} erased the gap — Day ${day}, ${totalReps} reps completed. ${hashtag} ✅`,
-      `@${name} went back and knocked out Day ${day}. ${totalReps} reps — late but logged. That's accountability, brother. ${hashtag}`,
-      `Miss a day? @${name} doesn't let it slide. Day ${day} backfilled with ${totalReps} reps. ${hashtag}`,
-      `@${name} circled back for Day ${day} — ${totalReps} reps posted. ${challengeName} doesn't have an expiration date. ${hashtag}`,
-      `Day ${day} wasn't forgotten. @${name} came back for those ${totalReps} reps. No gap in the log. ${hashtag}`,
-      `@${name} refused to leave Day ${day} blank. ${totalReps} reps — better late than never, and better late than most. ${hashtag}`,
-    ])
-  }
-  const variants = [
-    `@${name} just put in the work — Day ${day}/${totalDays}, ${totalReps} reps done. 💪 ${hashtag}`,
-    `@${name} is accelerating — Day ${day}/${totalDays}, ${totalReps} reps down. 🔥 ${hashtag}`,
-    `Day ${day} checked. @${name} knocked out ${totalReps} reps. No days off. 💪 ${hashtag}`,
-    `@${name} — Day ${day}/${totalDays}, ${totalReps} reps on the board. 🏋️ ${hashtag}`,
-    `${totalReps} reps. Day ${day}. @${name} checked the box. 💪 ${hashtag}`,
-    `@${name} didn't come to play — Day ${day} of ${challengeName} complete. ${totalReps} reps. 💪 ${hashtag}`,
-    `Day ${day}/${totalDays} — @${name} put in the work. ${totalReps} reps completed. 💪 ${hashtag}`,
-    `@${name} is ${Math.round((day / totalDays) * 100)}% through ${challengeName}. Day ${day} — ${totalReps} reps. 🔥 ${hashtag}`,
-    `Day ${day} logged. @${name} earned it — ${totalReps} reps, ${exerciseCount} variations. ${hashtag} 💪`,
-    `@${name} put up ${totalReps} reps on Day ${day}. ✅ ${hashtag}`,
-    `✅ Day ${day} of ${totalDays} — @${name} cleared ${totalReps} reps. ${hashtag}`,
-    `Day ${day}, ${totalReps} reps. @${name} delivered. 💪 ${hashtag}`,
-    `@${name} — Day ${day}/${totalDays}, ${totalReps} reps. No days off. 🔥 ${hashtag}`,
-    `${challengeName} asked for ${totalReps} on Day ${day}. @${name} answered. 💪 ${hashtag}`,
-    `@${name} — Day ${day} of ${totalDays}. ${totalReps} reps in the bank. 🏋️ ${hashtag}`,
-    `${totalReps} reps. ${exerciseCount} variations. 1 PAX who doesn't quit. @${name}. Day ${day}. 🔥 ${hashtag}`,
-    `@${name} coming back strong — Day ${day}, ${totalReps} reps. 💪 ${hashtag}`,
-    `@${name} knocked out their reps for Day ${day}. Will you? ${totalReps} on the board. 🔥 ${hashtag}`,
-    `Let's go @${name} — Day ${day} done, ${totalReps} reps in the books. 💪 ${hashtag}`,
-    `Another one in the bag. @${name} — Day ${day}, ${totalReps} reps. ✅ ${hashtag}`,
-    `Day ${day} didn't stand a chance. @${name} — ${totalReps} reps, done. 💪 ${hashtag}`,
-    `@${name} making ${totalReps} reps look like a warm-up. Day ${day}. 🔥 ${hashtag}`,
-    `Who's next? @${name} just set the pace on Day ${day} — ${totalReps} reps. 🔥 ${hashtag}`,
-    `Day ${day} was already on @${name}'s schedule. ${totalReps} reps, no drama. ✅ ${hashtag}`,
-    `@${name} just crushed ${totalReps} reps across ${exerciseCount} variations. Day ${day}/${totalDays} in the books. ${hashtag}`,
-    `${totalReps} reps. ${exerciseCount} ways to suffer. @${name} didn't blink. Day ${day} done. ${hashtag}`,
-    `@${name} checked the box on Day ${day}. ${totalReps} reps, no excuses. Who else is posting today? ${hashtag}`,
-    `Day ${day} belongs to @${name}. ${totalReps} reps handled. ${totalDays - day} days left — will you keep pace? ${hashtag}`,
-    `@${name} just stacked another ${totalReps} reps on the pile. Day ${day}/${totalDays}. ${challengeName} doesn't care about your feelings. ${hashtag}`,
-    `Quiet day for @${name} — only ${totalReps} reps across ${exerciseCount} variations. Casual. ${hashtag}`,
-    `@${name} punched Day ${day} in the mouth. ${totalReps} reps down. Your move. ${hashtag}`,
-    `${challengeName} demanded ${totalReps} reps today. @${name} delivered. Day ${day}/${totalDays}. ${hashtag}`,
-    `@${name} — Day ${day} complete. ${totalReps} reps, ${exerciseCount} exercises, zero quit. Are you in or are you watching? ${hashtag}`,
-    `Another day, another stack. @${name} posted ${totalReps} reps on Day ${day}. ${hashtag}`,
-  ]
-  if (day > totalDays / 2) {
-    variants.push(
-      `Getting harder, @${name}? ${totalReps} reps says otherwise. 😏 ${hashtag}`,
-      `Day ${day}. ${totalReps} reps. Still looks easy on @${name}. 😏 ${hashtag}`,
-      `${totalReps} reps on Day ${day}. Was that supposed to be hard? @${name} didn't notice. 😏 ${hashtag}`,
-      `Only ${totalDays - day} days left. @${name} is already bored. ${totalReps} reps. 😏 ${hashtag}`,
-      `@${name} on Day ${day} like it's nothing. ${totalReps} reps. ${challengeName} is embarrassed. 😂 ${hashtag}`,
-      `The reps keep going up. @${name} keeps not caring. Day ${day}, ${totalReps} done. 😏 ${hashtag}`,
-      `Day ${day} of ${totalDays}. @${name} said "is that all?" and logged ${totalReps} reps. 😂 ${hashtag}`,
-      `Does @${name} ever stop? Day ${day}, ${totalReps} reps. Apparently not. 😏 ${hashtag}`,
-      `Knees weak, arms heavy — @${name} coming through on Day ${day} anyway. ${totalReps} reps. 😂 ${hashtag}`,
-      `@${name} could do this in their sleep. Day ${day} knocked out — ${totalReps} reps. 😏 ${hashtag}`,
-      `${totalReps} reps and @${name} didn't even break a sweat. Day ${day}. Someone stop them. 😂 ${hashtag}`,
-      `@${name} out here doing ${totalReps} reps like it's a warm-up. Somebody tell ${challengeName} to try harder. 😏 ${hashtag}`,
-      ...(exerciseCount === 1 ? [`Day ${day} and @${name} is still here. ${totalReps} reps. At this point the ${exerciseName.toLowerCase()}s owe HIM rent. 😂 ${hashtag}`] : []),
-      `@${name} with ${totalReps} reps on Day ${day}. If you're not even gonna have the decency to struggle, at least pretend. 😏 ${hashtag}`,
-      `${totalReps} reps and @${name} acts like nothing happened. ${challengeName} is starting to take it personally. 😂 ${hashtag}`,
-      `Will the real @${name} please stand up? ${totalReps} reps on Day ${day}/${totalDays}. Man refuses to lose. 😏 ${hashtag}`,
-      `@${name} posting ${totalReps} reps on Day ${day} with the energy of someone ordering coffee. Does this man even have a heart rate? 😂 ${hashtag}`,
-      `Day ${day}. ${totalReps} reps. @${name} could probably do this blindfolded at this point. ${challengeName} is embarrassed. 😏 ${hashtag}`,
-      `Somebody check on @${name} — ${totalReps} reps on Day ${day} and not a single complaint. That's not normal behavior. 😂 ${hashtag}`,
-    )
-  }
-  return pickRandom(variants)
+  return buildFeedPost(challenge, section, vars)
 }
 
 function snapFraction(val: number): CompletionFraction {
@@ -427,16 +331,12 @@ export default function HomePage() {
       if (overallFraction >= 1 && !wasComplete) {
         const dayNum = getDayNumber(challenge, date) ?? 1
         const content = buildDailyCompleteMessage(
+          challenge,
           currentUser.displayName,
           dayNum,
-          getTotalDays(challenge),
           target.totalReps,
-          target.repsPerExercise,
           challenge.exercises.length,
-          challenge.hashtag,
           isMakeUp,
-          challenge.name,
-          challenge.exercises[0]?.shortName ?? 'Rep',
         )
         await createFeedPostOnce(stripUndefined({
           id: `daily_complete_${currentUser.id}_${date}`,
