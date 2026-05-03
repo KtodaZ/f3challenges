@@ -4,11 +4,17 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest } from "firebase-functions/v2/https";
 import {
   getChallengeForDate,
+  getChallengeById,
+  getRequiredDays,
   getDayNumber,
   getTotalDays,
+  getMilestoneDays,
   getTodayPT,
   getDailyTarget,
+  getNotificationTemplates,
+  renderNotification,
 } from "@f3-bedrock/shared";
+import type { ChallengeTemplate, NotificationVars } from "@f3-bedrock/shared";
 
 admin.initializeApp()
 
@@ -316,6 +322,7 @@ function fmtNames(names: string[]): string {
 }
 
 function generateNotification(ctx: {
+  challenge: ChallengeTemplate;
   userName: string; challengeName: string; dayNumber: number; totalDays: number;
   todayTarget: number; repsCompleted: number; repsRemaining: number;
   repsPerExercise: number; primaryExercise: string;
@@ -325,6 +332,7 @@ function generateNotification(ctx: {
   completedNames: string[]; notDoneNames: string[];
 }): { title: string; body: string } {
   const {
+    challenge,
     userName, challengeName, dayNumber, totalDays,
     repsCompleted, repsRemaining, repsPerExercise, primaryExercise,
     userCompleted, groupCompletedCount, groupTotalCount,
@@ -335,6 +343,8 @@ function generateNotification(ctx: {
   const fn = firstName(userName);
   const seed = notifSeed(dayNumber, notificationType);
   const daysRemaining = totalDays - dayNumber;
+
+  const notifVars: NotificationVars = { fn, dayNumber, totalDays, daysRemaining, repsRemaining, challengeName };
   const daysWord = daysRemaining === 1 ? "day" : "days";
   const isEndgame = daysRemaining <= 3;
   const isLate = daysRemaining <= 10;
@@ -347,152 +357,26 @@ function generateNotification(ctx: {
     : `${repsRemaining} reps to go`;
 
   // --- Milestone days ---
-  const quarterDay = Math.round(totalDays * 0.25);
-  const halfDay = Math.round(totalDays * 0.5);
-  const threeQuarterDay = Math.round(totalDays * 0.75);
+  const { quarter: quarterDay, half: halfDay, threeQuarter: threeQuarterDay } = getMilestoneDays(challenge);
 
   if (dayNumber === 1) {
-    if (userCompleted) {
-      const titles = [
-        `Day 1 Done, ${fn}! 🔥`,
-        `The Gauntlet Is Open`,
-        `First Rep, First Check ✅`,
-        `You Started — Now Finish`,
-        `Day 1 In the Books, ${fn}`,
-      ];
-      const bodies = [
-        `Day 1 of ${totalDays} logged. You set the tone — ${totalDays - 1} more days to the finish line.`,
-        `First day down. The Gauntlet has started and ${fn} showed up. ${totalDays - 1} days to go.`,
-        `Day 1 done. The hardest part was starting — you already did that. ${totalDays - 1} days left.`,
-        `${fn} opened the Gauntlet right. Day 1 complete. Keep this up and the finish line takes care of itself.`,
-        `The challenge is on. Day 1 is yours, ${fn} — ${totalDays - 1} more to close it out clean.`,
-      ];
-      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
-    } else {
-      const titles = [
-        `Day 1 Starts Now, ${fn}`,
-        `The Gauntlet Is Open`,
-        `First Reps of the Month`,
-        `Start Strong, ${fn}`,
-        `Day 1 — Don't Wait`,
-      ];
-      const bodies = [
-        `Day 1 of ${totalDays}: ${repsRemaining} reps. The crew is watching — go first.`,
-        `The Gauntlet kicked off today. ${repsRemaining} reps on Day 1 — get it done, ${fn}.`,
-        `First day of ${challengeName}. ${repsRemaining} reps standing between you and Day 1. Go.`,
-        `${fn}, Day 1 is now. ${repsRemaining} reps — first PAX to finish sets the standard.`,
-        `It starts today. ${repsRemaining} reps, Day 1 of ${totalDays}. Lock in, ${fn}.`,
-      ];
-      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
-    }
+    const section = userCompleted ? "day1Completed" as const : "day1Pending" as const;
+    return renderNotification(getNotificationTemplates(challenge, section), seed, notifVars);
   }
 
   if (dayNumber === quarterDay) {
-    if (userCompleted) {
-      const titles = [
-        `One Quarter Done, ${fn}! 💪`,
-        `25% Through the Gauntlet`,
-        `First Quarter Logged ✅`,
-        `Day ${dayNumber} — Quarter Mark`,
-        `You're 25% There, ${fn}`,
-      ];
-      const bodies = [
-        `Day ${dayNumber} logged. First quarter of ${challengeName} in the books — ${totalDays - dayNumber} days to the finish.`,
-        `Through the first quarter and still standing. ${totalDays - dayNumber} days left, ${fn} — keep the pace.`,
-        `25% complete. Day ${dayNumber} done. Three-quarters of the Gauntlet still ahead — don't slow down now.`,
-        `${fn}, you cleared the first quarter. ${totalDays - dayNumber} days remain. Same energy.`,
-        `Quarter mark reached. Day ${dayNumber} of ${totalDays} done — the hardest quarter is behind you.`,
-      ];
-      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
-    } else {
-      const titles = [
-        `Quarter Mark, ${fn}`,
-        `Day ${dayNumber} — 25% Milestone`,
-        `First Quarter on the Line`,
-        `Close the Quarter, ${fn}`,
-        `25% — Finish Day ${dayNumber}`,
-      ];
-      const bodies = [
-        `Day ${dayNumber} is the quarter mark. ${repsRemaining} reps to close out the first 25% strong.`,
-        `You're a quarter of the way through ${challengeName}. ${repsRemaining} reps left on Day ${dayNumber} — don't let it slip.`,
-        `Day ${dayNumber} of ${totalDays}: the first quarter ends today. ${repsRemaining} reps — go earn it, ${fn}.`,
-        `${fn}, close the first quarter right. ${repsRemaining} reps on Day ${dayNumber}. Don't leave it unfinished.`,
-        `25% milestone. ${repsRemaining} reps stand between you and a clean first quarter. Go, ${fn}.`,
-      ];
-      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
-    }
+    const section = userCompleted ? "quarterCompleted" as const : "quarterPending" as const;
+    return renderNotification(getNotificationTemplates(challenge, section), seed, notifVars);
   }
 
   if (dayNumber === halfDay) {
-    if (userCompleted) {
-      const titles = [
-        `Halfway There, ${fn}! 🔥`,
-        `The Midpoint Is Yours`,
-        `Day ${dayNumber} — 50% Done`,
-        `Halfway Through the Gauntlet ✅`,
-        `You're Half Done, ${fn}`,
-      ];
-      const bodies = [
-        `Day ${dayNumber} done. Halfway through ${challengeName}. Same distance to the finish as you've already covered — don't stop.`,
-        `Midpoint reached. ${fn}, you've logged ${dayNumber} straight days. ${totalDays - dayNumber} to go — finish what you started.`,
-        `50% complete. Day ${dayNumber} logged. The second half of the Gauntlet starts now — keep the momentum.`,
-        `You're halfway through ${challengeName}, ${fn}. Day ${dayNumber} done. The back half is where it gets decided.`,
-        `Day ${dayNumber} of ${totalDays} — half the Gauntlet behind you. Stay locked in for the finish.`,
-      ];
-      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
-    } else {
-      const titles = [
-        `Halfway Mark, ${fn}`,
-        `Day ${dayNumber} — The Midpoint`,
-        `50% Milestone Today`,
-        `Finish the First Half, ${fn}`,
-        `Don't Let Halfway Slip`,
-      ];
-      const bodies = [
-        `Day ${dayNumber} is the halfway mark. ${repsRemaining} reps to close the first half — don't let it slip, ${fn}.`,
-        `You're at the midpoint of ${challengeName}. ${repsRemaining} reps left on Day ${dayNumber}. Finish the half strong.`,
-        `Day ${dayNumber} of ${totalDays}: halfway. ${repsRemaining} reps — you either quit now or you don't. Go, ${fn}.`,
-        `${fn}, the halfway line is right there. ${repsRemaining} reps on Day ${dayNumber}. Cross it.`,
-        `50% milestone. ${repsRemaining} reps stand between you and the halfway point. Make it count, ${fn}.`,
-      ];
-      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
-    }
+    const section = userCompleted ? "halfCompleted" as const : "halfPending" as const;
+    return renderNotification(getNotificationTemplates(challenge, section), seed, notifVars);
   }
 
   if (dayNumber === threeQuarterDay) {
-    if (userCompleted) {
-      const titles = [
-        `Home Stretch, ${fn}! 🔥`,
-        `75% Done — Finish It`,
-        `Three-Quarters Through ✅`,
-        `Day ${dayNumber} — Almost There`,
-        `${totalDays - dayNumber} Days Left, ${fn}`,
-      ];
-      const bodies = [
-        `Day ${dayNumber} logged. Three-quarters through ${challengeName} — ${totalDays - dayNumber} days to a clean finish.`,
-        `75% complete, ${fn}. You've come too far to fold now. ${totalDays - dayNumber} days left — lock in.`,
-        `Three-quarters of the Gauntlet behind you. Day ${dayNumber} done. The finish line is real from here.`,
-        `Day ${dayNumber} of ${totalDays} — ${fn}, you're in the home stretch. ${totalDays - dayNumber} days. Don't let up.`,
-        `75% done. Day ${dayNumber} checked. ${totalDays - dayNumber} days between you and a complete Gauntlet — go get it.`,
-      ];
-      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
-    } else {
-      const titles = [
-        `Home Stretch, ${fn}`,
-        `75% Milestone — Close It`,
-        `Day ${dayNumber} — Three-Quarter Mark`,
-        `Almost There, Don't Fold`,
-        `${totalDays - dayNumber} Days Left After This`,
-      ];
-      const bodies = [
-        `Day ${dayNumber}: 75% through the Gauntlet. ${repsRemaining} reps — don't let up this close to done.`,
-        `Three-quarter mark, ${fn}. ${repsRemaining} reps on Day ${dayNumber}. Finish it and you're in the home stretch.`,
-        `You're 75% through ${challengeName}. ${repsRemaining} reps left on Day ${dayNumber} — close this out right.`,
-        `${fn}, ${totalDays - dayNumber} days after today. ${repsRemaining} reps right now. Don't leave the three-quarter mark unfinished.`,
-        `75% milestone. ${repsRemaining} reps on Day ${dayNumber}. This is where the Gauntlet gets separated from the excuses. Go.`,
-      ];
-      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
-    }
+    const section = userCompleted ? "threeQuarterCompleted" as const : "threeQuarterPending" as const;
+    return renderNotification(getNotificationTemplates(challenge, section), seed, notifVars);
   }
 
   // --- Weekly recap ---
@@ -574,7 +458,7 @@ function generateNotification(ctx: {
       `${modNote}${progressNote}. ${daysRemaining} ${daysWord} in ${challengeName}. Don't quit this close to done.`,
       `${fn}, ${daysRemaining} ${daysWord} left — ${repsRemaining} reps now. The crew is watching.`,
       `You've come too far to stop. ${repsRemaining} reps, ${daysRemaining} ${daysWord} to go — finish strong.`,
-      `${peerLine}${repsPerExercise} per variant = ${repsRemaining} reps. ${daysRemaining} ${daysWord} left — make it count.`,
+      `${peerLine}${progressNote}. ${daysRemaining} ${daysWord} left — make it count.`,
       `${daysRemaining} ${daysWord} left in ${challengeName}. ${repsRemaining} reps today — this is what you trained for.`,
       `${modNote}${repsRemaining} reps left. ${daysRemaining} ${daysWord} remaining — leave nothing on the table, ${fn}.`,
     ];
@@ -620,10 +504,10 @@ function generateNotification(ctx: {
       ];
       const bodies = [
         `${peerStr} already crushed Day ${dayNumber}. Your ${repsRemaining} reps aren't going to do themselves.`,
-        `${peerStr} have completed today's challenge. ${fn}, ${repsPerExercise} per variant — start your first set now.`,
+        `${peerStr} have completed today's challenge. ${fn}, ${repsRemaining} reps — start your first set now.`,
         `${peerStr} put in the work. Day ${dayNumber}: ${repsRemaining} reps — be next.`,
         `${peerStr} have completed today's challenge — don't let them show you up. ${repsRemaining} reps, ${fn}.`,
-        `${peerStr} already done. Day ${dayNumber}: ${repsPerExercise} each variant. Get moving, ${fn}.`,
+        `${peerStr} already done. Day ${dayNumber}: ${progressNote}. Get moving, ${fn}.`,
         `${peerStr} led the way today. ${fn}, ${repsRemaining} reps — go now, thank yourself later.`,
         `${peerStr} have completed today's challenge. ${modNote}${repsRemaining} reps — you're next, ${fn}.`,
       ];
@@ -632,7 +516,7 @@ function generateNotification(ctx: {
       const titles = [
         `Day ${dayNumber} Starts Now`,
         `Rise Up, ${fn}!`,
-        `Morning ${primaryExercise}s, ${fn}`,
+        `Morning Reps, ${fn}`,
         `PAX Don't Wait`,
         `First Set, ${fn}`,
         `Lead the PAX, ${fn}`,
@@ -641,11 +525,11 @@ function generateNotification(ctx: {
       const bodies = [
         `${partnerStr} haven't started yet — be the first PAX to finish Day ${dayNumber}.`,
         `${modNote}${progressNote}. Day is young — knock out a set and be the one who leads today.`,
-        `${repsPerExercise} each variant = ${repsRemaining} reps. ${fn}, go first — set the tone.`,
+        `${progressNote}. ${fn}, go first — set the tone.`,
         `Nobody's done yet. ${fn}, be the standard — ${repsRemaining} reps on Day ${dayNumber}.`,
         `You and ${partnerStr} are all still in it. First one done fires up the rest — go.`,
         `Morning sets pay dividends. ${fn}, ${repsRemaining} reps — lead the crew.`,
-        `${partnerStr} haven't finished yet. ${fn}: ${repsPerExercise} per variant, ${repsRemaining} total — lead the charge.`,
+        `${partnerStr} haven't finished yet. ${fn}: ${progressNote} — lead the charge.`,
       ];
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     } else {
@@ -658,7 +542,7 @@ function generateNotification(ctx: {
       ];
       const bodies = [
         `Day ${dayNumber} of ${totalDays}: ${repsRemaining} reps. Morning sets pay dividends — start now.`,
-        `${repsPerExercise} per variant = ${repsRemaining} reps. Day is young, ${fn} — get moving.`,
+        `${progressNote}. Day is young, ${fn} — get moving.`,
         `Day ${dayNumber} on ${challengeName}. Be the first PAX to finish today.`,
         `${fn}, ${repsRemaining} reps today. Knock your first set out early and thank yourself later.`,
         `${modNote}${repsRemaining} reps waiting, ${fn}. Morning is the best time — go.`,
@@ -681,7 +565,7 @@ function generateNotification(ctx: {
       const bodies = [
         `${peerStr} have completed today's challenge. ${fn}: ${progressNote} — do it now, not tonight.`,
         `${peerStr} already done. ${repsRemaining} reps on Day ${dayNumber} — don't let it pile up.`,
-        `${peerStr} checked in. ${fn}, ${repsPerExercise} per variant — knock a set out before dinner.`,
+        `${peerStr} checked in. ${fn}, ${repsRemaining} reps — knock a set out before dinner.`,
         `${peerStr} have completed today's challenge. ${modNote}${progressNote} — you've got time, use it.`,
         `${peerStr} are done for the day. ${fn}: ${repsRemaining} reps left, go now.`,
         `${peerStr} already crushed it. Afternoon's the sweet spot — ${repsRemaining} reps, ${fn}.`,
@@ -714,7 +598,7 @@ function generateNotification(ctx: {
       const bodies = [
         `${modNote}${progressNote} on Day ${dayNumber}. Afternoon's the sweet spot — knock it out now.`,
         `Day ${dayNumber}: ${repsRemaining} reps. Don't let it pile up for tonight.`,
-        `${fn}, ${repsPerExercise} per variant = ${repsRemaining} total. Go now while it's light.`,
+        `${fn}, ${progressNote}. Go now while it's light.`,
         `${modNote}${repsRemaining} reps left on Day ${dayNumber}. Afternoons are for grinding — go.`,
       ];
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -736,7 +620,7 @@ function generateNotification(ctx: {
       `${peerStr} have completed today's challenge. ${fn}: ${repsRemaining} reps before midnight — let's go.`,
       `${peerStr} already done. Day ${dayNumber} ends soon — ${repsRemaining} reps, ${fn}.`,
       `${peerStr} have completed today's challenge. ${modNote}${progressNote} — last chance to close Day ${dayNumber}.`,
-      `${peerStr} checked in. ${fn}, ${repsPerExercise} per variant, ${repsRemaining} total — do it now.`,
+      `${peerStr} checked in. ${fn}, ${progressNote} — do it now.`,
       `${peerStr} are done for the day. ${fn}: clock's running — ${repsRemaining} reps left.`,
       `${peerStr} have completed today's challenge. Don't let Day ${dayNumber} slip — ${repsRemaining} reps now.`,
       `${peerStr} put it in. ${fn}, ${repsRemaining} reps — don't be the one who didn't finish today.`,
@@ -770,7 +654,7 @@ function generateNotification(ctx: {
       `${fn}, ${repsRemaining} reps before midnight. Don't break the streak.`,
       `Day ${dayNumber} ends soon — ${repsRemaining} reps left, ${fn}. Get it done.`,
       `Tonight's your last shot on Day ${dayNumber}. ${modNote}${repsRemaining} reps — go.`,
-      `${fn}: ${repsPerExercise} per variant, ${repsRemaining} total. Don't let Day ${dayNumber} slip.`,
+      `${fn}: ${progressNote}. Don't let Day ${dayNumber} slip.`,
       `${modNote}${repsRemaining} reps stand between you and Day ${dayNumber}. Close it out, ${fn}.`,
     ];
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -909,6 +793,7 @@ export const sendScheduledNotifications = onSchedule(
           const repsPerExercise = todayTarget.repsPerExercise;
 
           const { title, body } = generateNotification({
+            challenge,
             userName:            user.displayName,
             challengeName:       challenge.name,
             dayNumber,
@@ -1015,6 +900,7 @@ export const sendTestPush = onRequest(
       const repsPerExercise = testTarget.repsPerExercise;
 
       const result = generateNotification({
+        challenge,
         userName: user.displayName, challengeName: challenge.name,
         dayNumber, totalDays, todayTarget: todayReps,
         repsCompleted, repsRemaining, repsPerExercise,
@@ -1039,19 +925,18 @@ export const sendTestPush = onRequest(
 );
 
 // ---------------------------------------------------------------------------
-// backfillAprilBadges — one-time HTTP function to award completion badges
-// and trigger the celebration modal for users who finished April 2026.
-// Idempotent: skips users who already have the badge.
-// Call once: curl -X POST <function-url>/backfillAprilBadges
+// badgeBackfill — reusable helper for awarding completion badges after a
+// challenge ends. Idempotent: skips users who already have the badge.
 // ---------------------------------------------------------------------------
 
-export const backfillAprilBadges = onRequest(async (_req, res) => {
-  const CHALLENGE_ID = "apr-2026";
-  const REQUIRED_DAYS = 30;
+async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: string; name: string; action: string }>> {
+  const challenge = getChallengeById(challengeId);
+  if (!challenge) throw new Error(`Unknown challengeId: ${challengeId}`);
+  const requiredDays = getRequiredDays(challenge);
+  const challengeLabel = challenge.name;
   const db = admin.firestore();
 
   const usersSnap = await db.collection("users").get();
-
   const results: Array<{ userId: string; name: string; action: string }> = [];
 
   for (const userDoc of usersSnap.docs) {
@@ -1059,17 +944,15 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
     const userId = userDoc.id;
     const name: string = data.displayName ?? userId;
 
-    // Skip if already has any badge for this challenge
     const badges: Array<{ challengeId: string; type: string }> = data.badges ?? [];
-    if (badges.some(b => b.challengeId === CHALLENGE_ID)) {
+    if (badges.some(b => b.challengeId === challengeId)) {
       results.push({ userId, name, action: "already_has_badge" });
       continue;
     }
 
-    // Count completed days
     const logsSnap = await db.collection("dailyLogs")
       .where("userId", "==", userId)
-      .where("challengeId", "==", CHALLENGE_ID)
+      .where("challengeId", "==", challengeId)
       .get();
 
     const completedDays = logsSnap.docs.filter(
@@ -1077,42 +960,29 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
     ).length;
 
     if (completedDays === 0) {
-      results.push({ userId, name, action: `no_logs` });
+      results.push({ userId, name, action: "no_logs" });
       continue;
     }
 
-    const isCompleted = completedDays >= REQUIRED_DAYS;
+    const isCompleted = completedDays >= requiredDays;
     const badgeType = isCompleted ? "completed" : "participant";
 
-    // Award badge (replace existing for this challenge)
-    const filteredBadges = badges.filter(b => b.challengeId !== CHALLENGE_ID);
-    const badge = {
-      challengeId: CHALLENGE_ID,
-      type: badgeType,
-      awardedAt: new Date().toISOString(),
-    };
+    const filteredBadges = badges.filter(b => b.challengeId !== challengeId);
     await db.doc(`users/${userId}`).update({
-      badges: [...filteredBadges, badge],
-      pendingCelebration: { challengeId: CHALLENGE_ID, badgeType },
+      badges: [...filteredBadges, { challengeId, type: badgeType, awardedAt: new Date().toISOString() }],
+      pendingCelebration: { challengeId, badgeType },
     });
 
-    // Create in-app notification (shows in notification bell)
     const notifId = nanoid();
     const notifTitle = isCompleted ? "🏆 Badge Awarded!" : "💪 Participation Badge Awarded!";
     const notifBody = isCompleted
-      ? "You completed The Merkin Gauntlet (April 2026) — every single day. Your completion badge is now on your profile!"
-      : `You put in the work on The Merkin Gauntlet (April 2026) — ${completedDays} days logged. Your participation badge is on your profile. Make up missed days to earn the completion badge!`;
+      ? `You completed ${challengeLabel} — every single day. Your completion badge is now on your profile!`
+      : `You put in the work on ${challengeLabel} — ${completedDays} days logged. Your participation badge is on your profile. Make up missed days to earn the completion badge!`;
     await db.doc(`notifications/${userId}/items/${notifId}`).set({
-      id: notifId,
-      userId,
-      type: "system",
-      title: notifTitle,
-      body: notifBody,
-      read: false,
-      createdAt: new Date().toISOString(),
+      id: notifId, userId, type: "system", title: notifTitle, body: notifBody,
+      read: false, createdAt: new Date().toISOString(),
     });
 
-    // Send push notification if the user has registered devices
     const tokens: string[] = data.fcmTokens ?? [];
     if (tokens.length > 0) {
       await sendPushNotification(userId, tokens, notifTitle, notifBody);
@@ -1121,5 +991,17 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
     results.push({ userId, name, action: `${badgeType}_badge_awarded (${completedDays} days)` });
   }
 
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// backfillAprilBadges — one-time HTTP trigger for April 2026.
+// Idempotent. Call once: curl -X POST <function-url>/backfillAprilBadges
+// To backfill a future challenge, export a new onRequest that calls
+// runBadgeBackfill("<challenge-id>").
+// ---------------------------------------------------------------------------
+
+export const backfillAprilBadges = onRequest(async (_req, res) => {
+  const results = await runBadgeBackfill("apr-2026");
   res.json({ ok: true, results });
 });
