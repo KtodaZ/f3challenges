@@ -77,6 +77,8 @@ interface DailyLog {
 }
 
 interface ChallengeParticipation {
+  userId: string;
+  challengeId: string;
   status: string;
   modificationNote?: string;
 }
@@ -695,28 +697,46 @@ export const sendScheduledNotifications = onSchedule(
     const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User & { notificationPreferences: NotifPrefs; currentStreak?: number }));
     console.log(`[notify] ${users.length} users total`);
 
-    // Group completion stats for today
+    // Fetch participation for all users to exclude opted-out PAX from stats
+    const participationSnap = await admin.firestore().collection("participation")
+      .where("challengeId", "==", challenge.id)
+      .get();
+    const optedOutIds = new Set(
+      participationSnap.docs
+        .filter(d => (d.data() as ChallengeParticipation).status === "opted-out")
+        .map(d => (d.data() as ChallengeParticipation).userId)
+    );
+    const activeUsers = users.filter(u => !optedOutIds.has(u.id));
+    console.log(`[notify] ${optedOutIds.size} opted-out, ${activeUsers.length} active`);
+
+    // Group completion stats for today (active users only)
     const todayLogsSnap = await admin.firestore().collection("dailyLogs")
       .where("challengeId", "==", challenge.id)
       .where("date", "==", today)
       .get();
-    const groupCompleted = todayLogsSnap.docs.filter(d => (d.data() as DailyLog).completionFraction >= 1).length;
-    console.log(`[notify] group completion: ${groupCompleted}/${users.length} done today`);
+    const groupCompleted = todayLogsSnap.docs.filter(d => {
+      const log = d.data() as DailyLog;
+      return log.completionFraction >= 1 && !optedOutIds.has(log.userId);
+    }).length;
+    console.log(`[notify] group completion: ${groupCompleted}/${activeUsers.length} done today`);
 
-    // Build name lists for peer pressure messaging
+    // Build name lists for peer pressure messaging (active users only)
     const userById = new Map(users.map(u => [u.id, u.displayName]));
     const completedUserIds = new Set(
       todayLogsSnap.docs
-        .filter(d => (d.data() as DailyLog).completionFraction >= 1)
+        .filter(d => {
+          const log = d.data() as DailyLog;
+          return log.completionFraction >= 1 && !optedOutIds.has(log.userId);
+        })
         .map(d => (d.data() as DailyLog).userId)
     );
     const allCompletedNames = [...completedUserIds].map(id => userById.get(id) ?? "").filter(Boolean);
-    const allNotDoneNames = users
+    const allNotDoneNames = activeUsers
       .filter(u => !completedUserIds.has(u.id))
       .map(u => u.displayName);
     console.log(`[notify] completed: [${allCompletedNames.join(", ")}] | not done: [${allNotDoneNames.join(", ")}]`);
 
-    for (const user of users) {
+    for (const user of activeUsers) {
       if (!user.fcmTokens?.length) {
         console.log(`[notify] skip ${user.displayName} — no fcmTokens`);
         continue;
@@ -776,6 +796,10 @@ export const sendScheduledNotifications = onSchedule(
         const partSnap = await admin.firestore().collection("participation").doc(`${user.id}_${challenge.id}`).get();
         const part = partSnap.exists ? (partSnap.data() as ChallengeParticipation) : null;
         let statusStr = part?.status ?? "active";
+        if (statusStr === "opted-out") {
+          console.log(`[notify]   → opted out, skip`);
+          continue;
+        }
         if (statusStr === "modifying" && part?.modificationNote) statusStr = `modifying: ${part.modificationNote}`;
         console.log(`[notify]   → participation: ${statusStr}`);
 
@@ -806,12 +830,12 @@ export const sendScheduledNotifications = onSchedule(
             userCompleted,
             completionFraction:  fraction,
             groupCompletedCount: userCompleted ? groupCompleted - 1 : groupCompleted,
-            groupTotalCount:     users.length - 1,
+            groupTotalCount:     activeUsers.length - 1,
             userStreak:          (user as { currentStreak?: number }).currentStreak ?? 0,
             participationStatus: statusStr,
             notificationType:    w.type,
             completedNames: [...completedUserIds].filter(id => id !== user.id).map(id => userById.get(id) ?? "").filter(Boolean),
-            notDoneNames:   users.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
+            notDoneNames:   activeUsers.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
           });
           console.log(`[notify]   → generated: title="${title}" body="${body}"`);
 

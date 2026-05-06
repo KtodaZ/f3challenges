@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
       const part     = partSnap.exists ? (partSnap.data() as ChallengeParticipation) : null
 
       let statusStr: string = part?.status ?? 'active'
+      if (statusStr === 'opted-out') continue
       if (statusStr === 'modifying' && part?.modificationNote) {
         statusStr = `modifying: ${part.modificationNote}`
       }
