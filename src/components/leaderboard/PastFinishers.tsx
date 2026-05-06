@@ -1,12 +1,11 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/Avatar'
 import { CHALLENGES, getTodayPT } from '@/lib/challenges'
 import { useUser } from '@/contexts/UserContext'
 import type { User } from '@/types'
-
-const PAST = [...CHALLENGES].filter(c => c.endDate < getTodayPT()).reverse()
 
 interface FinisherEntry {
   user: User
@@ -15,10 +14,16 @@ interface FinisherEntry {
 }
 
 export function PastFinishers() {
-  const { allUsers } = useUser()
+  const { allUsers, loading } = useUser()
   const router = useRouter()
 
-  if (PAST.length === 0) {
+  // Computed inside the component so it re-evaluates if mounted across a midnight boundary.
+  const past = useMemo(
+    () => [...CHALLENGES].filter(c => c.endDate < getTodayPT()).reverse(),
+    []
+  )
+
+  if (past.length === 0) {
     return (
       <div className="py-16 text-center text-zinc-500 text-sm px-4">
         No past challenges yet.
@@ -28,8 +33,8 @@ export function PastFinishers() {
 
   return (
     <div className="space-y-4 px-4 py-4">
-      {PAST.map(challenge => {
-        const entries: FinisherEntry[] = allUsers
+      {past.map(challenge => {
+        const entries: FinisherEntry[] = loading ? [] : allUsers
           .flatMap(user => {
             const badge = user.badges?.find(b => b.challengeId === challenge.id)
             if (!badge) return []
@@ -37,7 +42,10 @@ export function PastFinishers() {
           })
           .sort((a, b) => {
             if (a.type !== b.type) return a.type === 'completed' ? -1 : 1
-            return a.awardedAt.localeCompare(b.awardedAt)
+            // Finishers ranked by award date (first to finish = #1);
+            // participants are unranked, sorted alphabetically.
+            if (a.type === 'completed') return a.awardedAt.localeCompare(b.awardedAt)
+            return a.user.displayName.localeCompare(b.user.displayName)
           })
 
         const finishers = entries.filter(e => e.type === 'completed')
@@ -55,15 +63,34 @@ export function PastFinishers() {
                     {' · '}{challenge.exercises.map(e => e.shortName).join(', ')}
                   </p>
                 </div>
-                {finishers.length > 0 && (
-                  <span className="text-xs font-medium text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full shrink-0">
-                    {finishers.length} finisher{finishers.length !== 1 ? 's' : ''}
-                  </span>
+                {!loading && (
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {finishers.length > 0 && (
+                      <span className="text-xs font-medium text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
+                        {finishers.length} finisher{finishers.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {participants.length > 0 && (
+                      <span className="text-xs font-medium text-zinc-400 bg-zinc-800 px-2.5 py-1 rounded-full">
+                        {participants.length} participated
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
 
-            {entries.length === 0 ? (
+            {loading ? (
+              <div className="px-4 py-4 space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 animate-pulse">
+                    <div className="w-8 h-4 bg-zinc-800 rounded" />
+                    <div className="w-8 h-8 bg-zinc-800 rounded-full" />
+                    <div className="h-3.5 bg-zinc-800 rounded w-28" />
+                  </div>
+                ))}
+              </div>
+            ) : entries.length === 0 ? (
               <div className="px-4 py-6 text-center text-zinc-500 text-sm">
                 No finishers recorded
               </div>
