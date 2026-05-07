@@ -142,6 +142,13 @@ async function createNotification(
     .set(notification);
 }
 
+async function isOptedOut(userId: string): Promise<boolean> {
+  const challenge = getChallengeForDate(getTodayPT());
+  if (!challenge) return false;
+  const snap = await admin.firestore().doc(`participation/${userId}_${challenge.id}`).get();
+  return snap.exists && (snap.data() as ChallengeParticipation).status === "opted-out";
+}
+
 // ---------------------------------------------------------------------------
 // onFeedPostCreated
 // ---------------------------------------------------------------------------
@@ -170,6 +177,7 @@ export const onFeedPostCreated = onDocumentCreated(
             const user = await getUser(userId);
             if (!user) return;
             if (!user.notificationPreferences?.mentions) return;
+            if (await isOptedOut(userId)) return;
 
             const notifId = nanoid();
             const notification: AppNotification = {
@@ -207,6 +215,8 @@ export const onFeedPostCreated = onDocumentCreated(
         Array.from(recipientSet).map(async (userId) => {
           const user = await getUser(userId);
           if (!user) return;
+
+          if (await isOptedOut(userId)) return;
 
           // targetUserId always gets notified; mention recipients respect prefs
           const isMentionOnly =
