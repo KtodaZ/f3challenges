@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@/contexts/UserContext'
-import { getCurrentChallenge, getTodayPT, getChallengeDates, getDayNumber, getTotalDays } from '@/lib/challenges'
+import { getCurrentChallenge, getTodayPT, getChallengeDates, getDayNumber, getTotalDays, conditionalRestApplies } from '@/lib/challenges'
 import { getUserChallengeLogs, getChallengeParticipants, getDailyLog } from '@/lib/firestore'
-import { monthProgress, cn } from '@/lib/utils'
+import { monthProgress, cn, calculateStreak } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
 import { GroupStats } from '@/components/leaderboard/GroupStats'
 import { GroupHeatMap } from '@/components/leaderboard/GroupHeatMap'
@@ -160,23 +160,13 @@ export default function LeaderboardPage() {
           dayCounts[log.date] = (dayCounts[log.date] ?? 0) + 1
         }
 
-        // Compute streak — don't dock mid-day, start from yesterday if today isn't done
-        const completedSet = new Set(completedLogs.map(l => l.date))
-        const todayDone = completedSet.has(today)
-        let streakCheck = todayDone
-          ? today
-          : (() => {
-              const d = new Date(today + 'T00:00:00')
-              d.setDate(d.getDate() - 1)
-              return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-            })()
-        let streak = 0
-        while (completedSet.has(streakCheck)) {
-          streak++
-          const d = new Date(streakCheck + 'T00:00:00')
-          d.setDate(d.getDate() - 1)
-          streakCheck = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-        }
+        // Compute streak — bridges fixed and conditional rest days
+        const sortedCompletedDates = completedLogs.map(l => l.date).sort()
+        const fixedRest = challenge.restDates ?? []
+        const conditionalRest = (challenge.conditionalRestDates ?? [])
+          .filter(cr => conditionalRestApplies(challenge, cr.date, sortedCompletedDates))
+          .map(cr => cr.date)
+        const { current: streak } = calculateStreak(sortedCompletedDates, [...fixedRest, ...conditionalRest])
 
         return {
           user,
