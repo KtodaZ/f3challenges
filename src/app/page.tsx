@@ -32,6 +32,7 @@ import {
   conditionalRestApplies,
   getChallengeDates,
   getCurrentBonusWeek,
+  getBonusWeekFeedPost,
   CHALLENGES,
   buildFeedPost,
 } from '@/lib/challenges'
@@ -549,7 +550,12 @@ export default function HomePage() {
       await upsertBonusLog(log)
 
       try {
-        const content = `@${currentUser.displayName} completed the ${challenge.bonusChallenge?.name} bonus — ${activeBonusWeek.description}! 🏃 ${challenge.hashtag}`
+        const content = getBonusWeekFeedPost(
+            challenge.bonusChallenge!.name,
+            activeBonusWeek,
+            challenge.hashtag,
+            currentUser.displayName,
+          )
         await createFeedPostOnce(stripUndefined({
           id: `bonus_complete_${challenge.id}_${activeBonusWeek.startDate}_${currentUser.id}`,
           type: 'system' as const,

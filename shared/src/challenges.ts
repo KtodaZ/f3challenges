@@ -250,11 +250,23 @@ export const CHALLENGES: ChallengeTemplate[] = [
           startDate: '2026-07-01',
           endDate: '2026-07-04',
           description: 'Hit a pre-run at any AO',
+          feedPostTemplates: [
+            '@{name} ran early. Pre-run before the beatdown — Tour de Bedrock Week 1 done. 🏃 {hashtag}',
+            'Pre-run checked. @{name} showed up before showing up. Tour de Bedrock Week 1 in the books. ☀️ {hashtag}',
+            '@{name} called a pre-run warm-up. Some PAX just built different. Tour de Bedrock Week 1 done. {hashtag} 💪',
+            'Some PAX sleep in. @{name} pre-ran. Tour de Bedrock Week 1 logged. 🔥 {hashtag}',
+          ],
         },
         {
           startDate: '2026-07-05',
           endDate: '2026-07-11',
           description: 'Run 3 hill repeats at John G. Piches Park (Rattlesnake Ridge AO)',
+          feedPostTemplates: [
+            '@{name} ran 3 hill repeats at Rattlesnake Ridge. The hill didn\'t win. 🐍 {hashtag}',
+            'Three times up Rattlesnake Ridge. @{name} earns Tour de Bedrock Week 2 the hard way. {hashtag} 🔥',
+            '@{name} hit Rattlesnake Ridge 3 times and called it a Tuesday. Tour de Bedrock Week 2 done. 💪 {hashtag}',
+            'Rattlesnake Ridge: conquered (3×). @{name} logged Tour de Bedrock Week 2. 🐍 {hashtag}',
+          ],
         },
       ],
     },
@@ -502,6 +514,21 @@ export function repsFractionLabel(fraction: number): string {
 /** Returns the active bonus challenge week for a given date, if any. */
 export function getCurrentBonusWeek(challenge: ChallengeTemplate, date: string): BonusChallengeWeek | undefined {
   return challenge.bonusChallenge?.weeks.find(w => date >= w.startDate && date <= w.endDate)
+}
+
+/** Picks a random completion feed post for a bonus week, substituting {name} and {hashtag}. */
+export function getBonusWeekFeedPost(
+  bonusName: string,
+  week: BonusChallengeWeek,
+  hashtag: string,
+  displayName: string,
+): string {
+  const templates = week.feedPostTemplates
+  if (!templates || templates.length === 0) {
+    return `@${displayName} completed the ${bonusName} bonus — ${week.description}! 🏃 ${hashtag}`
+  }
+  const t = templates[Math.floor(Math.random() * templates.length)]
+  return t.replace(/\{name\}/g, displayName).replace(/\{hashtag\}/g, hashtag)
 }
 
 /** All dates in a challenge as YYYY-MM-DD strings. */
