@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { cn, formatDate } from '@/lib/utils'
 import { BonusRevealModal } from './BonusRevealModal'
 import type { BonusChallengeWeek, BonusChallenge, BonusLog, User } from '@/types'
@@ -32,12 +32,11 @@ export function BonusChallengeCard({
   onComplete,
   saving,
 }: BonusChallengeCardProps) {
-  const [revealed, setRevealed] = useState(false)
+  const [revealed, setRevealed] = useState(() => {
+    try { return localStorage.getItem(revealKey(challengeId, activeWeek.startDate)) === 'true' }
+    catch { return false }
+  })
   const [showModal, setShowModal] = useState(false)
-
-  useEffect(() => {
-    setRevealed(localStorage.getItem(revealKey(challengeId, activeWeek.startDate)) === 'true')
-  }, [challengeId, activeWeek.startDate])
 
   function handleReveal() {
     localStorage.setItem(revealKey(challengeId, activeWeek.startDate), 'true')
