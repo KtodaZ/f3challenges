@@ -5,6 +5,7 @@
 export type {
   ExerciseUnit, Exercise, ChallengeTemplate, DailyTarget, WeekTier, ConditionalRestDate,
   ChallengeTemplateCopy, FeedPostVars, NotificationVars, NotificationTemplatePair,
+  BonusChallenge, BonusChallengeWeek,
 } from '@f3-bedrock/shared'
 
 // ─── Users ────────────────────────────────────────────────────────────────────

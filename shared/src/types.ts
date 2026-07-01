@@ -27,6 +27,17 @@ export interface ConditionalRestDate {
   conditionType: ConditionalRestCondition
 }
 
+export interface BonusChallengeWeek {
+  startDate: string   // YYYY-MM-DD
+  endDate: string     // YYYY-MM-DD
+  description: string // what PAX should do this week
+}
+
+export interface BonusChallenge {
+  name: string
+  weeks: BonusChallengeWeek[]
+}
+
 export interface ChallengeTemplate {
   id: string
   name: string
@@ -48,6 +59,9 @@ export interface ChallengeTemplate {
   // Days that do not need to be logged and do not break streaks
   restDates?: string[]              // fixed rest days (e.g. holidays)
   conditionalRestDates?: ConditionalRestDate[] // optional rest days (PAX decides)
+
+  // Optional bonus challenge with weekly segments displayed alongside the main challenge
+  bonusChallenge?: BonusChallenge
 
   startDate: string // YYYY-MM-DD
   endDate: string   // YYYY-MM-DD

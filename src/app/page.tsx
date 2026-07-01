@@ -27,6 +27,7 @@ import {
   isRestDay,
   conditionalRestApplies,
   getChallengeDates,
+  getCurrentBonusWeek,
   CHALLENGES,
   buildFeedPost,
 } from '@/lib/challenges'
@@ -37,6 +38,7 @@ import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { DailyLogCard } from '@/components/daily/DailyLogCard'
 import { WelcomeMessage } from '@/components/home/WelcomeMessage'
+import { BonusChallengeCard } from '@/components/home/BonusChallengeCard'
 import { DailyExerciseCard } from '@/components/daily/DailyExerciseCard'
 import { LogDayModal } from '@/components/daily/LogDayModal'
 import { MakeupDayPicker } from '@/components/daily/MakeupDayPicker'
@@ -678,6 +680,14 @@ export default function HomePage() {
           sublabel={`${progress}% through`}
           color="orange"
         />
+
+        {/* ── Bonus challenge card ── */}
+        {(() => {
+          const bonusWeek = getCurrentBonusWeek(challenge, today)
+          return challenge.bonusChallenge && bonusWeek
+            ? <BonusChallengeCard bonus={challenge.bonusChallenge} activeWeek={bonusWeek} />
+            : null
+        })()}
 
         {/* ── PAX completion stat line ── */}
         {totalPAX > 0 && (
