@@ -27,6 +27,7 @@ import type {
   FeedComment,
   AppNotification,
   ChallengeParticipation,
+  BonusLog,
 } from '@/types'
 
 // ─── Collection References ────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ export const usersCol         = () => collection(db, 'users')
 export const dailyLogsCol     = () => collection(db, 'dailyLogs')
 export const feedCol          = () => collection(db, 'feed')
 export const participationCol = () => collection(db, 'participation')
+export const bonusLogsCol     = () => collection(db, 'bonusLogs')
 export const notificationsCol = (userId: string) =>
   collection(db, 'notifications', userId, 'items')
 
@@ -42,6 +44,8 @@ export const notificationsCol = (userId: string) =>
 
 export const dailyLogId      = (userId: string, date: string) => `${userId}_${date}`
 export const participationId = (userId: string, challengeId: string) => `${userId}_${challengeId}`
+export const bonusLogId      = (userId: string, challengeId: string, weekStartDate: string) =>
+  `${challengeId}_${weekStartDate}_${userId}`
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
@@ -235,6 +239,36 @@ export function subscribeToComments(
   )
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => d.data() as FeedComment))
+  })
+}
+
+// ─── Bonus Logs ───────────────────────────────────────────────────────────────
+
+export async function getBonusLog(
+  userId: string,
+  challengeId: string,
+  weekStartDate: string
+): Promise<BonusLog | null> {
+  const snap = await getDoc(doc(bonusLogsCol(), bonusLogId(userId, challengeId, weekStartDate)))
+  return snap.exists() ? (snap.data() as BonusLog) : null
+}
+
+export async function upsertBonusLog(log: BonusLog): Promise<void> {
+  await setDoc(doc(bonusLogsCol(), log.id), log)
+}
+
+export function subscribeToWeekBonusLogs(
+  challengeId: string,
+  weekStartDate: string,
+  callback: (logs: BonusLog[]) => void
+) {
+  const q = query(
+    bonusLogsCol(),
+    where('challengeId', '==', challengeId),
+    where('weekStartDate', '==', weekStartDate)
+  )
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => d.data() as BonusLog))
   })
 }
 

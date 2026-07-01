@@ -15,6 +15,10 @@ import {
   getLogsForDate,
   createFeedPostOnce,
   setBadge,
+  getBonusLog,
+  upsertBonusLog,
+  bonusLogId,
+  subscribeToWeekBonusLogs,
 } from '@/lib/firestore'
 import {
   getCurrentChallenge,
@@ -53,6 +57,7 @@ import type {
   AchievementBadge,
   ChallengeTemplate,
   ChallengeTemplateCopy,
+  BonusLog,
 } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -200,6 +205,11 @@ export default function HomePage() {
   // Notification setup banner — dismissed for this session
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false)
 
+  // Bonus challenge
+  const [myBonusLog, setMyBonusLog] = useState<BonusLog | null>(null)
+  const [weekBonusLogs, setWeekBonusLogs] = useState<BonusLog[]>([])
+  const [bonusSaving, setBonusSaving] = useState(false)
+
   // Challenge completion celebration modal
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationChallenge, setCelebrationChallenge] = useState<ChallengeTemplate | null>(null)
@@ -267,6 +277,17 @@ export default function HomePage() {
     if (!challenge) return
     getLogsForDate(challenge.id, today).then(setGroupLogs)
   }, [challenge, today])
+
+  // ── Bonus challenge: load current user's log + subscribe to week logs ────
+
+  useEffect(() => {
+    if (!currentUser || !challenge) return
+    const bonusWeek = getCurrentBonusWeek(challenge, today)
+    if (!bonusWeek) return
+    getBonusLog(currentUser.id, challenge.id, bonusWeek.startDate).then(setMyBonusLog)
+    const unsub = subscribeToWeekBonusLogs(challenge.id, bonusWeek.startDate, setWeekBonusLogs)
+    return unsub
+  }, [currentUser, challenge, today])
 
   // ── Celebration banner when user crosses the completion threshold ─────────
 
@@ -503,6 +524,41 @@ export default function HomePage() {
     }
   }, [currentUser, pastChallengeLogs])
 
+  // ── Complete bonus challenge for this week ──────────────────────────────
+
+  const handleBonusComplete = useCallback(async () => {
+    if (!currentUser || !challenge) return
+    const bonusWeek = getCurrentBonusWeek(challenge, today)
+    if (!bonusWeek || myBonusLog) return
+    setBonusSaving(true)
+    try {
+      const log: BonusLog = {
+        id: bonusLogId(currentUser.id, challenge.id, bonusWeek.startDate),
+        challengeId: challenge.id,
+        weekStartDate: bonusWeek.startDate,
+        userId: currentUser.id,
+        completedAt: new Date().toISOString(),
+      }
+      await upsertBonusLog(log)
+      setMyBonusLog(log)
+
+      const content = `@${currentUser.displayName} completed the ${challenge.bonusChallenge?.name} bonus — ${bonusWeek.description}! 🏃 ${challenge.hashtag}`
+      await createFeedPostOnce(stripUndefined({
+        id: `bonus_complete_${challenge.id}_${bonusWeek.startDate}_${currentUser.id}`,
+        type: 'system' as const,
+        authorId: 'system',
+        content,
+        hashtags: extractHashtags(content),
+        mentions: [currentUser.id],
+        challengeId: challenge.id,
+        createdAt: new Date().toISOString(),
+        deleted: false,
+      }))
+    } finally {
+      setBonusSaving(false)
+    }
+  }, [currentUser, challenge, today, myBonusLog])
+
   // ── Rejoin challenge ────────────────────────────────────────────────────
 
   async function handleRejoin() {
@@ -685,7 +741,17 @@ export default function HomePage() {
         {(() => {
           const bonusWeek = getCurrentBonusWeek(challenge, today)
           return challenge.bonusChallenge && bonusWeek
-            ? <BonusChallengeCard bonus={challenge.bonusChallenge} activeWeek={bonusWeek} />
+            ? (
+              <BonusChallengeCard
+                bonus={challenge.bonusChallenge}
+                activeWeek={bonusWeek}
+                myLog={myBonusLog}
+                weekLogs={weekBonusLogs}
+                allUsers={allUsers}
+                onComplete={handleBonusComplete}
+                saving={bonusSaving}
+              />
+            )
             : null
         })()}
 

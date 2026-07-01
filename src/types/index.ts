@@ -8,6 +8,16 @@ export type {
   BonusChallenge, BonusChallengeWeek,
 } from '@f3-bedrock/shared'
 
+// ─── Bonus Logs ───────────────────────────────────────────────────────────────
+
+export interface BonusLog {
+  id: string            // `{challengeId}_{weekStartDate}_{userId}`
+  challengeId: string
+  weekStartDate: string // YYYY-MM-DD — the bonus week's startDate, acts as week key
+  userId: string
+  completedAt: string   // ISO timestamp
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export interface NotificationWindow {
