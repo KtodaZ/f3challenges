@@ -289,7 +289,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!currentUser || !challenge || !activeBonusWeek) return
     let cancelled = false
-    getBonusLog(currentUser.id, challenge.id, activeBonusWeek.startDate).then(log => {
+    getBonusLog(challenge.id, activeBonusWeek.startDate, currentUser.id).then(log => {
       if (!cancelled) setMyBonusLog(log)
     })
     const unsub = subscribeToWeekBonusLogs(challenge.id, activeBonusWeek.startDate, setWeekBonusLogs)

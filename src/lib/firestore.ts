@@ -246,9 +246,9 @@ export function subscribeToComments(
 // ─── Bonus Logs ───────────────────────────────────────────────────────────────
 
 export async function getBonusLog(
-  userId: string,
   challengeId: string,
-  weekStartDate: string
+  weekStartDate: string,
+  userId: string
 ): Promise<BonusLog | null> {
   const snap = await getDoc(doc(bonusLogsCol(), bonusLogId(challengeId, weekStartDate, userId)))
   return snap.exists() ? (snap.data() as BonusLog) : null
