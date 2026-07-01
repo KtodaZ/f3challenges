@@ -43,6 +43,12 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Bonus logs: readable and writable by all (trust-based)
+    match /bonusLogs/{logId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Notification log: readable for debugging, written only by Cloud Functions
     match /notificationLog/{logId} {
       allow read: if true;

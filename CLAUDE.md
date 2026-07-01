@@ -16,6 +16,16 @@ Monthly fitness challenge PWA for F3 Bedrock (~20 PAX). April 2026: "The Merking
 - **TanStack Query v5** with `isNetworkBlockedError()` retry logic
 - **pnpm** as package manager + **pnpm workspace** (`pnpm-workspace.yaml`) for `shared/`
 
+## Session Setup
+
+Remote/CI environments start without `node_modules`. Always run this before type-checking or linting:
+
+```bash
+pnpm install        # installs workspace deps (src/ + shared/)
+```
+
+`tsc --noEmit` and `pnpm lint` will report hundreds of spurious "Cannot find module 'react'" errors until deps are installed — those are not code bugs.
+
 ## Critical Patterns
 
 ### stripUndefined — always use before Firestore writes

@@ -9,7 +9,7 @@
 // @f3-bedrock/shared workspace package. Both consume it at build time
 // (Next.js transpiles it; esbuild bundles it into functions/lib/index.js).
 
-import type { ChallengeTemplate, DailyTarget } from './types'
+import type { BonusChallengeWeek, ChallengeTemplate, DailyTarget } from './types'
 
 export const CHALLENGES: ChallengeTemplate[] = [
   {
@@ -208,6 +208,136 @@ export const CHALLENGES: ChallengeTemplate[] = [
       },
     },
   },
+  {
+    id: 'jul-2026',
+    name: 'July Functional Fitness Challenge',
+    hashtag: '#JulyFFC',
+    tagline: 'Hang. Merkin. Crunch. Lunge. Every day.',
+    month: 7,
+    year: 2026,
+    type: 'weekly-tiers',
+    startDate: '2026-07-01',
+    endDate: '2026-07-31',
+    exercises: [
+      { id: 'dead-hang',      name: 'Dead Hang',       shortName: 'Hang',    unit: 'seconds' },
+      { id: 'diamond-merkin', name: 'Diamond Merkin',  shortName: 'Diamond'  },
+      { id: 'std-merkin',     name: 'Standard Merkin', shortName: 'Std'      },
+      { id: 'wide-merkin',    name: 'Wide Arm Merkin', shortName: 'Wide'     },
+      { id: 'incline-merkin', name: 'Incline Merkin',  shortName: 'Incline'  },
+      { id: 'decline-merkin', name: 'Decline Merkin',  shortName: 'Decline'  },
+      { id: 'lbc',            name: 'Little Baby Crunch', shortName: 'LBC'   },
+      { id: 'lunge',          name: 'Lunge (2:1)',     shortName: 'Lunge'    },
+    ],
+    weeklyTiers: [
+      {
+        startDay: 1, endDay: 31,
+        targets: [
+          { exerciseId: 'dead-hang',      amount: 180 },
+          { exerciseId: 'diamond-merkin', amount: 20  },
+          { exerciseId: 'std-merkin',     amount: 20  },
+          { exerciseId: 'wide-merkin',    amount: 20  },
+          { exerciseId: 'incline-merkin', amount: 20  },
+          { exerciseId: 'decline-merkin', amount: 20  },
+          { exerciseId: 'lbc',            amount: 100 },
+          { exerciseId: 'lunge',          amount: 50  },
+        ],
+      },
+    ],
+    bonusChallenge: {
+      name: 'Tour de Bedrock',
+      weeks: [
+        {
+          startDate: '2026-07-01',
+          endDate: '2026-07-04',
+          description: 'Hit a pre-run at any AO',
+        },
+        {
+          startDate: '2026-07-05',
+          endDate: '2026-07-11',
+          description: 'Run 3 hill repeats at John G. Piches Park (Rattlesnake Ridge AO)',
+        },
+      ],
+    },
+    copy: {
+      welcomeTagline: '3-min hang. 5 merkin variations (20 each). 100 LBCs. 50 lunges. Every single day.',
+      feedPost: {
+        day1: [
+          "@{name} opens {challengeName} — hang, five merkin variations, 100 LBCs, and 50 lunges. Day 1 locked. 💪 {hashtag}",
+          "Hang. Merkin. Crunch. Lunge. @{name} checked every box on Day 1. {hashtag} 🔥",
+          "@{name} sets the standard on Day 1 of {hashtag} — {totalReps} reps plus a 3-minute hang. Let's go.",
+        ],
+        regular: [
+          "@{name} — Day {day}/{totalDays}. Dead hang, five merkin variations, LBCs, lunges. All done. 💪 {hashtag}",
+          "Day {day} in the books. @{name} hung, pushed, crunched, and lunged. {hashtag} 🔥",
+          "@{name} put in the work on Day {day} of {hashtag}. {totalReps} reps plus the hang. No excuses.",
+          "Hang. Merkin. LBC. Lunge. @{name} ran the whole list on Day {day}. {hashtag} 💪",
+        ],
+        regularLate: [
+          "@{name} is still showing up — Day {day} of {hashtag} logged. 😏",
+          "@{name} on Day {day}: hang, merkins, LBCs, lunges — all of it. Consistency is the challenge. {hashtag} 💪",
+          "Late in the month and @{name} is still showing up. Day {day}/{totalDays}. {hashtag} 🔥",
+        ],
+        makeUp: [
+          "@{name} came back for Day {day} — hang, merkins, LBCs, and lunges. Nothing left behind. {hashtag} ✅",
+          "Day {day} wasn't getting skipped. @{name} made it up — {totalReps} reps plus the hang. {hashtag} ✅",
+          "@{name} patched Day {day}: hang, five merkin variations, 100 LBCs, 50 lunges. All accounted for. {hashtag} ✅",
+        ],
+      },
+      notification: {
+        day1Pending: {
+          titles: [
+            'July FFC Starts Now, {fn}',
+            'Day 1 of #JulyFFC',
+          ],
+          bodies: [
+            '3-minute hang, five merkin variations, 100 LBCs, 50 lunges — that\'s the daily standard. Get after it, {fn}.',
+            '{fn}, Day 1 is waiting: hang, five merkin variations, 100 LBCs, and 50 lunges. Start now.',
+          ],
+        },
+        day1Completed: {
+          titles: [
+            'Day 1 Done, {fn}! 🔥',
+          ],
+          bodies: [
+            'Hang, merkins, LBCs, lunges — Day 1 is behind you, {fn}. {daysRemaining} days to go.',
+            'Day 1 done. {fn} hung, pushed through five merkin variations, crunched, and lunged. {daysRemaining} days to go.',
+          ],
+        },
+        halfPending: {
+          titles: [
+            'Halfway Through July FFC, {fn}',
+          ],
+          bodies: [
+            'Day {dayNumber}: the halfway point. Hang, five merkin variations, LBCs, and lunges — finish the half strong, {fn}.',
+          ],
+        },
+        halfCompleted: {
+          titles: [
+            'Halfway Through July FFC! 💪',
+          ],
+          bodies: [
+            'Day {dayNumber} logged. Halfway through. The second half is where it gets real, {fn}.',
+          ],
+        },
+        threeQuarterPending: {
+          titles: [
+            'Home Stretch, {fn}',
+          ],
+          bodies: [
+            'Three-quarter mark, {fn}. Hang. Five merkin variations. 100 LBCs. 50 lunges. Almost there — don\'t fold now.',
+          ],
+        },
+        threeQuarterCompleted: {
+          titles: [
+            '75% of July FFC Done! 🔥',
+          ],
+          bodies: [
+            'Three-quarters through July FFC, {fn}. Day {dayNumber} done. {daysRemaining} days left — you\'ve come too far to stop.',
+          ],
+        },
+      },
+    },
+  },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -367,6 +497,11 @@ export function repsFractionLabel(fraction: number): string {
   if (fraction >= 0.5)  return 'Halfway'
   if (fraction >= 0.25) return '1/4 Done'
   return 'Not started'
+}
+
+/** Returns the active bonus challenge week for a given date, if any. */
+export function getCurrentBonusWeek(challenge: ChallengeTemplate, date: string): BonusChallengeWeek | undefined {
+  return challenge.bonusChallenge?.weeks.find(w => date >= w.startDate && date <= w.endDate)
 }
 
 /** All dates in a challenge as YYYY-MM-DD strings. */

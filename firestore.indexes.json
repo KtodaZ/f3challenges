@@ -49,6 +49,14 @@
         { "fieldPath": "deleted", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "bonusLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "challengeId", "order": "ASCENDING" },
+        { "fieldPath": "weekStartDate", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
