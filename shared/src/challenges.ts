@@ -273,7 +273,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
           "Hang. Merkin. LBC. Lunge. @{name} ran the whole list on Day {day}. {hashtag} 💪",
         ],
         regularLate: [
-          "Week {weekNumber} of {hashtag} and @{name} still doesn't skip. Day {day} done. 😏",
+          "@{name} is still showing up — Day {day} of {hashtag} logged. 😏",
           "@{name} on Day {day}: hang, merkins, LBCs, lunges — all of it. Consistency is the challenge. {hashtag} 💪",
           "Late in the month and @{name} is still showing up. Day {day}/{totalDays}. {hashtag} 🔥",
         ],
@@ -291,7 +291,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
           ],
           bodies: [
             '3-minute hang, five merkin variations, 100 LBCs, 50 lunges — that\'s the daily standard. Get after it, {fn}.',
-            '{fn}, four movements stand between you and Day 1. Hang. Merkin. LBC. Lunge. Start now.',
+            '{fn}, Day 1 is waiting: hang, five merkin variations, 100 LBCs, and 50 lunges. Start now.',
           ],
         },
         day1Completed: {
@@ -300,7 +300,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
           ],
           bodies: [
             'Hang, merkins, LBCs, lunges — Day 1 is behind you, {fn}. {daysRemaining} days to go.',
-            'Four movements. One day down. {fn} locked in Day 1 of July FFC. Keep showing up.',
+            'Day 1 done. {fn} hung, pushed through five merkin variations, crunched, and lunged. {daysRemaining} days to go.',
           ],
         },
         halfPending: {

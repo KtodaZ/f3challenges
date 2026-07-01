@@ -287,6 +287,8 @@ export default function HomePage() {
   )
 
   useEffect(() => {
+    setMyBonusLog(null)
+    setWeekBonusLogs([])
     if (!currentUser || !challenge || !activeBonusWeek) return
     let cancelled = false
     getBonusLog(challenge.id, activeBonusWeek.startDate, currentUser.id).then(log => {
@@ -554,7 +556,7 @@ export default function HomePage() {
           authorId: 'system',
           content,
           hashtags: extractHashtags(content),
-          mentions: [currentUser.id],
+          mentions: [],
           challengeId: challenge.id,
           createdAt: new Date().toISOString(),
           deleted: false,
@@ -752,6 +754,7 @@ export default function HomePage() {
         {/* ── Bonus challenge card ── */}
         {challenge.bonusChallenge && activeBonusWeek && (
           <BonusChallengeCard
+            key={activeBonusWeek.startDate}
             challengeId={challenge.id}
             bonus={challenge.bonusChallenge}
             activeWeek={activeBonusWeek}

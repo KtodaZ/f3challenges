@@ -39,7 +39,7 @@ export function BonusChallengeCard({
   const [showModal, setShowModal] = useState(false)
 
   function handleReveal() {
-    localStorage.setItem(revealKey(challengeId, activeWeek.startDate), 'true')
+    try { localStorage.setItem(revealKey(challengeId, activeWeek.startDate), 'true') } catch { /* quota/private mode */ }
     setRevealed(true)
     setShowModal(true)
   }
