@@ -752,6 +752,7 @@ export default function HomePage() {
         {/* ── Bonus challenge card ── */}
         {challenge.bonusChallenge && activeBonusWeek && (
           <BonusChallengeCard
+            challengeId={challenge.id}
             bonus={challenge.bonusChallenge}
             activeWeek={activeBonusWeek}
             myLog={myBonusLog}
