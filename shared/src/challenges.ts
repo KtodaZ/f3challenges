@@ -254,7 +254,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
         {
           startDate: '2026-07-05',
           endDate: '2026-07-11',
-          description: 'Run 3 hill repeats at Rattlesnake Ridge AO (hill next to John G. Piches Park)',
+          description: 'Run 3 hill repeats at Rattlesnake Ridge AO (hill next to John G. Piech\'s Park)',
         },
       ],
     },
