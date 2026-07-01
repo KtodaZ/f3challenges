@@ -37,6 +37,7 @@ import {
 } from '@/lib/challenges'
 import type { FeedPostVars } from '@/lib/challenges'
 import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak } from '@/lib/utils'
+import { toast } from 'sonner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
@@ -280,14 +281,20 @@ export default function HomePage() {
 
   // ── Bonus challenge: load current user's log + subscribe to week logs ────
 
+  const activeBonusWeek = useMemo(
+    () => challenge ? getCurrentBonusWeek(challenge, today) : undefined,
+    [challenge, today]
+  )
+
   useEffect(() => {
-    if (!currentUser || !challenge) return
-    const bonusWeek = getCurrentBonusWeek(challenge, today)
-    if (!bonusWeek) return
-    getBonusLog(currentUser.id, challenge.id, bonusWeek.startDate).then(setMyBonusLog)
-    const unsub = subscribeToWeekBonusLogs(challenge.id, bonusWeek.startDate, setWeekBonusLogs)
-    return unsub
-  }, [currentUser, challenge, today])
+    if (!currentUser || !challenge || !activeBonusWeek) return
+    let cancelled = false
+    getBonusLog(currentUser.id, challenge.id, activeBonusWeek.startDate).then(log => {
+      if (!cancelled) setMyBonusLog(log)
+    })
+    const unsub = subscribeToWeekBonusLogs(challenge.id, activeBonusWeek.startDate, setWeekBonusLogs)
+    return () => { cancelled = true; unsub() }
+  }, [currentUser, challenge, activeBonusWeek])
 
   // ── Celebration banner when user crosses the completion threshold ─────────
 
@@ -527,37 +534,42 @@ export default function HomePage() {
   // ── Complete bonus challenge for this week ──────────────────────────────
 
   const handleBonusComplete = useCallback(async () => {
-    if (!currentUser || !challenge) return
-    const bonusWeek = getCurrentBonusWeek(challenge, today)
-    if (!bonusWeek || myBonusLog) return
+    if (!currentUser || !challenge || !activeBonusWeek || myBonusLog) return
     setBonusSaving(true)
     try {
       const log: BonusLog = {
-        id: bonusLogId(currentUser.id, challenge.id, bonusWeek.startDate),
+        id: bonusLogId(challenge.id, activeBonusWeek.startDate, currentUser.id),
         challengeId: challenge.id,
-        weekStartDate: bonusWeek.startDate,
+        weekStartDate: activeBonusWeek.startDate,
         userId: currentUser.id,
         completedAt: new Date().toISOString(),
       }
       await upsertBonusLog(log)
-      setMyBonusLog(log)
 
-      const content = `@${currentUser.displayName} completed the ${challenge.bonusChallenge?.name} bonus — ${bonusWeek.description}! 🏃 ${challenge.hashtag}`
-      await createFeedPostOnce(stripUndefined({
-        id: `bonus_complete_${challenge.id}_${bonusWeek.startDate}_${currentUser.id}`,
-        type: 'system' as const,
-        authorId: 'system',
-        content,
-        hashtags: extractHashtags(content),
-        mentions: [currentUser.id],
-        challengeId: challenge.id,
-        createdAt: new Date().toISOString(),
-        deleted: false,
-      }))
+      try {
+        const content = `@${currentUser.displayName} completed the ${challenge.bonusChallenge?.name} bonus — ${activeBonusWeek.description}! 🏃 ${challenge.hashtag}`
+        await createFeedPostOnce(stripUndefined({
+          id: `bonus_complete_${challenge.id}_${activeBonusWeek.startDate}_${currentUser.id}`,
+          type: 'system' as const,
+          authorId: 'system',
+          content,
+          hashtags: extractHashtags(content),
+          mentions: [currentUser.id],
+          challengeId: challenge.id,
+          createdAt: new Date().toISOString(),
+          deleted: false,
+        }))
+      } catch {
+        toast.error('Bonus saved, but the feed post failed — try again later')
+      }
+
+      setMyBonusLog(log)
+    } catch {
+      toast.error('Could not save bonus — check your connection and try again')
     } finally {
       setBonusSaving(false)
     }
-  }, [currentUser, challenge, today, myBonusLog])
+  }, [currentUser, challenge, activeBonusWeek, myBonusLog])
 
   // ── Rejoin challenge ────────────────────────────────────────────────────
 
@@ -738,22 +750,18 @@ export default function HomePage() {
         />
 
         {/* ── Bonus challenge card ── */}
-        {(() => {
-          const bonusWeek = getCurrentBonusWeek(challenge, today)
-          return challenge.bonusChallenge && bonusWeek
-            ? (
-              <BonusChallengeCard
-                bonus={challenge.bonusChallenge}
-                activeWeek={bonusWeek}
-                myLog={myBonusLog}
-                weekLogs={weekBonusLogs}
-                allUsers={allUsers}
-                onComplete={handleBonusComplete}
-                saving={bonusSaving}
-              />
-            )
-            : null
-        })()}
+        {challenge.bonusChallenge && activeBonusWeek && (
+          <BonusChallengeCard
+            bonus={challenge.bonusChallenge}
+            activeWeek={activeBonusWeek}
+            myLog={myBonusLog}
+            weekLogs={weekBonusLogs}
+            allUsers={allUsers}
+            totalPAX={totalPAX}
+            onComplete={handleBonusComplete}
+            saving={bonusSaving}
+          />
+        )}
 
         {/* ── PAX completion stat line ── */}
         {totalPAX > 0 && (

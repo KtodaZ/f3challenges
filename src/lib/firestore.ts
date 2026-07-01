@@ -20,6 +20,7 @@ import {
   deleteField,
 } from 'firebase/firestore'
 import { db } from './firebase'
+import { stripUndefined } from './utils'
 import type {
   User,
   DailyLog,
@@ -44,7 +45,7 @@ export const notificationsCol = (userId: string) =>
 
 export const dailyLogId      = (userId: string, date: string) => `${userId}_${date}`
 export const participationId = (userId: string, challengeId: string) => `${userId}_${challengeId}`
-export const bonusLogId      = (userId: string, challengeId: string, weekStartDate: string) =>
+export const bonusLogId      = (challengeId: string, weekStartDate: string, userId: string) =>
   `${challengeId}_${weekStartDate}_${userId}`
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -249,12 +250,12 @@ export async function getBonusLog(
   challengeId: string,
   weekStartDate: string
 ): Promise<BonusLog | null> {
-  const snap = await getDoc(doc(bonusLogsCol(), bonusLogId(userId, challengeId, weekStartDate)))
+  const snap = await getDoc(doc(bonusLogsCol(), bonusLogId(challengeId, weekStartDate, userId)))
   return snap.exists() ? (snap.data() as BonusLog) : null
 }
 
 export async function upsertBonusLog(log: BonusLog): Promise<void> {
-  await setDoc(doc(bonusLogsCol(), log.id), log)
+  await setDoc(doc(bonusLogsCol(), log.id), stripUndefined(log))
 }
 
 export function subscribeToWeekBonusLogs(

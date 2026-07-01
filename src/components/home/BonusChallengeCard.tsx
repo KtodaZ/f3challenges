@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 import type { BonusChallengeWeek, BonusChallenge, BonusLog, User } from '@/types'
 
 interface BonusChallengeCardProps {
@@ -9,6 +10,7 @@ interface BonusChallengeCardProps {
   myLog: BonusLog | null
   weekLogs: BonusLog[]
   allUsers: User[]
+  totalPAX: number
   onComplete: () => Promise<void>
   saving: boolean
 }
@@ -19,12 +21,12 @@ export function BonusChallengeCard({
   myLog,
   weekLogs,
   allUsers,
+  totalPAX,
   onComplete,
   saving,
 }: BonusChallengeCardProps) {
   const isDone = !!myLog
   const completedCount = weekLogs.length
-  const totalPAX = allUsers.length
 
   const completedNames = weekLogs
     .map(l => allUsers.find(u => u.id === l.userId)?.displayName)
@@ -41,7 +43,7 @@ export function BonusChallengeCard({
           </p>
           <p className="text-white text-sm font-medium mt-0.5">{activeWeek.description}</p>
           <p className="text-zinc-500 text-xs mt-1">
-            {activeWeek.startDate} – {activeWeek.endDate} · Complete once this week
+            {formatDate(activeWeek.startDate)} – {formatDate(activeWeek.endDate)} · Complete once this week
           </p>
         </div>
       </div>
