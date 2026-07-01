@@ -28,9 +28,10 @@ export interface ConditionalRestDate {
 }
 
 export interface BonusChallengeWeek {
-  startDate: string   // YYYY-MM-DD
-  endDate: string     // YYYY-MM-DD
-  description: string // what PAX should do this week
+  startDate: string          // YYYY-MM-DD
+  endDate: string            // YYYY-MM-DD
+  description: string        // what PAX should do this week
+  feedPostTemplates?: string[] // completion post variants; supports {name} and {hashtag}
 }
 
 export interface BonusChallenge {
