@@ -48,6 +48,8 @@ import { BonusChallengeCard } from '@/components/home/BonusChallengeCard'
 import { DailyExerciseCard } from '@/components/daily/DailyExerciseCard'
 import { LogDayModal } from '@/components/daily/LogDayModal'
 import { MakeupDayPicker } from '@/components/daily/MakeupDayPicker'
+import { MakeupBonusPicker } from '@/components/daily/MakeupBonusPicker'
+import type { MissedBonusWeek } from '@/components/daily/MakeupBonusPicker'
 import { CalloutModal } from '@/components/daily/CalloutModal'
 import { CelebrationModal } from '@/components/ui/CelebrationModal'
 import type {
@@ -212,6 +214,10 @@ export default function HomePage() {
   const [weekBonusLogs, setWeekBonusLogs] = useState<BonusLog[]>([])
   const [bonusSaving, setBonusSaving] = useState(false)
 
+  // Bonus makeup (past, ended weeks) — keyed by weekStartDate
+  const [pastBonusLogs, setPastBonusLogs] = useState<Record<string, BonusLog | null>>({})
+  const [bonusMakeupSaving, setBonusMakeupSaving] = useState<string | null>(null)
+
   // Challenge completion celebration modal
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationChallenge, setCelebrationChallenge] = useState<ChallengeTemplate | null>(null)
@@ -298,6 +304,27 @@ export default function HomePage() {
     const unsub = subscribeToWeekBonusLogs(challenge.id, activeBonusWeek.startDate, setWeekBonusLogs)
     return () => { cancelled = true; unsub() }
   }, [currentUser, challenge, activeBonusWeek])
+
+  // ── Bonus makeup: load this user's logs for past (ended) bonus weeks ──────
+
+  useEffect(() => {
+    setPastBonusLogs({})
+    if (!currentUser || !challenge?.bonusChallenge) return
+    const endedWeeks = challenge.bonusChallenge.weeks.filter(w => w.endDate < today)
+    if (endedWeeks.length === 0) return
+    let cancelled = false
+    Promise.all(
+      endedWeeks.map(w =>
+        getBonusLog(challenge.id, w.startDate, currentUser.id).then(log => ({ start: w.startDate, log }))
+      )
+    ).then(results => {
+      if (cancelled) return
+      const map: Record<string, BonusLog | null> = {}
+      for (const { start, log } of results) map[start] = log
+      setPastBonusLogs(map)
+    })
+    return () => { cancelled = true }
+  }, [currentUser, challenge, today])
 
   // ── Celebration banner when user crosses the completion threshold ─────────
 
@@ -579,6 +606,54 @@ export default function HomePage() {
     }
   }, [currentUser, challenge, activeBonusWeek, myBonusLog])
 
+  // ── Make up a past (ended) bonus week ───────────────────────────────────
+
+  const handleBonusMakeup = useCallback(async (week: { startDate: string; endDate: string; description: string; feedPostTemplates?: string[] }) => {
+    if (!currentUser || !challenge?.bonusChallenge) return
+    if (pastBonusLogs[week.startDate]) return // already completed
+    setBonusMakeupSaving(week.startDate)
+    try {
+      const log: BonusLog = {
+        id: bonusLogId(challenge.id, week.startDate, currentUser.id),
+        challengeId: challenge.id,
+        weekStartDate: week.startDate,
+        userId: currentUser.id,
+        completedAt: new Date().toISOString(),
+        isMakeUp: true,
+      }
+      await upsertBonusLog(stripUndefined(log))
+
+      try {
+        const content = getBonusWeekFeedPost(
+          challenge.bonusChallenge.name,
+          week,
+          challenge.hashtag,
+          currentUser.displayName,
+          true, // makeup flavor
+        )
+        await createFeedPostOnce(stripUndefined({
+          id: `bonus_complete_${challenge.id}_${week.startDate}_${currentUser.id}`,
+          type: 'system' as const,
+          authorId: 'system',
+          content,
+          hashtags: extractHashtags(content),
+          mentions: [],
+          challengeId: challenge.id,
+          createdAt: new Date().toISOString(),
+          deleted: false,
+        }))
+      } catch {
+        toast.error('Bonus saved, but the feed post failed — try again later')
+      }
+
+      setPastBonusLogs(prev => ({ ...prev, [week.startDate]: log }))
+    } catch {
+      toast.error('Could not save bonus — check your connection and try again')
+    } finally {
+      setBonusMakeupSaving(null)
+    }
+  }, [currentUser, challenge, pastBonusLogs])
+
   // ── Rejoin challenge ────────────────────────────────────────────────────
 
   async function handleRejoin() {
@@ -635,6 +710,17 @@ export default function HomePage() {
     const log = logsMap[d]
     return !log || log.completionFraction < 1
   })
+
+  // Makeup: past (ended) bonus weeks with no completion logged for this user
+  const missedBonusWeeks: MissedBonusWeek[] = (challenge.bonusChallenge?.weeks ?? [])
+    .map((week, i) => ({ week, number: i + 1 }))
+    .filter(({ week }) =>
+      week.endDate < today &&
+      week.startDate in pastBonusLogs &&
+      !pastBonusLogs[week.startDate]
+    )
+
+  const hasCatchUp = incompletePastDates.length > 0 || missedBonusWeeks.length > 0
 
   const todayFraction = todayLog?.completionFraction ?? 0
   const todayLoggedReps = todayLog?.exerciseLogs.reduce((sum, el) => sum + el.completedReps, 0) ?? 0
@@ -859,17 +945,34 @@ export default function HomePage() {
           ))}
         </div>}
 
-        {/* ── Makeup section (current challenge) ── */}
-        {incompletePastDates.length > 0 && (
-          <div className="pt-2">
-            <MakeupDayPicker
-              challenge={challenge}
-              incompleteDates={incompletePastDates}
-              logs={logsMap}
-              onSave={(date, repsMap, notes, modNote, isMakeUp) =>
-                saveLog(date, repsMap, notes, modNote, isMakeUp)
-              }
-            />
+        {/* ── Catch Up: missed days + missed bonus weeks (current challenge) ── */}
+        {hasCatchUp && (
+          <div className="pt-2 space-y-4">
+            <div className="flex items-center gap-2 px-1">
+              <span className="text-base">⏳</span>
+              <h2 className="text-sm font-bold text-white">Catch Up</h2>
+              <span className="text-zinc-500 text-xs">— make up anything you missed</span>
+            </div>
+
+            {missedBonusWeeks.length > 0 && challenge.bonusChallenge && (
+              <MakeupBonusPicker
+                bonusName={challenge.bonusChallenge.name}
+                missedWeeks={missedBonusWeeks}
+                onComplete={handleBonusMakeup}
+                savingWeekStart={bonusMakeupSaving}
+              />
+            )}
+
+            {incompletePastDates.length > 0 && (
+              <MakeupDayPicker
+                challenge={challenge}
+                incompleteDates={incompletePastDates}
+                logs={logsMap}
+                onSave={(date, repsMap, notes, modNote, isMakeUp) =>
+                  saveLog(date, repsMap, notes, modNote, isMakeUp)
+                }
+              />
+            )}
           </div>
         )}
 

@@ -516,13 +516,26 @@ export function getCurrentBonusWeek(challenge: ChallengeTemplate, date: string):
   return challenge.bonusChallenge?.weeks.find(w => date >= w.startDate && date <= w.endDate)
 }
 
-/** Picks a random completion feed post for a bonus week, substituting {name} and {hashtag}. */
+/**
+ * Picks a random completion feed post for a bonus week, substituting {name} and {hashtag}.
+ * When `isMakeUp` is true, uses a "catching up" flavored post instead of the on-time variants.
+ */
 export function getBonusWeekFeedPost(
   bonusName: string,
   week: BonusChallengeWeek,
   hashtag: string,
   displayName: string,
+  isMakeUp = false,
 ): string {
+  if (isMakeUp) {
+    const makeUpTemplates = [
+      `@${displayName} circled back and knocked out a ${bonusName} bonus — ${week.description}. Better late than never. 💪 ${hashtag}`,
+      `Catching up: @${displayName} made up a missed ${bonusName} bonus week. No week left behind. 🔥 ${hashtag}`,
+      `@${displayName} went back and finished the ${bonusName} bonus — ${week.description}. Respect the follow-through. 🏃 ${hashtag}`,
+      `Nothing gets skipped. @${displayName} made up a ${bonusName} bonus week. 💯 ${hashtag}`,
+    ]
+    return makeUpTemplates[Math.floor(Math.random() * makeUpTemplates.length)]
+  }
   const templates = week.feedPostTemplates
   if (!templates || templates.length === 0) {
     return `@${displayName} completed the ${bonusName} bonus — ${week.description}! 🏃 ${hashtag}`
