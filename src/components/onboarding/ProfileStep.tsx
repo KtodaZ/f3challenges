@@ -95,6 +95,17 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
             <>
               <div className="flex-1 overflow-y-auto no-scrollbar -mx-6 px-6">
                 <div className="grid grid-cols-2 gap-3 pb-4">
+                  <button
+                    onClick={() => { setMode('new'); setSelectedUser(null) }}
+                    className="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border-2 border-dashed border-orange-500/50 bg-orange-500/5 hover:border-orange-500 hover:bg-orange-500/10 active:bg-orange-500/15 transition-all text-center min-h-[120px]"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-orange-500/10 border-2 border-orange-500/50 flex items-center justify-center">
+                      <span className="text-2xl text-orange-400 leading-none">+</span>
+                    </div>
+                    <span className="text-sm font-semibold text-orange-400 leading-tight">
+                      New PAX
+                    </span>
+                  </button>
                   {allUsers.map(user => (
                     <button
                       key={user.id}
@@ -135,12 +146,6 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
                 >
                   That&apos;s me →
                 </Button>
-                <button
-                  onClick={() => { setMode('new'); setSelectedUser(null) }}
-                  className="w-full text-center text-sm text-zinc-500 hover:text-zinc-300 transition-colors py-2"
-                >
-                  New to F3 Bedrock? Join the crew
-                </button>
               </div>
             </>
           )}
