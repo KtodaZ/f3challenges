@@ -16,6 +16,7 @@ export interface BonusLog {
   weekStartDate: string // YYYY-MM-DD — the bonus week's startDate, acts as week key
   userId: string
   completedAt: string   // ISO timestamp
+  isMakeUp?: boolean    // true when completed after the week ended (via Catch Up)
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
