@@ -353,6 +353,7 @@ function generateNotification(ctx: {
   const hasPeers = completedNames.length > 0;
   const hasPartners = notDoneNames.length > 0;
   const peerStr = fmtNames(completedNames);
+  const peerVerb = completedNames.length === 1 ? "has" : "have";
   const partnerStr = fmtNames(notDoneNames);
   const progressNote = repsCompleted > 0
     ? `${repsCompleted} done, ${repsRemaining} to go`
@@ -454,7 +455,7 @@ function generateNotification(ctx: {
       `So Close, ${fn} — Don't Stop`,
       `The End Is in Sight`,
     ];
-    const peerLine = hasPeers ? `${peerStr} have completed today's challenge. ` : "";
+    const peerLine = hasPeers ? `${peerStr} ${peerVerb} completed today's challenge. ` : "";
     const bodies = [
       `${peerLine}${daysRemaining} ${daysWord} left — ${repsRemaining} reps stand between you and the finish line.`,
       `${modNote}${progressNote}. ${daysRemaining} ${daysWord} in ${challengeName}. Don't quit this close to done.`,
@@ -469,7 +470,7 @@ function generateNotification(ctx: {
 
   // --- Late challenge (last 4–10 days) — elevated urgency with countdown ---
   if (isLate) {
-    const peerLine = hasPeers ? `${peerStr} have completed today's challenge. ` : "";
+    const peerLine = hasPeers ? `${peerStr} ${peerVerb} completed today's challenge. ` : "";
     const titles = [
       `${daysRemaining} ${daysWord} Left, ${fn}`,
       `Don't Slip Now, ${fn}`,
@@ -506,12 +507,12 @@ function generateNotification(ctx: {
       ];
       const bodies = [
         `${peerStr} already crushed Day ${dayNumber}. Your ${repsRemaining} reps aren't going to do themselves.`,
-        `${peerStr} have completed today's challenge. ${fn}, ${repsRemaining} reps — start your first set now.`,
+        `${peerStr} ${peerVerb} completed today's challenge. ${fn}, ${repsRemaining} reps — start your first set now.`,
         `${peerStr} put in the work. Day ${dayNumber}: ${repsRemaining} reps — be next.`,
-        `${peerStr} have completed today's challenge — don't let them show you up. ${repsRemaining} reps, ${fn}.`,
+        `${peerStr} ${peerVerb} completed today's challenge — don't let them show you up. ${repsRemaining} reps, ${fn}.`,
         `${peerStr} already done. Day ${dayNumber}: ${progressNote}. Get moving, ${fn}.`,
         `${peerStr} led the way today. ${fn}, ${repsRemaining} reps — go now, thank yourself later.`,
-        `${peerStr} have completed today's challenge. ${modNote}${repsRemaining} reps — you're next, ${fn}.`,
+        `${peerStr} ${peerVerb} completed today's challenge. ${modNote}${repsRemaining} reps — you're next, ${fn}.`,
       ];
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     } else if (hasPartners) {
@@ -565,13 +566,13 @@ function generateNotification(ctx: {
         `Get It Done, ${fn}`,
       ];
       const bodies = [
-        `${peerStr} have completed today's challenge. ${fn}: ${progressNote} — do it now, not tonight.`,
+        `${peerStr} ${peerVerb} completed today's challenge. ${fn}: ${progressNote} — do it now, not tonight.`,
         `${peerStr} already done. ${repsRemaining} reps on Day ${dayNumber} — don't let it pile up.`,
         `${peerStr} checked in. ${fn}, ${repsRemaining} reps — knock a set out before dinner.`,
-        `${peerStr} have completed today's challenge. ${modNote}${progressNote} — you've got time, use it.`,
+        `${peerStr} ${peerVerb} completed today's challenge. ${modNote}${progressNote} — you've got time, use it.`,
         `${peerStr} are done for the day. ${fn}: ${repsRemaining} reps left, go now.`,
         `${peerStr} already crushed it. Afternoon's the sweet spot — ${repsRemaining} reps, ${fn}.`,
-        `${peerStr} have completed today's challenge. ${fn}, don't push it to tonight — ${repsRemaining} reps now.`,
+        `${peerStr} ${peerVerb} completed today's challenge. ${fn}, don't push it to tonight — ${repsRemaining} reps now.`,
       ];
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     } else if (hasPartners) {
@@ -619,12 +620,12 @@ function generateNotification(ctx: {
       `Finish Day ${dayNumber}, ${fn}`,
     ];
     const bodies = [
-      `${peerStr} have completed today's challenge. ${fn}: ${repsRemaining} reps before midnight — let's go.`,
+      `${peerStr} ${peerVerb} completed today's challenge. ${fn}: ${repsRemaining} reps before midnight — let's go.`,
       `${peerStr} already done. Day ${dayNumber} ends soon — ${repsRemaining} reps, ${fn}.`,
-      `${peerStr} have completed today's challenge. ${modNote}${progressNote} — last chance to close Day ${dayNumber}.`,
+      `${peerStr} ${peerVerb} completed today's challenge. ${modNote}${progressNote} — last chance to close Day ${dayNumber}.`,
       `${peerStr} checked in. ${fn}, ${progressNote} — do it now.`,
       `${peerStr} are done for the day. ${fn}: clock's running — ${repsRemaining} reps left.`,
-      `${peerStr} have completed today's challenge. Don't let Day ${dayNumber} slip — ${repsRemaining} reps now.`,
+      `${peerStr} ${peerVerb} completed today's challenge. Don't let Day ${dayNumber} slip — ${repsRemaining} reps now.`,
       `${peerStr} put it in. ${fn}, ${repsRemaining} reps — don't be the one who didn't finish today.`,
     ];
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
