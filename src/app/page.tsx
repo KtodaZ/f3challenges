@@ -55,6 +55,17 @@ import { MakeupBonusPicker } from '@/components/daily/MakeupBonusPicker'
 import type { MissedBonusWeek } from '@/components/daily/MakeupBonusPicker'
 import { CalloutModal } from '@/components/daily/CalloutModal'
 import { CelebrationModal } from '@/components/ui/CelebrationModal'
+import { CelebrationOverlay } from '@/components/ui/CelebrationOverlay'
+import type { CelebrationContent } from '@/components/ui/CelebrationOverlay'
+import { NextBadgeCard } from '@/components/home/NextBadgeCard'
+import { useAchievementEngine } from '@/hooks/useAchievementEngine'
+import {
+  buildMilestoneCelebration,
+  buildRedemptionCelebration,
+  buildDebtFreeCelebration,
+  buildUnlockCelebration,
+  buildMultiUnlockCelebration,
+} from '@/lib/celebrations'
 import type {
   User,
   DailyLog,
@@ -62,6 +73,7 @@ import type {
   CompletionFraction,
   ExerciseLog,
   AchievementBadge,
+  AchievementDefinition,
   ChallengeTemplate,
   ChallengeTemplateCopy,
   BonusLog,
@@ -233,6 +245,35 @@ export default function HomePage() {
   const [celebrationChallenge, setCelebrationChallenge] = useState<ChallengeTemplate | null>(null)
   // Prevents double-modal if saveLog is called twice rapidly on the final day
   const celebrationFiredRef = useRef(false)
+
+  // Queue of full-screen dopamine moments (milestones, redemptions, badge
+  // unlocks) — shown one at a time, after any challenge-completion modal
+  const [celebrationQueue, setCelebrationQueue] = useState<CelebrationContent[]>([])
+
+  const pushCelebrations = useCallback((items: CelebrationContent[], front = false) => {
+    setCelebrationQueue(q => (front ? [...items, ...q] : [...q, ...items]))
+  }, [])
+
+  // Achievement engine: evaluates the catalog over all the user's logs,
+  // awards new badges, and feeds the "next badge" near-miss card
+  const handleUnlocked = useCallback((defs: AchievementDefinition[]) => {
+    // A retroactive flood (first run for an existing user) collapses into one modal
+    setCelebrationQueue(q => [
+      ...q,
+      ...(defs.length > 2 ? [buildMultiUnlockCelebration(defs)] : defs.map(buildUnlockCelebration)),
+    ])
+  }, [])
+
+  const allUserLogs = useMemo(
+    () => [...allLogs, ...Object.values(pastChallengeLogs).flat()],
+    [allLogs, pastChallengeLogs]
+  )
+
+  const { nextUp } = useAchievementEngine({
+    logs: allUserLogs,
+    challengeId: challenge?.id,
+    onUnlocked: handleUnlocked,
+  })
 
   // ── Redirect if no user ──────────────────────────────────────────────────
 
@@ -454,6 +495,49 @@ export default function HomePage() {
         }))
       }
 
+      // Full-screen dopamine moments: milestone days + makeup redemptions
+      if (overallFraction >= 1 && !wasComplete) {
+        const dayNum = getDayNumber(challenge, date) ?? 1
+        if (isMakeUp) {
+          // Redemption — how many missed days remain after this one?
+          const done = new Set(updatedLogs.filter(l => l.completionFraction >= 1).map(l => l.date))
+          const remaining = getChallengeDates(challenge).filter(d => {
+            if (d >= today) return false
+            if (isRestDay(challenge, d)) return false
+            if (conditionalRestApplies(challenge, d, [...done])) return false
+            return !done.has(d)
+          }).length
+          pushCelebrations(
+            [remaining === 0 ? buildDebtFreeCelebration() : buildRedemptionCelebration(dayNum, remaining)],
+            true
+          )
+        } else {
+          const { quarter, half, threeQuarter } = getMilestoneDays(challenge)
+          const kind =
+            dayNum === quarter ? ('quarter' as const)
+            : dayNum === half ? ('half' as const)
+            : dayNum === threeQuarter ? ('threeQuarter' as const)
+            : null
+          if (kind) {
+            const seenKey = `milestone_${challenge.id}_${kind}`
+            let seen = false
+            try { seen = localStorage.getItem(seenKey) === '1' } catch { /* ignore */ }
+            if (!seen) {
+              try { localStorage.setItem(seenKey, '1') } catch { /* ignore */ }
+              const repsBanked = updatedLogs.reduce(
+                (s, l) => s + l.exerciseLogs.reduce((a, e) => a + e.completedReps, 0), 0)
+              pushCelebrations([
+                buildMilestoneCelebration(kind, {
+                  repsBanked,
+                  daysLeft: getTotalDays(challenge) - dayNum,
+                  challengeName: challenge.name,
+                }),
+              ], true)
+            }
+          }
+        }
+      }
+
       // Monthly completion: award badge + celebrate (first time only) + feed post
       const completedDaysCount = updatedLogs.filter(l => l.completionFraction >= 1).length
       if (completedDaysCount >= getRequiredDays(challenge)) {
@@ -508,7 +592,7 @@ export default function HomePage() {
         }
       }
     },
-    [currentUser, challenge, allLogs, todayLog, today, participation]
+    [currentUser, challenge, allLogs, todayLog, today, participation, pushCelebrations]
   )
 
   const saveTodayLog = useCallback(
@@ -588,6 +672,7 @@ export default function HomePage() {
 
     // Award badge if this makeup completes the challenge
     const completedDays = updatedLogs.filter(l => l.completionFraction >= 1).length
+    let completionFired = false
     if (completedDays >= getRequiredDays(pastChallenge)) {
       const alreadyHasBadge = currentUser.badges?.some(
         b => b.challengeId === pastChallenge.id && b.type === 'completed'
@@ -601,9 +686,24 @@ export default function HomePage() {
         await setBadge(currentUser.id, badge, currentUser.badges ?? [])
         setCelebrationChallenge(pastChallenge)
         setShowCelebration(true)
+        completionFired = true
       }
     }
-  }, [currentUser, pastChallengeLogs])
+
+    // Redemption moment (skipped when the big completion celebration fires)
+    const wasComplete = !!(existing && existing.completionFraction >= 1)
+    if (!completionFired && fraction >= 1 && !wasComplete) {
+      const done = new Set(updatedLogs.filter(l => l.completionFraction >= 1).map(l => l.date))
+      const remaining = getChallengeDates(pastChallenge).filter(d =>
+        !isRestDay(pastChallenge, d) && !done.has(d)
+      ).length
+      const dayNum = getDayNumber(pastChallenge, date) ?? 1
+      pushCelebrations(
+        [remaining === 0 ? buildDebtFreeCelebration() : buildRedemptionCelebration(dayNum, remaining)],
+        true
+      )
+    }
+  }, [currentUser, pastChallengeLogs, pushCelebrations])
 
   // ── Complete bonus challenge for this week ──────────────────────────────
 
@@ -1003,6 +1103,9 @@ export default function HomePage() {
           ))}
         </div>}
 
+        {/* ── Next badge: near-miss achievement advertising ── */}
+        <NextBadgeCard nextUp={nextUp} hasMissedDays={incompletePastDates.length > 0} />
+
         {/* ── Catch Up: missed days + missed bonus weeks (current challenge) ── */}
         {hasCatchUp && (
           <div className="pt-2 space-y-4">
@@ -1201,6 +1304,15 @@ export default function HomePage() {
         <CelebrationModal
           challenge={celebrationChallenge}
           onClose={() => setShowCelebration(false)}
+        />
+      )}
+
+      {/* ── Queued dopamine moments (milestones, redemptions, badge unlocks) ── */}
+      {!showCelebration && celebrationQueue.length > 0 && (
+        <CelebrationOverlay
+          key={`${celebrationQueue[0].title}_${celebrationQueue.length}`}
+          {...celebrationQueue[0]}
+          onClose={() => setCelebrationQueue(q => q.slice(1))}
         />
       )}
 

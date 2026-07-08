@@ -214,6 +214,27 @@ export function subscribeToFeed(
   })
 }
 
+/** Shoutouts a user has given / received — feeds the social achievements. */
+export async function getShoutoutCounts(
+  userId: string
+): Promise<{ given: number; received: number }> {
+  const [given, received] = await Promise.all([
+    getDocs(query(
+      feedCol(),
+      where('type', '==', 'shoutout'),
+      where('authorId', '==', userId),
+      where('deleted', '==', false),
+    )),
+    getDocs(query(
+      feedCol(),
+      where('type', '==', 'shoutout'),
+      where('targetUserId', '==', userId),
+      where('deleted', '==', false),
+    )),
+  ])
+  return { given: given.size, received: received.size }
+}
+
 // ─── Reactions ────────────────────────────────────────────────────────────────
 
 export async function togglePostReaction(
@@ -279,6 +300,13 @@ export async function getBonusLog(
 
 export async function upsertBonusLog(log: BonusLog): Promise<void> {
   await setDoc(doc(bonusLogsCol(), log.id), stripUndefined(log))
+}
+
+/** All bonus logs for a user across challenges (Bonus Hunter achievement). */
+export async function getUserBonusLogs(userId: string): Promise<BonusLog[]> {
+  const q = query(bonusLogsCol(), where('userId', '==', userId))
+  const snap = await getDocs(q)
+  return snap.docs.map(d => d.data() as BonusLog)
 }
 
 export function subscribeToWeekBonusLogs(

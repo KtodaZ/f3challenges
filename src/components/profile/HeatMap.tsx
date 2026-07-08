@@ -77,9 +77,9 @@ export function HeatMap({ challenge, logs }: HeatMapProps) {
                 `}
                 aria-label={`Day ${dayNum}: ${date}`}
               />
-              {/* Makeup dot indicator */}
+              {/* Redeemed (made-up) day indicator */}
               {isMakeUp && fraction && fraction >= 1 && (
-                <div className="absolute bottom-[2px] right-[2px] w-[4px] h-[4px] rounded-full bg-white/70 pointer-events-none" />
+                <div className="absolute bottom-[2px] right-[2px] w-[4px] h-[4px] rounded-full bg-amber-300 pointer-events-none" />
               )}
             </div>
           )
@@ -95,9 +95,9 @@ export function HeatMap({ challenge, logs }: HeatMapProps) {
         <span className="text-xs text-zinc-500">More</span>
         <div className="flex items-center gap-1.5 ml-2">
           <div className="relative w-3 h-3 rounded-sm bg-green-500">
-            <div className="absolute bottom-[1px] right-[1px] w-[3px] h-[3px] rounded-full bg-white/70" />
+            <div className="absolute bottom-[1px] right-[1px] w-[3px] h-[3px] rounded-full bg-amber-300" />
           </div>
-          <span className="text-xs text-zinc-500">Make-up</span>
+          <span className="text-xs text-zinc-500">Redeemed ⚡</span>
         </div>
       </div>
 

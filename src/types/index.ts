@@ -6,6 +6,9 @@ export type {
   ExerciseUnit, Exercise, ChallengeTemplate, DailyTarget, WeekTier, ConditionalRestDate,
   ChallengeTemplateCopy, FeedPostVars, NotificationVars, NotificationTemplatePair,
   BonusChallenge, BonusChallengeWeek,
+  AchievementLogInput, AchievementContext, EarnedAchievement,
+  AchievementCategory, CelebrationTheme, AchievementProgress,
+  AchievementDefinition, AchievementEvaluation,
 } from '@f3-bedrock/shared'
 
 // ─── Bonus Logs ───────────────────────────────────────────────────────────────
@@ -55,6 +58,8 @@ export interface User {
   fcmTokens?: string[]
   notificationPreferences: NotificationPreferences
   badges: AchievementBadge[]
+  /** Gamification achievements (trophy case) — see shared/src/achievements.ts */
+  achievements?: import('@f3-bedrock/shared').EarnedAchievement[]
   currentStreak: number
   longestStreak: number
   pendingCelebration?: { challengeId: string; badgeType?: 'completed' | 'participant' }
