@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@/lib/utils'
+import { cn, formatClock } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import type { DailyLog, DailyTarget } from '@/types'
@@ -63,7 +63,7 @@ export function DailyLogCard({ log, target, onOpenLog }: DailyLogCardProps) {
           const ex = target.exercises.find(e => e.exercise.id === el.exerciseId)
           if (!ex) return null
           const unit = ex.exercise.unit ?? 'reps'
-          return `${el.completedReps}${unit === 'seconds' ? 's' : ''} ${ex.exercise.shortName}`
+          return `${unit === 'seconds' ? formatClock(el.completedReps) : el.completedReps} ${ex.exercise.shortName}`
         })
         .filter(Boolean)
         .join(' · ')
@@ -92,7 +92,7 @@ export function DailyLogCard({ log, target, onOpenLog }: DailyLogCardProps) {
           <p className="text-xs text-zinc-500 mt-0.5">
             {target.totalReps > 0
               ? `Goal: ${target.totalReps} reps today`
-              : `Goal: ${target.exercises.map(e => `${e.reps}${(e.exercise.unit ?? 'reps') === 'seconds' ? 's' : ''} ${e.exercise.shortName}`).join(' · ')}`
+              : `Goal: ${target.exercises.map(e => `${(e.exercise.unit ?? 'reps') === 'seconds' ? formatClock(e.reps) : e.reps} ${e.exercise.shortName}`).join(' · ')}`
             }
           </p>
         )}

@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, formatClock } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
+import { ExerciseTimer } from './ExerciseTimer'
+import { initTimerAudio } from '@/lib/timerAudio'
 import type { ExerciseUnit } from '@/types'
 
 interface DailyExerciseCardProps {
@@ -40,9 +42,14 @@ export function DailyExerciseCard({
   unit = 'reps',
 }: DailyExerciseCardProps) {
   const [showModal, setShowModal] = useState(false)
+  const [showTimer, setShowTimer] = useState(false)
   const [customValue, setCustomValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const unitLabel = unit === 'seconds' ? 'sec' : 'reps'
+  const isTimed = unit === 'seconds'
+  const unitLabel = isTimed ? 'sec' : 'reps'
+  const progressLabel = isTimed
+    ? `${formatClock(completedReps)} / ${formatClock(targetReps)}`
+    : `${completedReps} / ${targetReps} ${unitLabel}`
 
   useEffect(() => {
     if (showModal) {
@@ -85,8 +92,8 @@ export function DailyExerciseCard({
             <p className={cn('font-semibold text-base', isDone ? 'text-green-400' : 'text-white')}>
               {name}
             </p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {completedReps} / {targetReps} {unitLabel}
+            <p className="text-xs text-zinc-500 mt-0.5 tabular-nums">
+              {progressLabel}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-3">
@@ -106,10 +113,34 @@ export function DailyExerciseCard({
                 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-300',
               )}
             >
-              Custom reps
+              {isTimed ? 'Edit time' : 'Custom reps'}
             </button>
           </div>
         </div>
+
+        {isTimed && (
+          <button
+            onClick={() => {
+              if (disabled) return
+              initTimerAudio() // must happen inside the tap for iOS audio
+              setShowTimer(true)
+            }}
+            disabled={disabled}
+            className={cn(
+              'w-full mb-2 py-3 rounded-xl text-sm font-bold transition-colors',
+              'flex items-center justify-center gap-2',
+              'disabled:opacity-40 disabled:cursor-not-allowed',
+              isDone
+                ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                : 'bg-orange-500/15 border border-orange-500/40 text-orange-300 hover:bg-orange-500/25 active:bg-orange-500/30'
+            )}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l3.5 2M12 3a9 9 0 100 18 9 9 0 000-18zM9 1.5h6" />
+            </svg>
+            {completedReps > 0 && !isDone ? 'Resume Timer' : 'Start Timer'}
+          </button>
+        )}
 
         <div className="grid grid-cols-4 gap-2">
           {FRACTIONS.map(({ value, label }) => {
@@ -139,11 +170,25 @@ export function DailyExerciseCard({
         </div>
       </div>
 
+      {isTimed && (
+        <ExerciseTimer
+          open={showTimer}
+          onClose={() => setShowTimer(false)}
+          exerciseName={name}
+          targetSeconds={targetReps}
+          bankedSeconds={completedReps}
+          onSave={total => {
+            onChange(exerciseId, total)
+            setShowTimer(false)
+          }}
+        />
+      )}
+
       <Modal
         open={showModal}
         onClose={() => setShowModal(false)}
         title={name}
-        description={`Currently: ${completedReps} / ${targetReps} ${unitLabel}`}
+        description={`Currently: ${progressLabel}`}
       >
         <div className="space-y-4">
           <div>
