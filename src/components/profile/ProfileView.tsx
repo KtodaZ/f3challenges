@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Input } from '@/components/ui/Input'
-import { BadgeGrid } from '@/components/profile/BadgeGrid'
+import { TrophyCase } from '@/components/profile/TrophyCase'
 import { HeatMap } from '@/components/profile/HeatMap'
 import { CumulativeStats } from '@/components/profile/CumulativeStats'
 import { OptOutModal } from '@/components/profile/OptOutModal'
@@ -18,7 +18,11 @@ import {
   upsertParticipation,
   updateUser,
   participationId,
+  getShoutoutCounts,
+  getUserBonusLogs,
 } from '@/lib/firestore'
+import { buildAchievementContext, evaluateAchievements } from '@/lib/achievements'
+import type { BonusLog } from '@/types'
 import {
   getCurrentChallenge,
   CHALLENGES,
@@ -64,6 +68,31 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
   const [allLogs, setAllLogs] = useState<DailyLog[]>([])
   const [participation, setParticipation] = useState<ChallengeParticipation | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Extra context for achievement progress (social + bonus achievements)
+  const [shoutouts, setShoutouts] = useState<{ given: number; received: number } | null>(null)
+  const [bonusLogs, setBonusLogs] = useState<BonusLog[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([getShoutoutCounts(initialUser.id), getUserBonusLogs(initialUser.id)])
+      .then(([s, b]) => {
+        if (cancelled) return
+        setShoutouts(s)
+        setBonusLogs(b)
+      })
+      .catch(() => { /* progress just shows without social/bonus counts */ })
+    return () => { cancelled = true }
+  }, [initialUser.id])
+
+  const achievementEvaluations = useMemo(() => {
+    const ctx = buildAchievementContext(user, allLogs, {
+      shoutoutsGiven: shoutouts?.given,
+      shoutoutsReceived: shoutouts?.received,
+      bonusLogs: bonusLogs ?? undefined,
+    })
+    return evaluateAchievements(ctx)
+  }, [user, allLogs, shoutouts, bonusLogs])
 
   // Modal state
   const [editNameOpen, setEditNameOpen] = useState(false)
@@ -295,13 +324,19 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
           </Card>
         )}
 
-        {/* ── Achievement Badges ─────────────────────────────── */}
+        {/* ── Trophy Case: challenge badges + achievements ───── */}
         <Card>
           <CardHeader>
-            <CardTitle>Badges</CardTitle>
-            <span className="text-xs text-zinc-500">{user.badges.length} earned</span>
+            <CardTitle>Trophy Case</CardTitle>
+            <span className="text-xs text-zinc-500">
+              {user.badges.length + (user.achievements?.length ?? 0)} earned
+            </span>
           </CardHeader>
-          <BadgeGrid badges={user.badges} />
+          <TrophyCase
+            badges={user.badges}
+            earned={user.achievements ?? []}
+            evaluations={achievementEvaluations}
+          />
         </Card>
 
         {/* ── Cumulative Stats ───────────────────────────────── */}
