@@ -113,6 +113,13 @@ export async function getUserChallengeLogs(
   return snap.docs.map(d => d.data() as DailyLog)
 }
 
+/** All logs for a challenge, every user (first-finisher achievement). */
+export async function getChallengeLogs(challengeId: string): Promise<DailyLog[]> {
+  const q = query(dailyLogsCol(), where('challengeId', '==', challengeId))
+  const snap = await getDocs(q)
+  return snap.docs.map(d => d.data() as DailyLog)
+}
+
 /** Get all logs for a challenge on a specific date (leaderboard). */
 export async function getLogsForDate(challengeId: string, date: string): Promise<DailyLog[]> {
   const q = query(

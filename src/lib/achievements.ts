@@ -55,6 +55,26 @@ function bestBonusWeeks(bonusLogs: BonusLog[]): { completed: number; total: numb
   return best
 }
 
+/**
+ * Days where `userId` was the first PAX to fully complete the challenge.
+ * Winner per date = earliest completion timestamp among on-time (non-makeup)
+ * complete logs. Legacy logs without completedAt fall back to their last write.
+ */
+export function countFirstFinisherDays(groupLogs: DailyLog[], userId: string): number {
+  const finishTime = (l: DailyLog) => l.completedAt ?? l.updatedAt ?? l.loggedAt
+  const byDate = new Map<string, DailyLog>()
+  for (const log of groupLogs) {
+    if (log.completionFraction < 1 || log.isMakeUp) continue
+    const current = byDate.get(log.date)
+    if (!current || finishTime(log) < finishTime(current)) byDate.set(log.date, log)
+  }
+  let count = 0
+  for (const winner of byDate.values()) {
+    if (winner.userId === userId) count++
+  }
+  return count
+}
+
 export function buildAchievementContext(
   user: Pick<User, 'longestStreak' | 'currentStreak'>,
   allLogs: DailyLog[],
@@ -62,6 +82,7 @@ export function buildAchievementContext(
     shoutoutsGiven?: number
     shoutoutsReceived?: number
     bonusLogs?: BonusLog[]
+    firstFinisherDays?: number
   }
 ): AchievementContext {
   return {
@@ -70,6 +91,7 @@ export function buildAchievementContext(
     shoutoutsGiven: extras?.shoutoutsGiven,
     shoutoutsReceived: extras?.shoutoutsReceived,
     bonusWeeks: extras?.bonusLogs ? bestBonusWeeks(extras.bonusLogs) : undefined,
+    firstFinisherDays: extras?.firstFinisherDays,
   }
 }
 
