@@ -20,8 +20,9 @@ import {
   participationId,
   getShoutoutCounts,
   getUserBonusLogs,
+  getChallengeLogs,
 } from '@/lib/firestore'
-import { buildAchievementContext, evaluateAchievements } from '@/lib/achievements'
+import { buildAchievementContext, countFirstFinisherDays, evaluateAchievements } from '@/lib/achievements'
 import type { BonusLog } from '@/types'
 import {
   getCurrentChallenge,
@@ -69,17 +70,24 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
   const [participation, setParticipation] = useState<ChallengeParticipation | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Extra context for achievement progress (social + bonus achievements)
+  // Extra context for achievement progress (social, bonus, first-finisher)
   const [shoutouts, setShoutouts] = useState<{ given: number; received: number } | null>(null)
   const [bonusLogs, setBonusLogs] = useState<BonusLog[] | null>(null)
+  const [firstFinisherDays, setFirstFinisherDays] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([getShoutoutCounts(initialUser.id), getUserBonusLogs(initialUser.id)])
-      .then(([s, b]) => {
+    const challenge = getCurrentChallenge()
+    Promise.all([
+      getShoutoutCounts(initialUser.id),
+      getUserBonusLogs(initialUser.id),
+      challenge ? getChallengeLogs(challenge.id) : Promise.resolve([]),
+    ])
+      .then(([s, b, groupLogs]) => {
         if (cancelled) return
         setShoutouts(s)
         setBonusLogs(b)
+        setFirstFinisherDays(countFirstFinisherDays(groupLogs, initialUser.id))
       })
       .catch(() => { /* progress just shows without social/bonus counts */ })
     return () => { cancelled = true }
@@ -90,9 +98,10 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
       shoutoutsGiven: shoutouts?.given,
       shoutoutsReceived: shoutouts?.received,
       bonusLogs: bonusLogs ?? undefined,
+      firstFinisherDays: firstFinisherDays ?? undefined,
     })
     return evaluateAchievements(ctx)
-  }, [user, allLogs, shoutouts, bonusLogs])
+  }, [user, allLogs, shoutouts, bonusLogs, firstFinisherDays])
 
   // Modal state
   const [editNameOpen, setEditNameOpen] = useState(false)

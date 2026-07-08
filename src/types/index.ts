@@ -86,8 +86,9 @@ export interface DailyLog {
   isMakeUp: boolean
   notes?: string
   photoUrl?: string       // reserved for future
-  loggedAt: string        // ISO
-  updatedAt?: string      // ISO
+  loggedAt: string        // ISO — first write for this day
+  updatedAt?: string      // ISO — last write
+  completedAt?: string    // ISO — when the day first hit 100% (first-finisher badge)
 }
 
 // ─── Challenge Participation ──────────────────────────────────────────────────

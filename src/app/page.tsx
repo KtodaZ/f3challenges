@@ -445,6 +445,10 @@ export default function HomePage() {
         modificationNote: modificationNote || undefined,
         loggedAt: existingLog?.loggedAt ?? new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        // First moment the day hit 100% — powers the first-finisher badges
+        completedAt: overallFraction >= 1
+          ? existingLog?.completedAt ?? new Date().toISOString()
+          : undefined,
       }
 
       await upsertDailyLog(stripUndefined(log))
@@ -660,6 +664,9 @@ export default function HomePage() {
       notes: notes || undefined,
       loggedAt: existing?.loggedAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      completedAt: fraction >= 1
+        ? existing?.completedAt ?? new Date().toISOString()
+        : undefined,
     })
 
     await upsertDailyLog(newLog)

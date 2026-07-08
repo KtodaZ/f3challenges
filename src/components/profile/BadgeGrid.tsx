@@ -5,6 +5,8 @@ import type { AchievementBadge } from '@/types'
 
 interface BadgeGridProps {
   badges: AchievementBadge[]
+  /** When provided, badges become tappable (detail modal in TrophyCase). */
+  onSelect?: (badge: AchievementBadge) => void
 }
 
 function badgeLabel(badge: AchievementBadge): string {
@@ -25,7 +27,7 @@ function challengeMonthYear(badge: AchievementBadge): string {
   })
 }
 
-export function BadgeGrid({ badges }: BadgeGridProps) {
+export function BadgeGrid({ badges, onSelect }: BadgeGridProps) {
   if (badges.length === 0) {
     return (
       <div className="text-center py-8 text-zinc-500 text-sm">
@@ -43,9 +45,11 @@ export function BadgeGrid({ badges }: BadgeGridProps) {
         const monthYear = challengeMonthYear(badge)
 
         return (
-          <div
+          <button
             key={`${badge.challengeId}-${badge.type}`}
-            className="flex flex-col items-center gap-1.5 group relative"
+            type="button"
+            onClick={onSelect ? () => onSelect(badge) : undefined}
+            className={`flex flex-col items-center gap-1.5 group relative ${onSelect ? 'cursor-pointer active:scale-95 transition-transform' : 'cursor-default'}`}
             title={label}
           >
             <div
@@ -68,17 +72,7 @@ export function BadgeGrid({ badges }: BadgeGridProps) {
                 {challenge?.name ?? badge.challengeId}
               </p>
             </div>
-            {/* Tooltip */}
-            <div className="
-              absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10
-              bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5
-              text-xs text-white whitespace-nowrap
-              opacity-0 group-hover:opacity-100 pointer-events-none
-              transition-opacity shadow-xl
-            ">
-              {label}
-            </div>
-          </div>
+          </button>
         )
       })}
     </div>

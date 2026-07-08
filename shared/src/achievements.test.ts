@@ -147,6 +147,34 @@ describe('special achievements', () => {
     expect(progressOf('overachiever', ctx({ logs: [log({ completedReps: 149, targetReps: 100 })] })).earned).toBe(false)
   })
 
+  it('first-finisher badges count firstFinisherDays from context', () => {
+    expect(progressOf('first-blood', ctx({ firstFinisherDays: 1 })).earned).toBe(true)
+    expect(progressOf('first-blood', ctx()).earned).toBe(false)
+    expect(progressOf('pace-setter', ctx({ firstFinisherDays: 4 }))).toMatchObject({ earned: false, current: 4, target: 5 })
+    expect(progressOf('pace-setter', ctx({ firstFinisherDays: 5 })).earned).toBe(true)
+  })
+
+  it('conqueror: three fully completed challenges', () => {
+    // feb-2026 fully complete = 1 challenge
+    expect(progressOf('conqueror', ctx({ logs: fullFebLogs() }))).toMatchObject({ earned: false, current: 1, target: 3 })
+  })
+
+  it('secret badges: over-9000, surgeon, juggernaut', () => {
+    expect(progressOf('over-9000', ctx({ logs: [log({ completedReps: 9001 })] })).earned).toBe(true)
+    expect(progressOf('over-9000', ctx({ logs: [log({ completedReps: 9000 })] })).earned).toBe(false)
+
+    const exactDays = Array.from({ length: 10 }, (_, i) =>
+      log({ date: `2026-02-${String(i + 1).padStart(2, '0')}`, completedReps: 100, targetReps: 100 })
+    )
+    expect(progressOf('surgeon', ctx({ logs: exactDays })).earned).toBe(true)
+
+    const bigDays = Array.from({ length: 5 }, (_, i) =>
+      log({ date: `2026-02-${String(i + 1).padStart(2, '0')}`, completedReps: 150, targetReps: 100 })
+    )
+    expect(progressOf('juggernaut', ctx({ logs: bigDays })).earned).toBe(true)
+    expect(progressOf('juggernaut', ctx({ logs: bigDays.slice(0, 4) })).earned).toBe(false)
+  })
+
   it('bonus-hunter needs every bonus week', () => {
     expect(progressOf('bonus-hunter', ctx({ bonusWeeks: { completed: 2, total: 2 } })).earned).toBe(true)
     expect(progressOf('bonus-hunter', ctx({ bonusWeeks: { completed: 1, total: 2 } })).earned).toBe(false)

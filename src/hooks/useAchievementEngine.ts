@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useUser } from '@/contexts/UserContext'
-import { getShoutoutCounts, getUserBonusLogs } from '@/lib/firestore'
+import { getShoutoutCounts, getUserBonusLogs, getChallengeLogs } from '@/lib/firestore'
 import {
   buildAchievementContext,
+  countFirstFinisherDays,
   evaluateAchievements,
   findNewlyEarned,
   getNextAchievements,
@@ -40,37 +41,56 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
 
   const [social, setSocial] = useState<{ given: number; received: number } | null>(null)
   const [bonusLogs, setBonusLogs] = useState<BonusLog[] | null>(null)
+  const [groupLogs, setGroupLogs] = useState<DailyLog[] | null>(null)
   const sessionAwarded = useRef<EarnedAchievement[]>([])
   const awarding = useRef(false)
 
   const userId = currentUser?.id
 
-  // Social + bonus context loads once per user
+  // Social + bonus + group (first-finisher) context loads once per user
   useEffect(() => {
     if (!userId) return
     let cancelled = false
-    Promise.all([getShoutoutCounts(userId), getUserBonusLogs(userId)])
-      .then(([s, b]) => {
+    Promise.all([
+      getShoutoutCounts(userId),
+      getUserBonusLogs(userId),
+      challengeId ? getChallengeLogs(challengeId) : Promise.resolve([]),
+    ])
+      .then(([s, b, g]) => {
         if (cancelled) return
         setSocial(s)
         setBonusLogs(b)
+        setGroupLogs(g)
       })
       .catch(() => {
         if (cancelled) return
         setSocial({ given: 0, received: 0 })
         setBonusLogs([])
+        setGroupLogs([])
       })
     return () => { cancelled = true }
-  }, [userId])
+  }, [userId, challengeId])
 
   const ctx = useMemo(() => {
     if (!currentUser) return null
+    // Group snapshot loads once, but the user's own logs are live — merge them
+    // so being first today registers the moment the day is completed.
+    const firstFinisherDays = groupLogs
+      ? countFirstFinisherDays(
+          [
+            ...groupLogs.filter(l => l.userId !== currentUser.id),
+            ...logs.filter(l => l.challengeId === challengeId),
+          ],
+          currentUser.id,
+        )
+      : undefined
     return buildAchievementContext(currentUser, logs, {
       shoutoutsGiven: social?.given,
       shoutoutsReceived: social?.received,
       bonusLogs: bonusLogs ?? undefined,
+      firstFinisherDays,
     })
-  }, [currentUser, logs, social, bonusLogs])
+  }, [currentUser, logs, social, bonusLogs, groupLogs, challengeId])
 
   // Award anything newly earned
   useEffect(() => {
