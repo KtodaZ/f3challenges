@@ -9,6 +9,9 @@ import {
   upsertDailyLog,
   getParticipation,
   upsertParticipation,
+  participationId,
+  getChallengeParticipants,
+  getUsersWithChallengeLogs,
   dailyLogId,
   getUserChallengeLogs,
   updateUser,
@@ -37,7 +40,7 @@ import {
   buildFeedPost,
 } from '@/lib/challenges'
 import type { FeedPostVars } from '@/lib/challenges'
-import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak } from '@/lib/utils'
+import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak, isChallengeParticipant } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
@@ -167,8 +170,15 @@ export default function HomePage() {
   // Daily log (real-time)
   const [todayLog, setTodayLog] = useState<DailyLog | null>(null)
 
-  // Participation
-  const [participation, setParticipation] = useState<ChallengeParticipation | null>(null)
+  // Participation — undefined = not loaded yet, null = loaded and none exists
+  const [participation, setParticipation] = useState<ChallengeParticipation | null | undefined>(undefined)
+
+  // Challenge roster: everyone's participation status + who has logged this challenge.
+  // null until loaded — crew lists wait for it rather than flashing all users.
+  const [roster, setRoster] = useState<{
+    statusByUserId: Map<string, ChallengeParticipation['status']>
+    loggedUserIds: Set<string>
+  } | null>(null)
 
   // Past challenge logs (for cross-challenge makeup)
   const [pastChallengeLogs, setPastChallengeLogs] = useState<Record<string, DailyLog[]>>({})
@@ -286,6 +296,24 @@ export default function HomePage() {
     getLogsForDate(challenge.id, today).then(setGroupLogs)
   }, [challenge, today])
 
+  // ── Load challenge roster (participation statuses + who has logged) ──────
+
+  useEffect(() => {
+    if (!challenge || allUsers.length === 0) return
+    let cancelled = false
+    Promise.all([
+      getChallengeParticipants(challenge.id),
+      getUsersWithChallengeLogs(challenge.id, allUsers.map(u => u.id)),
+    ]).then(([participations, loggedUserIds]) => {
+      if (cancelled) return
+      setRoster({
+        statusByUserId: new Map(participations.map(p => [p.userId, p.status])),
+        loggedUserIds,
+      })
+    })
+    return () => { cancelled = true }
+  }, [challenge, allUsers])
+
   // ── Bonus challenge: load current user's log + subscribe to week logs ────
 
   const activeBonusWeek = useMemo(
@@ -380,6 +408,22 @@ export default function HomePage() {
 
       await upsertDailyLog(stripUndefined(log))
 
+      // Logging a day opts you into the challenge — create the participation
+      // record if none exists yet (undefined = still loading, don't touch it)
+      if (participation === null) {
+        const now = new Date().toISOString()
+        const joined: ChallengeParticipation = {
+          id: participationId(currentUser.id, challenge.id),
+          userId: currentUser.id,
+          challengeId: challenge.id,
+          status: 'active',
+          joinedAt: now,
+          updatedAt: now,
+        }
+        await upsertParticipation(joined)
+        setParticipation(joined)
+      }
+
       // Update allLogs cache
       const updatedLogs = [...allLogs.filter(l => l.id !== log.id), log]
         .sort((a, b) => a.date.localeCompare(b.date))
@@ -464,7 +508,7 @@ export default function HomePage() {
         }
       }
     },
-    [currentUser, challenge, allLogs, todayLog, today]
+    [currentUser, challenge, allLogs, todayLog, today, participation]
   )
 
   const saveTodayLog = useCallback(
@@ -727,13 +771,27 @@ export default function HomePage() {
   const isDayDone     = todayFraction >= 1
 
   // ── Group PAX stats ──────────────────────────────────────────────────────
-  const totalPAX      = allUsers.length
+  // Only count users participating in this challenge — anyone who has logged a
+  // day, explicitly opted in, or (early in the month) hasn't opted out. Keeps
+  // inactive month-over-month users out of crew lists and PAX totals.
+  const participants = roster
+    ? allUsers.filter(u =>
+        isChallengeParticipant(
+          roster.statusByUserId.get(u.id),
+          // The person holding the phone is always "active in the app"
+          u.id === currentUser.id || roster.loggedUserIds.has(u.id),
+          dayNumber,
+        )
+      )
+    : allUsers // roster still loading — fall back to everyone
+
+  const totalPAX      = participants.length
   const completedCount = groupLogs.filter(l => l.completionFraction >= 1).length
   const activeCount    = groupLogs.filter(l => l.completionFraction > 0 && l.completionFraction < 1).length
 
   // Users who haven't completed today (for the "push your crew" list)
-  const loggedUserIds = new Set(groupLogs.filter(l => l.completionFraction >= 1).map(l => l.userId))
-  const incompleteUsers = allUsers.filter(u => u.id !== currentUser.id && !loggedUserIds.has(u.id))
+  const completedTodayIds = new Set(groupLogs.filter(l => l.completionFraction >= 1).map(l => l.userId))
+  const incompleteUsers = participants.filter(u => u.id !== currentUser.id && !completedTodayIds.has(u.id))
 
   const majorityDone = totalPAX > 0 && completedCount / totalPAX > 0.5
 
@@ -1028,8 +1086,9 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── Post-completion: encourage your crew ── */}
-        {isDayDone && !dayJustCompleted && (
+        {/* ── Post-completion: encourage your crew (waits for roster so the
+              list never flashes non-participants) ── */}
+        {isDayDone && !dayJustCompleted && roster && (
           <div className="rounded-2xl border border-amber-700/50 bg-gradient-to-b from-amber-950/40 to-orange-950/20 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-amber-300 font-bold text-sm">Push your crew 👊</p>

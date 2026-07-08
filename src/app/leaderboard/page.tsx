@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useUser } from '@/contexts/UserContext'
 import { getCurrentChallenge, getTodayPT, getChallengeDates, getDayNumber, getTotalDays } from '@/lib/challenges'
 import { getUserChallengeLogs, getChallengeParticipants, getDailyLog } from '@/lib/firestore'
-import { monthProgress, cn } from '@/lib/utils'
+import { monthProgress, cn, isChallengeParticipant } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
 import { GroupStats } from '@/components/leaderboard/GroupStats'
 import { GroupHeatMap } from '@/components/leaderboard/GroupHeatMap'
@@ -221,7 +221,12 @@ export default function LeaderboardPage() {
   const totalDays      = challenge ? getTotalDays(challenge) : 0
   const progress       = challenge ? monthProgress(challenge.startDate, challenge.endDate) : 0
   const completedToday = entries.filter(e => e.todayComplete).length
-  const needsPush      = entries.filter(e => !e.todayComplete && e.participation?.status !== 'opted-out')
+  // Only nudge PAX participating in this challenge (logged something, opted
+  // in, or still in the early-month grace window) — not inactive users
+  const needsPush      = entries.filter(e =>
+    !e.todayComplete &&
+    isChallengeParticipant(e.participation?.status, e.completedDays > 0 || e.totalReps > 0, dayNum)
+  )
 
   return (
     <div className="pb-nav">

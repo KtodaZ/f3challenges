@@ -124,6 +124,29 @@ export async function getLogsForDate(challengeId: string, date: string): Promise
   return snap.docs.map(d => d.data() as DailyLog)
 }
 
+/**
+ * IDs of users with at least one log in this challenge.
+ * One limit(1) query per user — 1 doc read each — instead of fetching every log.
+ */
+export async function getUsersWithChallengeLogs(
+  challengeId: string,
+  userIds: string[]
+): Promise<Set<string>> {
+  const results = await Promise.all(
+    userIds.map(async userId => {
+      const q = query(
+        dailyLogsCol(),
+        where('userId', '==', userId),
+        where('challengeId', '==', challengeId),
+        limit(1)
+      )
+      const snap = await getDocs(q)
+      return snap.empty ? null : userId
+    })
+  )
+  return new Set(results.filter((id): id is string => id !== null))
+}
+
 export function subscribeToDailyLog(
   userId: string,
   date: string,
