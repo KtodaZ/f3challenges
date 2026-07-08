@@ -21,6 +21,14 @@ export function formatDate(date: string): string {
   })
 }
 
+/** Format a duration in seconds as m:ss (e.g. 180 → "3:00"). */
+export function formatClock(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds))
+  const mins = Math.floor(s / 60)
+  const secs = s % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
 /** Format ISO timestamp to "2h ago", "just now", etc. */
 export function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
