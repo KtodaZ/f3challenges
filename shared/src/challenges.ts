@@ -268,6 +268,17 @@ export const CHALLENGES: ChallengeTemplate[] = [
             'Rattlesnake Ridge: conquered (3×). @{name} logged Tour de Bedrock Week 2. 🐍 {hashtag}',
           ],
         },
+        {
+          startDate: '2026-07-12',
+          endDate: '2026-07-18',
+          description: 'Heavy ruck or carry (45+ lb) up Sierra College Blvd — Miners Ravine Trailhead to Secret Ravine Blvd. No ruck? A cinder block or sandbag counts.',
+          feedPostTemplates: [
+            '@{name} rucked 45+ lb up Sierra College Blvd — Miners Ravine to Secret Ravine. The weight didn\'t carry itself. 🎒 {hashtag}',
+            'Heavy up the hill. @{name} hauled the weight up Sierra College Blvd for Tour de Bedrock Week 3. 💪 {hashtag}',
+            '@{name} carried the load up Sierra College Blvd — ruck, cinder block, sandbag, whatever it took. Week 3 done. 🧱 {hashtag}',
+            'Miners Ravine to Secret Ravine, 45 lb on the back. @{name} earns Tour de Bedrock Week 3. 🔥 {hashtag}',
+          ],
+        },
       ],
     },
     copy: {
