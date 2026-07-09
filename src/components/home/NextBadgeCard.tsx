@@ -35,6 +35,7 @@ export function NextBadgeCard({ nextUp, hasMissedDays }: NextBadgeCardProps) {
       <div className="space-y-3">
         {nextUp.map(e => {
           const pct = Math.min(100, Math.round((e.progress.current / e.progress.target) * 100))
+          const remaining = Math.max(0, e.progress.target - e.progress.current)
           const isComeback = e.def.category === 'comeback'
           return (
             <div key={e.def.id} className="flex items-center gap-3">
@@ -56,7 +57,9 @@ export function NextBadgeCard({ nextUp, hasMissedDays }: NextBadgeCardProps) {
                 </div>
                 {isComeback && hasMissedDays && (
                   <p className="text-[11px] text-orange-400/90 mt-1">
-                    ⏳ Make up a missed day below to claim it
+                    ⏳ {remaining === 1
+                      ? 'One makeup day in Catch Up below claims it'
+                      : 'Make up missed days in Catch Up below to close the gap'}
                   </p>
                 )}
               </div>
