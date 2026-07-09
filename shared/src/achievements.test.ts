@@ -100,16 +100,25 @@ describe('comeback achievements', () => {
     expect(progressOf('time-traveler', c).earned).toBe(false)
   })
 
-  it('clean-slate: full challenge with 2+ made-up days', () => {
+  it('clean-slate: all makeup debt cleared, 2+ days deep', () => {
     const logs = fullFebLogs()
     logs[3] = { ...logs[3], isMakeUp: true }
     logs[9] = { ...logs[9], isMakeUp: true }
-    expect(progressOf('clean-slate', ctx({ logs })).earned).toBe(true)
+    expect(progressOf('clean-slate', ctx({ logs }))).toMatchObject({ earned: true, current: 2, target: 2 })
 
-    // Only one makeup — no real comeback story
+    // Only one makeup and nothing missed — never fell 2+ behind
     const oneMakeup = fullFebLogs()
     oneMakeup[3] = { ...oneMakeup[3], isMakeUp: true }
     expect(progressOf('clean-slate', ctx({ logs: oneMakeup })).earned).toBe(false)
+  })
+
+  it('clean-slate progress counts outstanding missed days as remaining debt', () => {
+    // Days 1–20 complete (2 via makeup), days 21–28 missed → debt 10, cleared 2
+    const logs = fullFebLogs().slice(0, 20)
+    logs[3] = { ...logs[3], isMakeUp: true }
+    logs[9] = { ...logs[9], isMakeUp: true }
+    const p = progressOf('clean-slate', ctx({ logs }))
+    expect(p).toMatchObject({ earned: false, current: 2, target: 10 })
   })
 })
 
@@ -129,11 +138,13 @@ describe('special achievements', () => {
   it('iron-month: every required day on time', () => {
     expect(progressOf('iron-month', ctx({ logs: fullFebLogs() })).earned).toBe(true)
 
+    // One made-up day breaks the perfect month — that challenge no longer
+    // counts as progress at all (the badge is impossible there)
     const withMakeup = fullFebLogs()
     withMakeup[0] = { ...withMakeup[0], isMakeUp: true }
     const p = progressOf('iron-month', ctx({ logs: withMakeup }))
     expect(p.earned).toBe(false)
-    expect(p.current).toBe(27)
+    expect(p.current).toBe(0)
   })
 
   it('launch-day: Day 1 completed on the day, not as a makeup', () => {

@@ -9,7 +9,14 @@
 // which powers both awarding AND the "you're 1 makeup day away from Phoenix"
 // near-miss advertising on the home screen.
 
-import { CHALLENGES, getRequiredDays } from './challenges'
+import {
+  CHALLENGES,
+  getRequiredDays,
+  getChallengeDates,
+  getTodayPT,
+  isRestDay,
+  conditionalRestApplies,
+} from './challenges'
 
 // ─── Inputs ───────────────────────────────────────────────────────────────────
 
@@ -134,16 +141,6 @@ function perChallengeStats(ctx: AchievementContext): PerChallengeStats[] {
   }).filter(s => s.completedDays > 0)
 }
 
-/** The per-challenge stat row closest to (or past) a goal, by completion ratio. */
-function bestChallenge(
-  stats: PerChallengeStats[],
-  value: (s: PerChallengeStats) => number,
-): PerChallengeStats | undefined {
-  return [...stats].sort(
-    (a, b) => value(b) / b.requiredDays - value(a) / a.requiredDays
-  )[0]
-}
-
 function streakAchievement(id: string, name: string, emoji: string, description: string, days: number, tier: number, theme: CelebrationTheme = 'gold'): AchievementDefinition {
   return {
     id, name, emoji, description,
@@ -203,14 +200,33 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Clean Slate',
     emoji: '🧹',
     description: 'Fell behind, fought back, and cleared every missed day of a challenge.',
-    howTo: 'Fall at least 2 days behind, make them all up, and finish every required day of a challenge.',
-    category: 'comeback', unitLabel: 'days', theme: 'embers',
+    howTo: 'Fall at least 2 days behind in a challenge, then make up every missed day — clear the whole debt.',
+    category: 'comeback', unitLabel: 'makeup days', theme: 'embers',
     progress: ctx => {
-      // Needs a real comeback: a fully-complete challenge with 2+ made-up days.
-      const stats = perChallengeStats(ctx).filter(s => s.makeupDays >= 2)
-      const best = bestChallenge(stats, s => s.completedDays)
-      if (!best) return { current: 0, target: 1, earned: false }
-      return countProgress(best.completedDays, best.requiredDays)
+      // Progress is makeup debt cleared: current = days made up, target = total
+      // debt (made up + still missed). Earned when a challenge where you fell
+      // 2+ days behind has zero missed days left.
+      const today = getTodayPT()
+      let best: AchievementProgress | null = null
+      for (const c of CHALLENGES) {
+        const logs = ctx.logs.filter(l => l.challengeId === c.id)
+        if (logs.length === 0) continue
+        const complete = logs.filter(l => l.completionFraction >= 1)
+        const completedDates = complete.map(l => l.date)
+        const completedSet = new Set(completedDates)
+        const madeUp = complete.filter(l => l.isMakeUp).length
+        const missed = getChallengeDates(c).filter(d =>
+          d < today &&
+          !isRestDay(c, d) &&
+          !conditionalRestApplies(c, d, completedDates) &&
+          !completedSet.has(d)
+        ).length
+        const debt = madeUp + missed
+        if (debt < 2) continue // never fell 2+ days behind — no comeback story
+        const p = countProgress(madeUp, debt)
+        if (!best || p.current / p.target > best.current / best.target) best = p
+      }
+      return best ?? { current: 0, target: 2, earned: false }
     },
   },
 
@@ -291,9 +307,27 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     howTo: "Complete every required day of a challenge on the day it's due — zero makeups.",
     category: 'special', unitLabel: 'on-time days', theme: 'fireworks',
     progress: ctx => {
-      const best = bestChallenge(perChallengeStats(ctx), s => s.onTimeDays)
-      if (!best) return { current: 0, target: 30, earned: false }
-      return countProgress(best.onTimeDays, best.requiredDays)
+      // A single past day not completed on time makes a perfect month
+      // impossible — those challenges don't count as progress (no dangling
+      // "5 days away" for a badge that can no longer be earned there).
+      const today = getTodayPT()
+      let best: AchievementProgress | null = null
+      for (const c of CHALLENGES) {
+        const logs = ctx.logs.filter(l => l.challengeId === c.id)
+        if (logs.length === 0) continue
+        const completedDates = logs.filter(l => l.completionFraction >= 1).map(l => l.date)
+        const onTime = new Set(
+          logs.filter(l => l.completionFraction >= 1 && !l.isMakeUp).map(l => l.date)
+        )
+        const requiredDates = getChallengeDates(c).filter(d =>
+          !isRestDay(c, d) && !conditionalRestApplies(c, d, completedDates)
+        )
+        const broken = requiredDates.some(d => d < today && !onTime.has(d))
+        if (broken) continue
+        const p = countProgress(onTime.size, requiredDates.length)
+        if (!best || p.current / p.target > best.current / best.target) best = p
+      }
+      return best ?? { current: 0, target: 30, earned: false }
     },
   },
   {

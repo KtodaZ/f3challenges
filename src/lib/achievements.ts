@@ -35,7 +35,8 @@ export function toAchievementLog(log: DailyLog): AchievementLogInput {
     challengeId: log.challengeId,
     completionFraction: log.completionFraction,
     isMakeUp: log.isMakeUp ?? false,
-    loggedAt: log.updatedAt ?? log.loggedAt,
+    // Timing badges want the moment the day was finished, not the last edit
+    loggedAt: log.completedAt ?? log.updatedAt ?? log.loggedAt,
     completedReps: log.exerciseLogs.reduce((s, e) => s + e.completedReps, 0),
     targetReps: log.exerciseLogs.reduce((s, e) => s + e.targetReps, 0),
   }
