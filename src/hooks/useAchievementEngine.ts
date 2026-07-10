@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useUser } from '@/contexts/UserContext'
+import { getTodayPT } from '@/lib/challenges'
 import { getSocialStats, getUserBonusLogs, getChallengeLogs } from '@/lib/firestore'
 import type { SocialStats } from '@/lib/firestore'
 import {
@@ -116,7 +117,13 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
     [ctx]
   )
 
-  const nextUp = useMemo(() => (ctx ? getNextAchievements(ctx, 2) : []), [ctx])
+  // Rotation seed from today's PT date: slot 1 stays the closest badge,
+  // slot 2 rotates daily through the other near-misses
+  const nextUp = useMemo(() => {
+    if (!ctx) return []
+    const seed = Number(getTodayPT().replace(/-/g, ''))
+    return getNextAchievements(ctx, 2, seed)
+  }, [ctx])
 
   return { evaluations, nextUp }
 }

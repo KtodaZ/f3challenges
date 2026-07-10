@@ -238,15 +238,34 @@ describe('special achievements', () => {
     expect(progressOf('ambassador', ctx({ shoutoutCoverage: { covered: 3, total: 3 } })).earned).toBe(false)
   })
 
-  it('challenge signature badges generate from the template', () => {
+  it('challenge signature badges generate from the template (full month)', () => {
     const machine = getAchievementById('jul-2026-machine')
     expect(machine).toBeDefined()
-    const logs = Array.from({ length: 25 }, (_, i) =>
+    const fullJuly = Array.from({ length: 31 }, (_, i) =>
       log({ date: `2026-07-${String(i + 1).padStart(2, '0')}`, challengeId: 'jul-2026' })
     )
-    expect(machine!.progress(ctx({ logs })).earned).toBe(true)
+    expect(machine!.progress(ctx({ logs: fullJuly }))).toMatchObject({ earned: true, target: 31 })
+    expect(machine!.progress(ctx({ logs: fullJuly.slice(0, 25) }))).toMatchObject({ earned: false, current: 25 })
     // Logs from other challenges don't count
     expect(machine!.progress(ctx({ logs: fullFebLogs() }))).toMatchObject({ current: 0, earned: false })
+  })
+
+  it('full-house reads context count', () => {
+    expect(progressOf('full-house', ctx({ fullHouseDays: 1 })).earned).toBe(true)
+    expect(progressOf('full-house', ctx()).earned).toBe(false)
+  })
+
+  it('getNextAchievements rotation keeps slot 1 fixed and rotates slot 2', () => {
+    // Progress on several fronts so there are 3+ candidates
+    const c = ctx({
+      longestStreak: 6,
+      logs: [log({ completedReps: 800, targetReps: 800 })],
+      commentsPosted: 10,
+    })
+    const a = getNextAchievements(c, 2, 1)
+    const b = getNextAchievements(c, 2, 2)
+    expect(a[0].def.id).toBe(b[0].def.id)       // closest stays pinned
+    expect(a[1].def.id).not.toBe(b[1].def.id)   // second slot rotates with the seed
   })
 
   it('getFeaturedAchievement resolves the Badge of the Month', () => {

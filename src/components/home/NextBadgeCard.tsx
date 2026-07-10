@@ -1,7 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { nearMissLabel } from '@/lib/challenges'
+import { BadgeDetailModal } from '@/components/ui/BadgeDetailModal'
+import type { BadgeDetail } from '@/components/ui/BadgeDetailModal'
 import type { AchievementEvaluation } from '@/types'
 
 interface NextBadgeCardProps {
@@ -13,14 +16,18 @@ interface NextBadgeCardProps {
 }
 
 /**
- * "Next badge" near-miss advertising: the one or two achievements the user is
- * closest to earning, with a progress bar and a nudge. Comeback badges point
- * at the Catch Up section when there are missed days to claim them with.
- * The challenge's Badge of the Month is pinned on top until it's earned.
+ * "Next badge" near-miss advertising. Slot 1 is the closest badge by
+ * completion ratio; the second slot rotates daily through the other
+ * near-misses (see getNextAchievements). The challenge's Badge of the
+ * Month stays pinned on top until earned. Tap any badge for details.
  */
 export function NextBadgeCard({ nextUp, featured, hasMissedDays }: NextBadgeCardProps) {
+  const [detail, setDetail] = useState<BadgeDetail | null>(null)
   const rows = nextUp.filter(e => e.def.id !== featured?.def.id)
   if (rows.length === 0 && !featured) return null
+
+  const openDetail = (e: AchievementEvaluation) =>
+    setDetail({ kind: 'achievement', item: e, earned: false })
 
   return (
     <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
@@ -37,7 +44,11 @@ export function NextBadgeCard({ nextUp, featured, hasMissedDays }: NextBadgeCard
       </div>
 
       {featured && (
-        <div className="rounded-xl bg-gradient-to-r from-amber-950/60 to-orange-950/40 border border-amber-700/40 p-3">
+        <button
+          type="button"
+          onClick={() => openDetail(featured)}
+          className="w-full text-left rounded-xl bg-gradient-to-r from-amber-950/60 to-orange-950/40 border border-amber-700/40 p-3 active:scale-[0.98] transition-transform"
+        >
           <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2">
             🎪 Badge of the Month
           </p>
@@ -61,7 +72,7 @@ export function NextBadgeCard({ nextUp, featured, hasMissedDays }: NextBadgeCard
               </div>
             </div>
           </div>
-        </div>
+        </button>
       )}
 
       <div className="space-y-3">
@@ -70,7 +81,12 @@ export function NextBadgeCard({ nextUp, featured, hasMissedDays }: NextBadgeCard
           const remaining = Math.max(0, e.progress.target - e.progress.current)
           const isComeback = e.def.category === 'comeback'
           return (
-            <div key={e.def.id} className="flex items-center gap-3">
+            <button
+              type="button"
+              key={e.def.id}
+              onClick={() => openDetail(e)}
+              className="w-full text-left flex items-center gap-3 active:scale-[0.98] transition-transform"
+            >
               <div className="w-11 h-11 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xl shrink-0">
                 {e.def.emoji}
               </div>
@@ -95,10 +111,12 @@ export function NextBadgeCard({ nextUp, featured, hasMissedDays }: NextBadgeCard
                   </p>
                 )}
               </div>
-            </div>
+            </button>
           )
         })}
       </div>
+
+      <BadgeDetailModal detail={detail} onClose={() => setDetail(null)} />
     </div>
   )
 }

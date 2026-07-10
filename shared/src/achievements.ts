@@ -47,6 +47,8 @@ export interface AchievementContext {
   lastFinisherDays?: number
   /** Days where this user finished within 5 minutes of another PAX. */
   photoFinishDays?: number
+  /** Days where the entire active roster (5+ PAX) finished, this user included. */
+  fullHouseDays?: number
   /** Feed comments this user has posted. */
   commentsPosted?: number
   /** Callouts where the called-out PAX went on to finish that day. */
@@ -443,6 +445,15 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
     progress: ctx => countProgress(ctx.lastFinisherDays ?? 0, 5),
   },
   {
+    id: 'full-house',
+    name: 'Full House',
+    emoji: '🤝',
+    description: 'Completed on a day the WHOLE crew finished. All of us.',
+    howTo: 'Complete your day on a day when every active PAX finishes theirs (5+ PAX). The whole group unlocks it together.',
+    category: 'special', unitLabel: 'full-house days', theme: 'fireworks',
+    progress: ctx => countProgress(ctx.fullHouseDays ?? 0, 1),
+  },
+  {
     id: 'photo-finish',
     name: 'Photo Finish',
     emoji: '📸',
@@ -670,10 +681,14 @@ export function findNewlyEarned(
  * - skips earned, secret, and zero-progress achievements
  * - within a chain (streak/volume ladders), only the next unearned tier
  * - sorted by completion ratio (closest first)
+ * - with a rotateSeed (e.g. derived from today's date): slot 1 stays the
+ *   closest badge, while the remaining slots rotate through the other
+ *   candidates so the card doesn't go stale between unlocks
  */
 export function getNextAchievements(
   ctx: AchievementContext,
   count = 2,
+  rotateSeed?: number,
 ): AchievementEvaluation[] {
   const evals = evaluateAchievements(ctx)
   const candidates = evals.filter(e => {
@@ -690,11 +705,17 @@ export function getNextAchievements(
     }
     return true
   })
-  return candidates
-    .sort((a, b) =>
-      b.progress.current / b.progress.target - a.progress.current / a.progress.target
-    )
-    .slice(0, count)
+  const sorted = candidates.sort((a, b) =>
+    b.progress.current / b.progress.target - a.progress.current / a.progress.target
+  )
+  if (rotateSeed === undefined || sorted.length <= count) return sorted.slice(0, count)
+
+  const picked = [sorted[0]]
+  const rest = sorted.slice(1)
+  for (let i = 0; i < count - 1 && rest.length > 0; i++) {
+    picked.push(rest.splice((rotateSeed + i) % rest.length, 1)[0])
+  }
+  return picked
 }
 
 /** "2 days away", "300 reps away", "1 makeup day away" */

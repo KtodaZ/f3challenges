@@ -64,6 +64,7 @@ export interface GroupFinishStats {
   firstFinisherDays: number
   lastFinisherDays: number
   photoFinishDays: number
+  fullHouseDays: number
 }
 
 /**
@@ -71,10 +72,13 @@ export interface GroupFinishStats {
  * - first: earliest completion of the day (First Blood / Pace Setter)
  * - last: latest completion on days with 3+ finishers (The Six)
  * - photo: finished within 5 minutes of another PAX (Photo Finish)
+ * - fullHouse: the entire roster (everyone with any log this challenge,
+ *   min 5 PAX) finished, this user included (Full House)
  * Only on-time (non-makeup) complete logs count. Legacy logs without
  * completedAt fall back to their last write time.
  */
 export function computeGroupFinishStats(groupLogs: DailyLog[], userId: string): GroupFinishStats {
+  const roster = new Set(groupLogs.map(l => l.userId))
   const byDate = new Map<string, DailyLog[]>()
   for (const log of groupLogs) {
     if (log.completionFraction < 1 || log.isMakeUp) continue
@@ -83,7 +87,9 @@ export function computeGroupFinishStats(groupLogs: DailyLog[], userId: string): 
     byDate.set(log.date, arr)
   }
 
-  const stats: GroupFinishStats = { firstFinisherDays: 0, lastFinisherDays: 0, photoFinishDays: 0 }
+  const stats: GroupFinishStats = {
+    firstFinisherDays: 0, lastFinisherDays: 0, photoFinishDays: 0, fullHouseDays: 0,
+  }
   const FIVE_MIN = 5 * 60_000
 
   for (const logs of byDate.values()) {
@@ -98,6 +104,11 @@ export function computeGroupFinishStats(groupLogs: DailyLog[], userId: string): 
         l.userId !== userId && Math.abs(new Date(finishTime(l)).getTime() - myTime) <= FIVE_MIN
       )
       if (close) stats.photoFinishDays++
+
+      const finishers = new Set(sorted.map(l => l.userId))
+      if (roster.size >= 5 && [...roster].every(id => finishers.has(id))) {
+        stats.fullHouseDays++
+      }
     }
   }
   return stats
@@ -180,6 +191,7 @@ export function buildAchievementContext(
     firstFinisherDays: group?.firstFinisherDays,
     lastFinisherDays: group?.lastFinisherDays,
     photoFinishDays: group?.photoFinishDays,
+    fullHouseDays: group?.fullHouseDays,
     commentsPosted: extras?.commentsPosted,
     successfulCallouts: extras?.givenShoutouts && extras?.groupLogs
       ? countSuccessfulCallouts(extras.givenShoutouts, extras.groupLogs)
