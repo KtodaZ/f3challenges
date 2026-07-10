@@ -78,11 +78,11 @@ export function buildDebtFreeCelebration(): CelebrationContent {
   }
 }
 
-export function buildUnlockCelebration(def: AchievementDefinition): CelebrationContent {
+export function buildUnlockCelebration(def: AchievementDefinition, featured = false): CelebrationContent {
   return {
-    theme: def.theme,
+    theme: featured ? 'fireworks' : def.theme,
     emoji: def.emoji,
-    kicker: 'Achievement Unlocked',
+    kicker: featured ? '🎪 Badge of the Month Unlocked' : 'Achievement Unlocked',
     title: def.name.toUpperCase(),
     subtitle: def.description,
     detail: { emoji: '🏅', title: `${def.name} added to your trophy case` },

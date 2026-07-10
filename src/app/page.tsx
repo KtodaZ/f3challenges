@@ -256,24 +256,36 @@ export default function HomePage() {
 
   // Achievement engine: evaluates the catalog over all the user's logs,
   // awards new badges, and feeds the "next badge" near-miss card
+  const featuredBadgeId = challenge?.featuredBadgeId
   const handleUnlocked = useCallback((defs: AchievementDefinition[]) => {
     // A retroactive flood (first run for an existing user) collapses into one modal
     setCelebrationQueue(q => [
       ...q,
-      ...(defs.length > 2 ? [buildMultiUnlockCelebration(defs)] : defs.map(buildUnlockCelebration)),
+      ...(defs.length > 2
+        ? [buildMultiUnlockCelebration(defs)]
+        : defs.map(d => buildUnlockCelebration(d, d.id === featuredBadgeId))),
     ])
-  }, [])
+  }, [featuredBadgeId])
 
   const allUserLogs = useMemo(
     () => [...allLogs, ...Object.values(pastChallengeLogs).flat()],
     [allLogs, pastChallengeLogs]
   )
 
-  const { nextUp } = useAchievementEngine({
+  const { nextUp, evaluations } = useAchievementEngine({
     logs: allUserLogs,
     challengeId: challenge?.id,
     onUnlocked: handleUnlocked,
   })
+
+  // Badge of the Month — pinned on the Next Badge card until earned
+  const featuredEval = useMemo(() => {
+    if (!featuredBadgeId) return undefined
+    const e = evaluations.find(ev => ev.def.id === featuredBadgeId)
+    if (!e || e.progress.earned) return undefined
+    if (currentUser?.achievements?.some(a => a.id === featuredBadgeId)) return undefined
+    return e
+  }, [evaluations, featuredBadgeId, currentUser?.achievements])
 
   // ── Redirect if no user ──────────────────────────────────────────────────
 
@@ -1110,8 +1122,8 @@ export default function HomePage() {
           ))}
         </div>}
 
-        {/* ── Next badge: near-miss achievement advertising ── */}
-        <NextBadgeCard nextUp={nextUp} hasMissedDays={incompletePastDates.length > 0} />
+        {/* ── Next badge: near-miss advertising + Badge of the Month ── */}
+        <NextBadgeCard nextUp={nextUp} featured={featuredEval} hasMissedDays={incompletePastDates.length > 0} />
 
         {/* ── Catch Up: missed days + missed bonus weeks (current challenge) ── */}
         {hasCatchUp && (

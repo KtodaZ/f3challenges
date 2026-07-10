@@ -39,6 +39,19 @@ export interface BonusChallenge {
   weeks: BonusChallengeWeek[]
 }
 
+// A signature achievement that ships with a specific challenge — defined as
+// data here, turned into a full AchievementDefinition by achievements.ts.
+export interface ChallengeBadgeDef {
+  id: string // globally unique, e.g. 'jul-2026-machine'
+  name: string
+  emoji: string
+  description: string
+  howTo: string
+  criteria:
+    | { type: 'complete-challenge' }              // every required day (makeups count)
+    | { type: 'complete-days'; days: number }     // N fully completed days
+}
+
 export interface ChallengeTemplate {
   id: string
   name: string
@@ -63,6 +76,13 @@ export interface ChallengeTemplate {
 
   // Optional bonus challenge with weekly segments displayed alongside the main challenge
   bonusChallenge?: BonusChallenge
+
+  // Signature achievements that ship with this challenge (see ChallengeBadgeDef)
+  badges?: ChallengeBadgeDef[]
+
+  // Badge of the Month: featured achievement id — pinned on the home
+  // Next Badge card and unlocked with extra fanfare
+  featuredBadgeId?: string
 
   startDate: string // YYYY-MM-DD
   endDate: string   // YYYY-MM-DD

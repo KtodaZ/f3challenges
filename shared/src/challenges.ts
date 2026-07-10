@@ -243,6 +243,18 @@ export const CHALLENGES: ChallengeTemplate[] = [
         ],
       },
     ],
+    // Badge of the Month — pinned on the home card, extra fanfare on unlock
+    featuredBadgeId: 'quick-rebound',
+    badges: [
+      {
+        id: 'jul-2026-machine',
+        name: 'The Machine',
+        emoji: '🦾',
+        description: '25 days of the July FFC. Built different.',
+        howTo: 'Fully complete 25 days of the July Functional Fitness Challenge — makeups count.',
+        criteria: { type: 'complete-days', days: 25 },
+      },
+    ],
     bonusChallenge: {
       name: 'Tour de Bedrock',
       weeks: [

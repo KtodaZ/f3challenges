@@ -6,6 +6,8 @@ import type { AchievementEvaluation } from '@/types'
 
 interface NextBadgeCardProps {
   nextUp: AchievementEvaluation[]
+  /** Badge of the Month, pinned above the near-miss rows until earned. */
+  featured?: AchievementEvaluation
   /** True when the user has missed days available to make up right now. */
   hasMissedDays?: boolean
 }
@@ -14,9 +16,11 @@ interface NextBadgeCardProps {
  * "Next badge" near-miss advertising: the one or two achievements the user is
  * closest to earning, with a progress bar and a nudge. Comeback badges point
  * at the Catch Up section when there are missed days to claim them with.
+ * The challenge's Badge of the Month is pinned on top until it's earned.
  */
-export function NextBadgeCard({ nextUp, hasMissedDays }: NextBadgeCardProps) {
-  if (nextUp.length === 0) return null
+export function NextBadgeCard({ nextUp, featured, hasMissedDays }: NextBadgeCardProps) {
+  const rows = nextUp.filter(e => e.def.id !== featured?.def.id)
+  if (rows.length === 0 && !featured) return null
 
   return (
     <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
@@ -32,8 +36,36 @@ export function NextBadgeCard({ nextUp, hasMissedDays }: NextBadgeCardProps) {
         </Link>
       </div>
 
+      {featured && (
+        <div className="rounded-xl bg-gradient-to-r from-amber-950/60 to-orange-950/40 border border-amber-700/40 p-3">
+          <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2">
+            🎪 Badge of the Month
+          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-amber-900/40 border border-amber-700/60 flex items-center justify-center text-xl shrink-0">
+              {featured.def.emoji}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-sm font-bold text-white truncate">{featured.def.name}</p>
+                <p className="text-xs text-amber-400 font-semibold shrink-0">
+                  {nearMissLabel(featured)}
+                </p>
+              </div>
+              <p className="text-[11px] text-zinc-400 truncate">{featured.def.description}</p>
+              <div className="h-1.5 bg-zinc-800 rounded-full mt-1.5 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all"
+                  style={{ width: `${Math.min(100, Math.round((featured.progress.current / featured.progress.target) * 100))}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
-        {nextUp.map(e => {
+        {rows.map(e => {
           const pct = Math.min(100, Math.round((e.progress.current / e.progress.target) * 100))
           const remaining = Math.max(0, e.progress.target - e.progress.current)
           const isComeback = e.def.category === 'comeback'
