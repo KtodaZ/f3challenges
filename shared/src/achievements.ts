@@ -516,10 +516,10 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     id: 'completionist',
     name: 'Completionist',
     emoji: '🎖️',
-    description: '15 badges in the trophy case. You collect glory.',
-    howTo: 'Earn 15 other achievements. The badge for chasing badges.',
+    description: '25 badges in the trophy case. You collect glory.',
+    howTo: 'Earn 25 other achievements — secrets included. The badge for chasing badges.',
     category: 'special', unitLabel: 'badges', theme: 'fireworks',
-    progress: ctx => countProgress(ctx.earnedBadgesCount ?? 0, 15),
+    progress: ctx => countProgress(ctx.earnedBadgesCount ?? 0, 25),
   },
 
   // ── Advanced ──
