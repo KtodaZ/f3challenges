@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useUser } from '@/contexts/UserContext'
-import { getShoutoutCounts, getUserBonusLogs, getChallengeLogs } from '@/lib/firestore'
+import { getSocialStats, getUserBonusLogs, getChallengeLogs } from '@/lib/firestore'
+import type { SocialStats } from '@/lib/firestore'
 import {
   buildAchievementContext,
-  countFirstFinisherDays,
   evaluateAchievements,
   findNewlyEarned,
   getNextAchievements,
@@ -39,7 +39,7 @@ interface UseAchievementEngineOptions {
 export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchievementEngineOptions) {
   const { currentUser, refreshCurrentUser } = useUser()
 
-  const [social, setSocial] = useState<{ given: number; received: number } | null>(null)
+  const [social, setSocial] = useState<SocialStats | null>(null)
   const [bonusLogs, setBonusLogs] = useState<BonusLog[] | null>(null)
   const [groupLogs, setGroupLogs] = useState<DailyLog[] | null>(null)
   const sessionAwarded = useRef<EarnedAchievement[]>([])
@@ -47,12 +47,12 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
 
   const userId = currentUser?.id
 
-  // Social + bonus + group (first-finisher) context loads once per user
+  // Social + bonus + group-placement context loads once per user
   useEffect(() => {
     if (!userId) return
     let cancelled = false
     Promise.all([
-      getShoutoutCounts(userId),
+      getSocialStats(userId),
       getUserBonusLogs(userId),
       challengeId ? getChallengeLogs(challengeId) : Promise.resolve([]),
     ])
@@ -64,7 +64,7 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
       })
       .catch(() => {
         if (cancelled) return
-        setSocial({ given: 0, received: 0 })
+        setSocial({ givenShoutouts: [], shoutoutsReceived: 0, commentsPosted: 0 })
         setBonusLogs([])
         setGroupLogs([])
       })
@@ -74,21 +74,19 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
   const ctx = useMemo(() => {
     if (!currentUser) return null
     // Group snapshot loads once, but the user's own logs are live — merge them
-    // so being first today registers the moment the day is completed.
-    const firstFinisherDays = groupLogs
-      ? countFirstFinisherDays(
-          [
-            ...groupLogs.filter(l => l.userId !== currentUser.id),
-            ...logs.filter(l => l.challengeId === challengeId),
-          ],
-          currentUser.id,
-        )
+    // so being first (or last) today registers the moment the day completes.
+    const mergedGroupLogs = groupLogs
+      ? [
+          ...groupLogs.filter(l => l.userId !== currentUser.id),
+          ...logs.filter(l => l.challengeId === challengeId),
+        ]
       : undefined
     return buildAchievementContext(currentUser, logs, {
-      shoutoutsGiven: social?.given,
-      shoutoutsReceived: social?.received,
+      givenShoutouts: social?.givenShoutouts,
+      shoutoutsReceived: social?.shoutoutsReceived,
+      commentsPosted: social?.commentsPosted,
       bonusLogs: bonusLogs ?? undefined,
-      firstFinisherDays,
+      groupLogs: mergedGroupLogs,
     })
   }, [currentUser, logs, social, bonusLogs, groupLogs, challengeId])
 

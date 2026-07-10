@@ -18,11 +18,12 @@ import {
   upsertParticipation,
   updateUser,
   participationId,
-  getShoutoutCounts,
+  getSocialStats,
   getUserBonusLogs,
   getChallengeLogs,
 } from '@/lib/firestore'
-import { buildAchievementContext, countFirstFinisherDays, evaluateAchievements } from '@/lib/achievements'
+import type { SocialStats } from '@/lib/firestore'
+import { buildAchievementContext, evaluateAchievements } from '@/lib/achievements'
 import type { BonusLog } from '@/types'
 import {
   getCurrentChallenge,
@@ -70,24 +71,24 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
   const [participation, setParticipation] = useState<ChallengeParticipation | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Extra context for achievement progress (social, bonus, first-finisher)
-  const [shoutouts, setShoutouts] = useState<{ given: number; received: number } | null>(null)
+  // Extra context for achievement progress (social, bonus, group placements)
+  const [socialStats, setSocialStats] = useState<SocialStats | null>(null)
   const [bonusLogs, setBonusLogs] = useState<BonusLog[] | null>(null)
-  const [firstFinisherDays, setFirstFinisherDays] = useState<number | null>(null)
+  const [groupLogs, setGroupLogs] = useState<DailyLog[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
     const challenge = getCurrentChallenge()
     Promise.all([
-      getShoutoutCounts(initialUser.id),
+      getSocialStats(initialUser.id),
       getUserBonusLogs(initialUser.id),
       challenge ? getChallengeLogs(challenge.id) : Promise.resolve([]),
     ])
-      .then(([s, b, groupLogs]) => {
+      .then(([s, b, g]) => {
         if (cancelled) return
-        setShoutouts(s)
+        setSocialStats(s)
         setBonusLogs(b)
-        setFirstFinisherDays(countFirstFinisherDays(groupLogs, initialUser.id))
+        setGroupLogs(g)
       })
       .catch(() => { /* progress just shows without social/bonus counts */ })
     return () => { cancelled = true }
@@ -95,13 +96,14 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
 
   const achievementEvaluations = useMemo(() => {
     const ctx = buildAchievementContext(user, allLogs, {
-      shoutoutsGiven: shoutouts?.given,
-      shoutoutsReceived: shoutouts?.received,
+      givenShoutouts: socialStats?.givenShoutouts,
+      shoutoutsReceived: socialStats?.shoutoutsReceived,
+      commentsPosted: socialStats?.commentsPosted,
       bonusLogs: bonusLogs ?? undefined,
-      firstFinisherDays: firstFinisherDays ?? undefined,
+      groupLogs: groupLogs ?? undefined,
     })
     return evaluateAchievements(ctx)
-  }, [user, allLogs, shoutouts, bonusLogs, firstFinisherDays])
+  }, [user, allLogs, socialStats, bonusLogs, groupLogs])
 
   // Modal state
   const [editNameOpen, setEditNameOpen] = useState(false)

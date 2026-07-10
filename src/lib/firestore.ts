@@ -5,6 +5,7 @@
 
 import {
   collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -221,11 +222,16 @@ export function subscribeToFeed(
   })
 }
 
-/** Shoutouts a user has given / received — feeds the social achievements. */
-export async function getShoutoutCounts(
-  userId: string
-): Promise<{ given: number; received: number }> {
-  const [given, received] = await Promise.all([
+export interface SocialStats {
+  /** Outgoing shoutout posts (docs, for Shot Caller's date/target join). */
+  givenShoutouts: FeedPost[]
+  shoutoutsReceived: number
+  commentsPosted: number
+}
+
+/** Social activity powering the social achievements. */
+export async function getSocialStats(userId: string): Promise<SocialStats> {
+  const [given, received, comments] = await Promise.all([
     getDocs(query(
       feedCol(),
       where('type', '==', 'shoutout'),
@@ -238,8 +244,15 @@ export async function getShoutoutCounts(
       where('targetUserId', '==', userId),
       where('deleted', '==', false),
     )),
+    // Single-field collection-group query (index in firestore.indexes.json);
+    // deleted is filtered client-side to avoid needing a composite index.
+    getDocs(query(collectionGroup(db, 'comments'), where('authorId', '==', userId))),
   ])
-  return { given: given.size, received: received.size }
+  return {
+    givenShoutouts: given.docs.map(d => d.data() as FeedPost),
+    shoutoutsReceived: received.size,
+    commentsPosted: comments.docs.filter(d => !(d.data() as FeedComment).deleted).length,
+  }
 }
 
 // ─── Reactions ────────────────────────────────────────────────────────────────
