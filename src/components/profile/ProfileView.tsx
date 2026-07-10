@@ -101,6 +101,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
       commentsPosted: socialStats?.commentsPosted,
       bonusLogs: bonusLogs ?? undefined,
       groupLogs: groupLogs ?? undefined,
+      currentChallengeId: getCurrentChallenge()?.id,
     })
     return evaluateAchievements(ctx)
   }, [user, allLogs, socialStats, bonusLogs, groupLogs])

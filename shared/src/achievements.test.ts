@@ -3,11 +3,13 @@ import type { AchievementContext, AchievementLogInput } from './achievements'
 import {
   ACHIEVEMENTS,
   getAchievementById,
+  getFeaturedAchievement,
   evaluateAchievements,
   findNewlyEarned,
   getNextAchievements,
   nearMissLabel,
 } from './achievements'
+import { getChallengeById } from './challenges'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -227,6 +229,29 @@ describe('special achievements', () => {
     // Makeup at 23:50 doesn't count
     const makeup = log({ date: '2026-02-10', isMakeUp: true, loggedAt: '2026-02-11T07:50:00.000Z' })
     expect(progressOf('buzzer-beater', ctx({ logs: [makeup] })).earned).toBe(false)
+  })
+
+  it('ambassador: full roster coverage, 5+ PAX required', () => {
+    expect(progressOf('ambassador', ctx({ shoutoutCoverage: { covered: 6, total: 6 } })).earned).toBe(true)
+    expect(progressOf('ambassador', ctx({ shoutoutCoverage: { covered: 4, total: 6 } }))).toMatchObject({ earned: false, current: 4, target: 6 })
+    // Tiny roster can't earn it
+    expect(progressOf('ambassador', ctx({ shoutoutCoverage: { covered: 3, total: 3 } })).earned).toBe(false)
+  })
+
+  it('challenge signature badges generate from the template', () => {
+    const machine = getAchievementById('jul-2026-machine')
+    expect(machine).toBeDefined()
+    const logs = Array.from({ length: 25 }, (_, i) =>
+      log({ date: `2026-07-${String(i + 1).padStart(2, '0')}`, challengeId: 'jul-2026' })
+    )
+    expect(machine!.progress(ctx({ logs })).earned).toBe(true)
+    // Logs from other challenges don't count
+    expect(machine!.progress(ctx({ logs: fullFebLogs() }))).toMatchObject({ current: 0, earned: false })
+  })
+
+  it('getFeaturedAchievement resolves the Badge of the Month', () => {
+    const jul = getChallengeById('jul-2026')!
+    expect(getFeaturedAchievement(jul)?.id).toBe('quick-rebound')
   })
 
   it('social + meta badges read context counts', () => {

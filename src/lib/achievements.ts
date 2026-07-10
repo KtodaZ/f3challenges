@@ -12,6 +12,7 @@ import {
   findNewlyEarned,
   getNextAchievements,
   CHALLENGES,
+  getChallengeById,
 } from '@/lib/challenges'
 import type {
   AchievementContext,
@@ -127,15 +128,41 @@ export function countSuccessfulCallouts(
   return hits.size
 }
 
+/**
+ * Shoutout coverage of the current challenge's roster: how many of the other
+ * active PAX (anyone with a log this challenge) this user has shouted out.
+ */
+export function computeShoutoutCoverage(
+  givenShoutouts: Array<Pick<FeedPost, 'targetUserId' | 'challengeId'>>,
+  groupLogs: DailyLog[],
+  userId: string,
+  challengeId?: string,
+): { covered: number; total: number } {
+  const participants = new Set(groupLogs.map(l => l.userId))
+  participants.delete(userId)
+  const covered = new Set(
+    givenShoutouts
+      .filter(p =>
+        p.targetUserId &&
+        (!challengeId || p.challengeId === challengeId) &&
+        participants.has(p.targetUserId)
+      )
+      .map(p => p.targetUserId as string)
+  )
+  return { covered: covered.size, total: participants.size }
+}
+
 export interface AchievementExtras {
   shoutoutsGiven?: number
   shoutoutsReceived?: number
   bonusLogs?: BonusLog[]
   commentsPosted?: number
-  /** This user's outgoing shoutout posts (for Shot Caller). */
-  givenShoutouts?: Array<Pick<FeedPost, 'targetUserId' | 'createdAt'>>
+  /** This user's outgoing shoutout posts (for Shot Caller / Ambassador). */
+  givenShoutouts?: Array<Pick<FeedPost, 'targetUserId' | 'createdAt' | 'challengeId'>>
   /** All logs for the current challenge, every user (group placements). */
   groupLogs?: DailyLog[]
+  /** Current challenge id — scopes Ambassador coverage to this challenge. */
+  currentChallengeId?: string
 }
 
 export function buildAchievementContext(
@@ -156,6 +183,9 @@ export function buildAchievementContext(
     commentsPosted: extras?.commentsPosted,
     successfulCallouts: extras?.givenShoutouts && extras?.groupLogs
       ? countSuccessfulCallouts(extras.givenShoutouts, extras.groupLogs)
+      : undefined,
+    shoutoutCoverage: extras?.givenShoutouts && extras?.groupLogs
+      ? computeShoutoutCoverage(extras.givenShoutouts, extras.groupLogs, user.id, extras.currentChallengeId)
       : undefined,
     earnedBadgesCount: (user.achievements ?? []).filter(a => a.id !== 'completionist').length,
   }
@@ -189,10 +219,13 @@ export async function awardAchievements(
   const earned: EarnedAchievement[] = fresh.map(d => ({ id: d.id, awardedAt: now }))
   await updateUser(user.id, { achievements: [...existing, ...earned] })
 
+  const featuredBadgeId = challengeId ? getChallengeById(challengeId)?.featuredBadgeId : undefined
+
   await Promise.all(
     fresh.map(def => {
       const template = UNLOCK_POST_TEMPLATES[Math.floor(Math.random() * UNLOCK_POST_TEMPLATES.length)]
-      const content = template
+      const flair = def.id === featuredBadgeId ? '🎪 BADGE OF THE MONTH! ' : ''
+      const content = flair + template
         .replace('{name}', user.displayName)
         .replace('{emoji}', def.emoji)
         .replace('{title}', def.name)

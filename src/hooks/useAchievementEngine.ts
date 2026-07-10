@@ -87,6 +87,7 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
       commentsPosted: social?.commentsPosted,
       bonusLogs: bonusLogs ?? undefined,
       groupLogs: mergedGroupLogs,
+      currentChallengeId: challengeId,
     })
   }, [currentUser, logs, social, bonusLogs, groupLogs, challengeId])
 

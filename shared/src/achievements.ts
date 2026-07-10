@@ -17,6 +17,7 @@ import {
   isRestDay,
   conditionalRestApplies,
 } from './challenges'
+import type { ChallengeBadgeDef, ChallengeTemplate } from './types'
 
 // ─── Inputs ───────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,8 @@ export interface AchievementContext {
   successfulCallouts?: number
   /** Achievements already earned (excluding Completionist itself). */
   earnedBadgesCount?: number
+  /** Shoutout coverage of the current challenge's active PAX (Ambassador). */
+  shoutoutCoverage?: { covered: number; total: number }
 }
 
 /** Earned achievement as persisted on the user document. */
@@ -213,7 +216,7 @@ function volumeAchievement(id: string, name: string, emoji: string, description:
 
 // ─── The catalog ──────────────────────────────────────────────────────────────
 
-export const ACHIEVEMENTS: AchievementDefinition[] = [
+const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
   // ── Streak ladder 🔥 ──
   streakAchievement('kindling', 'Kindling', '🔥', '3-day streak — the fire is lit.', 3, 1),
   streakAchievement('week-of-fire', 'Week of Fire', '🔥', '7 straight days. A full week, no misses.', 7, 2),
@@ -502,6 +505,22 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     progress: ctx => countProgress(ctx.commentsPosted ?? 0, 25),
   },
   {
+    id: 'ambassador',
+    name: 'Ambassador',
+    emoji: '🌍',
+    description: 'Shouted out every PAX in the challenge. Nobody gets hyped alone.',
+    howTo: 'Give at least one shoutout to every other active PAX during a challenge (needs 5+ active PAX).',
+    category: 'social', unitLabel: 'PAX covered', theme: 'confetti',
+    progress: ctx => {
+      const cov = ctx.shoutoutCoverage
+      // Coverage only means something with a real roster
+      if (!cov || cov.total < 5) {
+        return { current: cov?.covered ?? 0, target: Math.max(cov?.total ?? 0, 5), earned: false }
+      }
+      return countProgress(cov.covered, cov.total)
+    },
+  },
+  {
     id: 'shot-caller',
     name: 'Shot Caller',
     emoji: '🧲',
@@ -585,6 +604,40 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     },
   },
 ]
+
+// ─── Challenge signature badges ───────────────────────────────────────────────
+// Challenges can ship their own badges as data (ChallengeTemplate.badges);
+// they become full achievements here. Adding a challenge with badges is still
+// a single-object change in challenges.ts.
+
+function challengeBadgeDefinition(c: ChallengeTemplate, b: ChallengeBadgeDef): AchievementDefinition {
+  const target = b.criteria.type === 'complete-days' ? b.criteria.days : getRequiredDays(c)
+  return {
+    id: b.id,
+    name: b.name,
+    emoji: b.emoji,
+    description: b.description,
+    howTo: b.howTo,
+    category: 'special',
+    unitLabel: 'days',
+    theme: 'confetti',
+    progress: ctx => countProgress(
+      ctx.logs.filter(l => l.challengeId === c.id && l.completionFraction >= 1).length,
+      target,
+    ),
+  }
+}
+
+export const ACHIEVEMENTS: AchievementDefinition[] = [
+  ...CORE_ACHIEVEMENTS,
+  ...CHALLENGES.flatMap(c => (c.badges ?? []).map(b => challengeBadgeDefinition(c, b))),
+]
+
+/** Badge of the Month for a challenge, if it declares one. */
+export function getFeaturedAchievement(challenge: ChallengeTemplate): AchievementDefinition | undefined {
+  if (!challenge.featuredBadgeId) return undefined
+  return ACHIEVEMENTS.find(a => a.id === challenge.featuredBadgeId)
+}
 
 export function getAchievementById(id: string): AchievementDefinition | undefined {
   return ACHIEVEMENTS.find(a => a.id === id)
