@@ -232,8 +232,8 @@ describe('special achievements', () => {
   it('social + meta badges read context counts', () => {
     expect(progressOf('conversationalist', ctx({ commentsPosted: 25 })).earned).toBe(true)
     expect(progressOf('shot-caller', ctx({ successfulCallouts: 3 })).earned).toBe(true)
-    expect(progressOf('completionist', ctx({ earnedBadgesCount: 15 })).earned).toBe(true)
-    expect(progressOf('completionist', ctx({ earnedBadgesCount: 12 }))).toMatchObject({ earned: false, current: 12 })
+    expect(progressOf('completionist', ctx({ earnedBadgesCount: 25 })).earned).toBe(true)
+    expect(progressOf('completionist', ctx({ earnedBadgesCount: 12 }))).toMatchObject({ earned: false, current: 12, target: 25 })
   })
 
   it('bonus-hunter needs every bonus week', () => {
