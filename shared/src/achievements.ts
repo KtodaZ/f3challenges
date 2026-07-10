@@ -42,6 +42,16 @@ export interface AchievementContext {
   bonusWeeks?: { completed: number; total: number }
   /** Days where this user was the first PAX to fully complete the challenge. */
   firstFinisherDays?: number
+  /** Days where this user finished last among 3+ finishers (The Six). */
+  lastFinisherDays?: number
+  /** Days where this user finished within 5 minutes of another PAX. */
+  photoFinishDays?: number
+  /** Feed comments this user has posted. */
+  commentsPosted?: number
+  /** Callouts where the called-out PAX went on to finish that day. */
+  successfulCallouts?: number
+  /** Achievements already earned (excluding Completionist itself). */
+  earnedBadgesCount?: number
 }
 
 /** Earned achievement as persisted on the user document. */
@@ -117,6 +127,48 @@ function loggedHourPT(iso?: string): number | null {
 function isWeekend(date: string): boolean {
   const day = new Date(date + 'T12:00:00Z').getUTCDay()
   return day === 0 || day === 6
+}
+
+/** PT calendar date (YYYY-MM-DD) of an ISO timestamp; null if missing/invalid. */
+function ptDate(iso?: string): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+}
+
+/** PT wall-clock time (HH:MM, 24h) of an ISO timestamp; null if missing/invalid. */
+function ptClock(iso?: string): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  return d.toLocaleTimeString('en-GB', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+function addDaysStr(date: string, n: number): string {
+  const d = new Date(date + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+/** Most day-completions finished within a single PT calendar day. */
+function maxSameDayCompletions(ctx: AchievementContext): number {
+  const byDay = new Map<string, number>()
+  for (const l of completeLogs(ctx)) {
+    const day = ptDate(l.loggedAt)
+    if (!day) continue
+    byDay.set(day, (byDay.get(day) ?? 0) + 1)
+  }
+  return byDay.size ? Math.max(...byDay.values()) : 0
+}
+
+function stackAchievement(id: string, name: string, emoji: string, description: string, count: number, tier: number): AchievementDefinition {
+  return {
+    id, name, emoji, description,
+    howTo: `Fully complete ${count} challenge days (today + makeups) within one calendar day.`,
+    category: 'special', unitLabel: 'same-day completions', chain: 'stack', tier, theme: tier >= 3 ? 'fireworks' : 'embers',
+    progress: ctx => countProgress(maxSameDayCompletions(ctx), count),
+  }
 }
 
 interface PerChallengeStats {
@@ -375,6 +427,99 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     howTo: 'Be the first PAX to complete the daily challenge on 5 different days.',
     category: 'special', unitLabel: 'first finishes', chain: 'first-finisher', tier: 2, theme: 'fireworks',
     progress: ctx => countProgress(ctx.firstFinisherDays ?? 0, 5),
+  },
+
+  // ── Group finishes 🐢 ──
+  {
+    id: 'the-six',
+    name: 'The Six',
+    emoji: '🐢',
+    description: 'Finished last — but finished. 5 times. Nobody left behind.',
+    howTo: 'Fully complete the day as the last finisher of the group (on days when 3+ PAX finish). Do it 5 times.',
+    category: 'special', unitLabel: 'last finishes', theme: 'confetti',
+    progress: ctx => countProgress(ctx.lastFinisherDays ?? 0, 5),
+  },
+  {
+    id: 'photo-finish',
+    name: 'Photo Finish',
+    emoji: '📸',
+    description: 'Finished within 5 minutes of another PAX. Too close to call.',
+    howTo: 'Complete your day within 5 minutes of another PAX completing theirs.',
+    category: 'special', unitLabel: 'photo finishes', secret: true, theme: 'gold',
+    progress: ctx => countProgress(ctx.photoFinishDays ?? 0, 1),
+  },
+
+  // ── Same-day stacks 🎒 ──
+  stackAchievement('double-duty', 'Double Duty', '🎒', 'Two full days knocked out in one calendar day.', 2, 1),
+  stackAchievement('triple-threat', 'Triple Threat', '⚔️', 'Three full days in one calendar day. Relentless.', 3, 2),
+  stackAchievement('quad-stack', 'Quad Stack', '🧱', 'FOUR full days in one calendar day. Absurd. Respect.', 4, 3),
+
+  // ── Fast comeback 🏀 ──
+  {
+    id: 'quick-rebound',
+    name: 'Quick Rebound',
+    emoji: '🏀',
+    description: 'Missed a day, took it back within 48 hours — 3 times.',
+    howTo: 'Make up a missed day within 2 days of missing it. Do it 3 times. Never let one miss become two.',
+    category: 'comeback', unitLabel: 'quick rebounds', theme: 'embers',
+    progress: ctx => countProgress(
+      completeLogs(ctx).filter(l => {
+        if (!l.isMakeUp) return false
+        const doneDay = ptDate(l.loggedAt)
+        return doneDay !== null && doneDay <= addDaysStr(l.date, 2)
+      }).length,
+      3
+    ),
+  },
+
+  // ── Buzzer beater 🚨 ──
+  {
+    id: 'buzzer-beater',
+    name: 'Buzzer Beater',
+    emoji: '🚨',
+    description: 'Completed the day in the final 15 minutes before midnight.',
+    howTo: 'Finish your day between 11:45pm and midnight. Cutting it close still counts.',
+    category: 'timing', unitLabel: 'buzzer beaters', secret: true, theme: 'gold',
+    progress: ctx => countProgress(
+      completeLogs(ctx).filter(l => {
+        if (l.isMakeUp) return false
+        const clock = ptClock(l.loggedAt)
+        // Must be finished on its own day, in the last 15 minutes of it
+        return clock !== null && clock >= '23:45' && ptDate(l.loggedAt) === l.date
+      }).length,
+      1
+    ),
+  },
+
+  // ── More socials 💬 ──
+  {
+    id: 'conversationalist',
+    name: 'Conversationalist',
+    emoji: '💬',
+    description: '25 comments in the feed. Keeping the fire going.',
+    howTo: 'Post 25 comments on feed posts.',
+    category: 'social', unitLabel: 'comments', theme: 'confetti',
+    progress: ctx => countProgress(ctx.commentsPosted ?? 0, 25),
+  },
+  {
+    id: 'shot-caller',
+    name: 'Shot Caller',
+    emoji: '🧲',
+    description: 'Called out 3 PAX who then went and finished. Words that move.',
+    howTo: 'Call out a PAX on a day they go on to complete the challenge — 3 times.',
+    category: 'social', unitLabel: 'successful callouts', theme: 'confetti',
+    progress: ctx => countProgress(ctx.successfulCallouts ?? 0, 3),
+  },
+
+  // ── Meta 🎖️ ──
+  {
+    id: 'completionist',
+    name: 'Completionist',
+    emoji: '🎖️',
+    description: '15 badges in the trophy case. You collect glory.',
+    howTo: 'Earn 15 other achievements. The badge for chasing badges.',
+    category: 'special', unitLabel: 'badges', theme: 'fireworks',
+    progress: ctx => countProgress(ctx.earnedBadgesCount ?? 0, 15),
   },
 
   // ── Advanced ──

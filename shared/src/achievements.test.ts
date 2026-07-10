@@ -186,6 +186,56 @@ describe('special achievements', () => {
     expect(progressOf('juggernaut', ctx({ logs: bigDays.slice(0, 4) })).earned).toBe(false)
   })
 
+  it('group placement badges read context counts', () => {
+    expect(progressOf('the-six', ctx({ lastFinisherDays: 5 })).earned).toBe(true)
+    expect(progressOf('the-six', ctx({ lastFinisherDays: 4 }))).toMatchObject({ earned: false, current: 4 })
+    expect(progressOf('photo-finish', ctx({ photoFinishDays: 1 })).earned).toBe(true)
+  })
+
+  it('same-day stack ladder counts completions finished in one PT day', () => {
+    // Three days all completed on the same PT calendar day (one on-time + two makeups)
+    const sameDay = '2026-02-10T20:00:00.000Z' // noon PT
+    const logs = [
+      log({ date: '2026-02-10', loggedAt: sameDay }),
+      log({ date: '2026-02-08', isMakeUp: true, loggedAt: sameDay }),
+      log({ date: '2026-02-09', isMakeUp: true, loggedAt: sameDay }),
+    ]
+    expect(progressOf('double-duty', ctx({ logs })).earned).toBe(true)
+    expect(progressOf('triple-threat', ctx({ logs })).earned).toBe(true)
+    expect(progressOf('quad-stack', ctx({ logs }))).toMatchObject({ earned: false, current: 3, target: 4 })
+  })
+
+  it('quick-rebound: makeup completed within 2 days of the missed date', () => {
+    const fast = (d: string, doneIso: string) => log({ date: d, isMakeUp: true, loggedAt: doneIso })
+    const logs = [
+      fast('2026-02-01', '2026-02-03T20:00:00.000Z'), // 2 days later — counts
+      fast('2026-02-05', '2026-02-06T20:00:00.000Z'), // next day — counts
+      fast('2026-02-10', '2026-02-20T20:00:00.000Z'), // way later — doesn't
+    ]
+    expect(progressOf('quick-rebound', ctx({ logs }))).toMatchObject({ earned: false, current: 2, target: 3 })
+    logs.push(fast('2026-02-15', '2026-02-16T20:00:00.000Z'))
+    expect(progressOf('quick-rebound', ctx({ logs })).earned).toBe(true)
+  })
+
+  it('buzzer-beater: on-time completion in the last 15 minutes of its own day', () => {
+    // 2026-02-10 23:50 PT = 2026-02-11 07:50 UTC
+    const buzzer = log({ date: '2026-02-10', loggedAt: '2026-02-11T07:50:00.000Z' })
+    expect(progressOf('buzzer-beater', ctx({ logs: [buzzer] })).earned).toBe(true)
+    // 23:30 PT — too early
+    const early = log({ date: '2026-02-10', loggedAt: '2026-02-11T07:30:00.000Z' })
+    expect(progressOf('buzzer-beater', ctx({ logs: [early] })).earned).toBe(false)
+    // Makeup at 23:50 doesn't count
+    const makeup = log({ date: '2026-02-10', isMakeUp: true, loggedAt: '2026-02-11T07:50:00.000Z' })
+    expect(progressOf('buzzer-beater', ctx({ logs: [makeup] })).earned).toBe(false)
+  })
+
+  it('social + meta badges read context counts', () => {
+    expect(progressOf('conversationalist', ctx({ commentsPosted: 25 })).earned).toBe(true)
+    expect(progressOf('shot-caller', ctx({ successfulCallouts: 3 })).earned).toBe(true)
+    expect(progressOf('completionist', ctx({ earnedBadgesCount: 15 })).earned).toBe(true)
+    expect(progressOf('completionist', ctx({ earnedBadgesCount: 12 }))).toMatchObject({ earned: false, current: 12 })
+  })
+
   it('bonus-hunter needs every bonus week', () => {
     expect(progressOf('bonus-hunter', ctx({ bonusWeeks: { completed: 2, total: 2 } })).earned).toBe(true)
     expect(progressOf('bonus-hunter', ctx({ bonusWeeks: { completed: 1, total: 2 } })).earned).toBe(false)

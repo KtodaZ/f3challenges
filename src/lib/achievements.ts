@@ -20,6 +20,7 @@ import type {
   BonusLog,
   DailyLog,
   EarnedAchievement,
+  FeedPost,
   User,
 } from '@/types'
 import { updateUser, createFeedPostOnce } from '@/lib/firestore'
@@ -56,43 +57,107 @@ function bestBonusWeeks(bonusLogs: BonusLog[]): { completed: number; total: numb
   return best
 }
 
+const finishTime = (l: DailyLog) => l.completedAt ?? l.updatedAt ?? l.loggedAt
+
+export interface GroupFinishStats {
+  firstFinisherDays: number
+  lastFinisherDays: number
+  photoFinishDays: number
+}
+
 /**
- * Days where `userId` was the first PAX to fully complete the challenge.
- * Winner per date = earliest completion timestamp among on-time (non-makeup)
- * complete logs. Legacy logs without completedAt fall back to their last write.
+ * Per-day finish placements for `userId` from the whole group's logs:
+ * - first: earliest completion of the day (First Blood / Pace Setter)
+ * - last: latest completion on days with 3+ finishers (The Six)
+ * - photo: finished within 5 minutes of another PAX (Photo Finish)
+ * Only on-time (non-makeup) complete logs count. Legacy logs without
+ * completedAt fall back to their last write time.
  */
-export function countFirstFinisherDays(groupLogs: DailyLog[], userId: string): number {
-  const finishTime = (l: DailyLog) => l.completedAt ?? l.updatedAt ?? l.loggedAt
-  const byDate = new Map<string, DailyLog>()
+export function computeGroupFinishStats(groupLogs: DailyLog[], userId: string): GroupFinishStats {
+  const byDate = new Map<string, DailyLog[]>()
   for (const log of groupLogs) {
     if (log.completionFraction < 1 || log.isMakeUp) continue
-    const current = byDate.get(log.date)
-    if (!current || finishTime(log) < finishTime(current)) byDate.set(log.date, log)
+    const arr = byDate.get(log.date) ?? []
+    arr.push(log)
+    byDate.set(log.date, arr)
   }
-  let count = 0
-  for (const winner of byDate.values()) {
-    if (winner.userId === userId) count++
+
+  const stats: GroupFinishStats = { firstFinisherDays: 0, lastFinisherDays: 0, photoFinishDays: 0 }
+  const FIVE_MIN = 5 * 60_000
+
+  for (const logs of byDate.values()) {
+    const sorted = [...logs].sort((a, b) => finishTime(a).localeCompare(finishTime(b)))
+    if (sorted[0].userId === userId) stats.firstFinisherDays++
+    if (sorted.length >= 3 && sorted[sorted.length - 1].userId === userId) stats.lastFinisherDays++
+
+    const mine = sorted.find(l => l.userId === userId)
+    if (mine) {
+      const myTime = new Date(finishTime(mine)).getTime()
+      const close = sorted.some(l =>
+        l.userId !== userId && Math.abs(new Date(finishTime(l)).getTime() - myTime) <= FIVE_MIN
+      )
+      if (close) stats.photoFinishDays++
+    }
   }
-  return count
+  return stats
+}
+
+/**
+ * Callouts that landed: this user shouted out a PAX, and that PAX went on to
+ * complete the challenge that same day (finish after the callout). Distinct
+ * per target per day, so spamming one PAX doesn't farm the badge.
+ */
+export function countSuccessfulCallouts(
+  givenShoutouts: Array<Pick<FeedPost, 'targetUserId' | 'createdAt'>>,
+  groupLogs: DailyLog[],
+): number {
+  const logByUserDate = new Map<string, DailyLog>()
+  for (const l of groupLogs) {
+    if (l.completionFraction < 1 || l.isMakeUp) continue
+    logByUserDate.set(`${l.userId}_${l.date}`, l)
+  }
+  const hits = new Set<string>()
+  for (const post of givenShoutouts) {
+    if (!post.targetUserId) continue
+    const day = new Date(post.createdAt).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+    const key = `${post.targetUserId}_${day}`
+    const log = logByUserDate.get(key)
+    if (log && finishTime(log) > post.createdAt) hits.add(key)
+  }
+  return hits.size
+}
+
+export interface AchievementExtras {
+  shoutoutsGiven?: number
+  shoutoutsReceived?: number
+  bonusLogs?: BonusLog[]
+  commentsPosted?: number
+  /** This user's outgoing shoutout posts (for Shot Caller). */
+  givenShoutouts?: Array<Pick<FeedPost, 'targetUserId' | 'createdAt'>>
+  /** All logs for the current challenge, every user (group placements). */
+  groupLogs?: DailyLog[]
 }
 
 export function buildAchievementContext(
-  user: Pick<User, 'longestStreak' | 'currentStreak'>,
+  user: Pick<User, 'id' | 'longestStreak' | 'currentStreak' | 'achievements'>,
   allLogs: DailyLog[],
-  extras?: {
-    shoutoutsGiven?: number
-    shoutoutsReceived?: number
-    bonusLogs?: BonusLog[]
-    firstFinisherDays?: number
-  }
+  extras?: AchievementExtras,
 ): AchievementContext {
+  const group = extras?.groupLogs ? computeGroupFinishStats(extras.groupLogs, user.id) : undefined
   return {
     logs: allLogs.map(toAchievementLog),
     longestStreak: Math.max(user.longestStreak ?? 0, user.currentStreak ?? 0),
-    shoutoutsGiven: extras?.shoutoutsGiven,
+    shoutoutsGiven: extras?.shoutoutsGiven ?? extras?.givenShoutouts?.length,
     shoutoutsReceived: extras?.shoutoutsReceived,
     bonusWeeks: extras?.bonusLogs ? bestBonusWeeks(extras.bonusLogs) : undefined,
-    firstFinisherDays: extras?.firstFinisherDays,
+    firstFinisherDays: group?.firstFinisherDays,
+    lastFinisherDays: group?.lastFinisherDays,
+    photoFinishDays: group?.photoFinishDays,
+    commentsPosted: extras?.commentsPosted,
+    successfulCallouts: extras?.givenShoutouts && extras?.groupLogs
+      ? countSuccessfulCallouts(extras.givenShoutouts, extras.groupLogs)
+      : undefined,
+    earnedBadgesCount: (user.achievements ?? []).filter(a => a.id !== 'completionist').length,
   }
 }
 
