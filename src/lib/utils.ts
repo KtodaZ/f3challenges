@@ -45,6 +45,30 @@ export function formatDate(date: string): string {
   })
 }
 
+/** Calendar day (YYYY-MM-DD) of an ISO timestamp in Pacific time — the key we
+ *  group feed posts by so day separators line up with F3 Bedrock's timezone. */
+export function pacificDayKey(iso: string): string {
+  // en-CA gives YYYY-MM-DD; timeZone shifts to America/Los_Angeles.
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+}
+
+/** Human label for a Pacific day key: "Today", "Yesterday", or "Wed, Apr 15". */
+export function formatDaySeparator(dayKey: string): string {
+  const todayKey = pacificDayKey(new Date().toISOString())
+  if (dayKey === todayKey) return 'Today'
+
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (dayKey === pacificDayKey(yesterday.toISOString())) return 'Yesterday'
+
+  // Anchor at noon so the label's own formatting can't cross a day boundary.
+  return new Date(dayKey + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 /** Format a duration in seconds as m:ss (e.g. 180 → "3:00"). */
 export function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.round(totalSeconds))

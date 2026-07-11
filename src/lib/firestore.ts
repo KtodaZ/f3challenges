@@ -206,18 +206,26 @@ export async function softDeletePost(postId: string): Promise<void> {
   await updateDoc(doc(feedCol(), postId), { deleted: true })
 }
 
+/**
+ * Live feed listener over a growing window. `pageSize` is the number of posts
+ * currently shown; the query fetches one extra doc so the caller can tell
+ * whether older posts exist (infinite-scroll trigger). Re-subscribe with a
+ * larger `pageSize` to load more — the newest page stays real-time throughout.
+ */
 export function subscribeToFeed(
-  callback: (posts: FeedPost[]) => void,
+  callback: (result: { posts: FeedPost[]; hasMore: boolean }) => void,
   pageSize = 30
 ) {
   const q = query(
     feedCol(),
     where('deleted', '==', false),
     orderBy('createdAt', 'desc'),
-    limit(pageSize)
+    limit(pageSize + 1)
   )
   return onSnapshot(q, snap => {
-    callback(snap.docs.map(d => d.data() as FeedPost))
+    const docs = snap.docs.map(d => d.data() as FeedPost)
+    const hasMore = docs.length > pageSize
+    callback({ posts: hasMore ? docs.slice(0, pageSize) : docs, hasMore })
   })
 }
 
