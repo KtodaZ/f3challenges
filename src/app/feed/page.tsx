@@ -1,25 +1,56 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Fragment, useState, useEffect, useRef, useCallback } from 'react'
 import { FeedPost } from '@/components/feed/FeedPost'
 import { NewPostModal } from '@/components/feed/NewPostModal'
 import { subscribeToFeed } from '@/lib/firestore'
 import { useUser } from '@/contexts/UserContext'
+import { pacificDayKey, formatDaySeparator } from '@/lib/utils'
 import type { FeedPost as FeedPostType } from '@/types'
+
+const PAGE_SIZE = 30
 
 export default function FeedPage() {
   const { currentUser, loading } = useUser()
   const [posts, setPosts]             = useState<FeedPostType[]>([])
   const [feedLoading, setFeedLoading] = useState(true)
   const [newPostOpen, setNewPostOpen] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [hasMore, setHasMore]         = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
+  // Growing-window live listener: the newest `visibleCount` posts stay
+  // real-time; scrolling to the bottom widens the window by one page.
   useEffect(() => {
-    const unsub = subscribeToFeed(incoming => {
+    const unsub = subscribeToFeed(({ posts: incoming, hasMore: more }) => {
       setPosts(incoming)
+      setHasMore(more)
       setFeedLoading(false)
-    })
+      setLoadingMore(false)
+    }, visibleCount)
     return unsub
-  }, [])
+  }, [visibleCount])
+
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    setVisibleCount(c => c + PAGE_SIZE)
+  }, [loadingMore, hasMore])
+
+  // Auto-load the next page when the sentinel scrolls into view.
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !hasMore) return
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) loadMore()
+      },
+      { rootMargin: '400px' }, // start fetching before it's fully in view
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, loadMore])
 
   return (
     <div className="flex flex-col min-h-dvh">
@@ -52,13 +83,43 @@ export default function FeedPage() {
             <p className="text-zinc-500 text-sm">Share what&apos;s on your mind or shout out a crew member.</p>
           </div>
         ) : (
-          <ul className="divide-y divide-zinc-800/60">
-            {posts.map(post => (
-              <li key={post.id}>
-                <FeedPost post={post} />
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="divide-y divide-zinc-800/60">
+              {(() => {
+                let lastDay: string | null = null
+                return posts.map(post => {
+                  const dayKey = pacificDayKey(post.createdAt)
+                  const showSeparator = dayKey !== lastDay
+                  lastDay = dayKey
+                  return (
+                    <Fragment key={post.id}>
+                      {showSeparator && (
+                        <li
+                          className="sticky top-[calc(env(safe-area-inset-top)+3.25rem)] z-[5] bg-[#09090b]/95 backdrop-blur-sm px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400"
+                        >
+                          {formatDaySeparator(dayKey)}
+                        </li>
+                      )}
+                      <li>
+                        <FeedPost post={post} />
+                      </li>
+                    </Fragment>
+                  )
+                })
+              })()}
+            </ul>
+
+            {/* Infinite-scroll sentinel + loading state */}
+            <div ref={sentinelRef} className="h-px" />
+            {loadingMore && (
+              <div className="flex justify-center py-6">
+                <div className="w-5 h-5 border-2 border-zinc-700 border-t-orange-500 rounded-full animate-spin" />
+              </div>
+            )}
+            {!hasMore && !loadingMore && (
+              <p className="text-center text-zinc-600 text-xs py-6">You&apos;re all caught up 💪</p>
+            )}
+          </>
         )}
       </div>
 
