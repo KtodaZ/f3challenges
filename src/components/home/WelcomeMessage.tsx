@@ -63,7 +63,6 @@ function getWelcomeMessage(
     dayNumber,
     totalDays,
     totalReps,
-    repsPerExercise,
     completionFraction,
     loggedReps,
     streak,
@@ -207,119 +206,151 @@ function getWelcomeMessage(
   }
 
   // ── Not started ─────────────────────────────────────────────────────────────
+  // workLeft here is the digestible day framing ("8 exercises"), and nudge is
+  // the fresh-day starter line ("Start with the lunges — momentum does the rest.")
 
   if (streak >= 2) {
     const paxLine = completedCount > 0 ? ` ${completedCount} PAX already in.` : ''
-    const repsLine = `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each).`
+    const dayLine = `Day ${dayNumber}: ${workLeft}.`
     if (tod === 'evening' || tod === 'night') {
-      return pick([
-        { greeting: `Don't lose it now, ${userName}.`, body: `${streak}-day streak on the line. ${repsLine}${paxLine}` },
-        { greeting: `Streak's still alive — keep it that way.`, body: `${streak} days running. ${repsLine}${paxLine}` },
-        { greeting: `${streak} days. Don't let tonight end that.`, body: `${repsLine}${paxLine} Protect the streak.` },
-      ])
+      const options = [
+        { greeting: `Don't lose it now, ${userName}.`, body: `${streak}-day streak on the line. ${dayLine}${paxLine}` },
+        { greeting: `Streak's still alive — keep it that way.`, body: `${streak} days running. ${dayLine}${paxLine}` },
+        { greeting: `${streak} days. Don't let tonight end that.`, body: `${dayLine}${paxLine} Protect the streak.` },
+      ]
+      if (nudge) options.push({ greeting: `${streak}-day streak on the line.`, body: nudge })
+      return pick(options)
     }
-    return pick([
-      { greeting: `Rise up, ${userName}.`, body: `${streak}-day streak on the line. ${repsLine}${paxLine}` },
-      { greeting: `${streak} days and counting, ${userName}.`, body: `Keep it alive. ${repsLine}${paxLine}` },
-      { greeting: `Protect the streak, ${userName}.`, body: `${streak} days running. ${repsLine}${paxLine}` },
-      { greeting: `Don't break it now.`, body: `${streak}-day streak. ${repsLine}${paxLine}` },
-    ])
+    const options = [
+      { greeting: `Rise up, ${userName}.`, body: `${streak}-day streak on the line. ${dayLine}${paxLine}` },
+      { greeting: `${streak} days and counting, ${userName}.`, body: `Keep it alive. ${dayLine}${paxLine}` },
+      { greeting: `Protect the streak, ${userName}.`, body: `${streak} days running. ${dayLine}${paxLine}` },
+      { greeting: `Don't break it now.`, body: `${streak}-day streak. ${dayLine}${paxLine}` },
+    ]
+    if (nudge) options.push({ greeting: `Protect the streak, ${userName}.`, body: nudge })
+    return pick(options)
   }
 
   if (tod === 'morning') {
     if (completedCount > 0) {
-      return pick([
-        { greeting: `Rise up, ${userName}.`, body: `${completedCount} PAX already checked in. Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each).` },
-        { greeting: `${completedCount} PAX are ahead of you.`, body: `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each). Get after it.` },
-        { greeting: `The crew is already moving.`, body: `${completedCount} PAX checked in. Day ${dayNumber}: ${totalReps} reps. Don't let 'em get too far ahead.` },
-      ])
+      const options = [
+        { greeting: `Rise up, ${userName}.`, body: `${completedCount} PAX already checked in. Day ${dayNumber}: ${workLeft}.` },
+        { greeting: `${completedCount} PAX are ahead of you.`, body: `Day ${dayNumber}: ${workLeft}. Get after it.` },
+        { greeting: `The crew is already moving.`, body: `${completedCount} PAX checked in. ${workLeft} on your list — don't let 'em get too far ahead.` },
+      ]
+      if (nudge) options.push({ greeting: `Rise up, ${userName}.`, body: nudge })
+      return pick(options)
     }
     if (earlyMonth) {
-      return pick([
-        { greeting: `Good morning, ${userName}.`, body: `Day ${dayNumber} of ${totalDays}. ${totalReps} reps, ${repsPerExercise} each. Let's start strong.` },
-        { greeting: `Day ${dayNumber}. Let's build the habit.`, body: `${totalReps} reps (${repsPerExercise} each). Early days set the tone for the whole month.` },
-        { greeting: `Fresh start, ${userName}.`, body: `Day ${dayNumber} of ${totalDays}. ${totalReps} reps on the board. Make it count.` },
-      ])
+      const options = [
+        { greeting: `Good morning, ${userName}.`, body: `Day ${dayNumber} of ${totalDays}: ${workLeft}. Let's start strong.` },
+        { greeting: `Day ${dayNumber}. Let's build the habit.`, body: `${workLeft} on today's list. Early days set the tone for the whole month.` },
+        { greeting: `Fresh start, ${userName}.`, body: `Day ${dayNumber} of ${totalDays}. ${workLeft} to check off — make it count.` },
+      ]
+      if (nudge) options.push({ greeting: `Good morning, ${userName}.`, body: nudge })
+      return pick(options)
     }
     if (nearEnd) {
-      return pick([
-        { greeting: `Morning, ${userName}.`, body: `Day ${dayNumber} — ${daysLeft} left in the challenge. ${totalReps} reps. Don't let up.` },
-        { greeting: `${daysLeft} days left. Go.`, body: `Day ${dayNumber}: ${totalReps} reps. You've come too far to coast now.` },
-        { greeting: `Finish line's close, ${userName}.`, body: `${daysLeft} days remain. Day ${dayNumber}: ${totalReps} reps — lock it in.` },
-      ])
+      const options = [
+        { greeting: `Morning, ${userName}.`, body: `Day ${dayNumber} — ${daysLeft} left in the challenge. ${workLeft} today. Don't let up.` },
+        { greeting: `${daysLeft} days left. Go.`, body: `Day ${dayNumber}: ${workLeft}. You've come too far to coast now.` },
+        { greeting: `Finish line's close, ${userName}.`, body: `${daysLeft} days remain. Day ${dayNumber}: ${workLeft} — lock it in.` },
+      ]
+      if (nudge) options.push({ greeting: `Morning, ${userName}.`, body: nudge })
+      return pick(options)
     }
-    return pick([
-      { greeting: `Morning, ${userName}.`, body: `Day ${dayNumber}: ${totalReps} reps on deck (${repsPerExercise} each). Start a set now.` },
-      { greeting: `Rise and grind, ${userName}.`, body: `Day ${dayNumber} is waiting. ${totalReps} reps (${repsPerExercise} each).` },
-      { greeting: `New day, same mission.`, body: `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each). Get the first set in.` },
-      { greeting: `Up and at 'em, ${userName}.`, body: `${totalReps} reps on the board for day ${dayNumber}. ${repsPerExercise} each. Let's go.` },
-    ])
+    const options = [
+      { greeting: `Morning, ${userName}.`, body: `Day ${dayNumber}: ${workLeft} on deck. Start with one — momentum does the rest.` },
+      { greeting: `Rise and grind, ${userName}.`, body: `Day ${dayNumber} is waiting: ${workLeft}.` },
+      { greeting: `New day, same mission.`, body: `Day ${dayNumber}: ${workLeft}. Get the first one in.` },
+      { greeting: `Up and at 'em, ${userName}.`, body: `${workLeft} on the board for day ${dayNumber}. Let's go.` },
+    ]
+    if (nudge) options.push({ greeting: `Morning, ${userName}.`, body: nudge })
+    return pick(options)
   }
 
   if (tod === 'afternoon') {
     if (majorityDone) {
-      return pick([
-        { greeting: `Clock's ticking, ${userName}.`, body: `${completedCount}/${totalPAX} PAX are done. Day ${dayNumber}: ${totalReps} reps waiting on you.` },
-        { greeting: `More than half the crew is done.`, body: `${completedCount}/${totalPAX} PAX checked in. Day ${dayNumber}: ${totalReps} reps. Don't fall behind.` },
-        { greeting: `The crew isn't waiting, ${userName}.`, body: `${completedCount} PAX already logged day ${dayNumber}. ${totalReps} reps — get on it.` },
-      ])
+      const options = [
+        { greeting: `Clock's ticking, ${userName}.`, body: `${completedCount}/${totalPAX} PAX are done. Day ${dayNumber}: ${workLeft} waiting on you.` },
+        { greeting: `More than half the crew is done.`, body: `${completedCount}/${totalPAX} PAX checked in. ${workLeft} on your list — don't fall behind.` },
+        { greeting: `The crew isn't waiting, ${userName}.`, body: `${completedCount} PAX already logged day ${dayNumber}. ${workLeft} — get on it.` },
+      ]
+      if (nudge) options.push({ greeting: `Clock's ticking, ${userName}.`, body: nudge })
+      return pick(options)
     }
     if (activeCount > 0) {
-      return pick([
-        { greeting: `Afternoon, ${userName}.`, body: `${activeCount} PAX are in the middle of it right now. Day ${dayNumber}: ${totalReps} reps.` },
-        { greeting: `The crew is grinding.`, body: `${activeCount} PAX are mid-workout. Day ${dayNumber}: ${totalReps} reps — jump in.` },
-        { greeting: `${activeCount} PAX are already going, ${userName}.`, body: `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each). Join 'em.` },
-      ])
+      const options = [
+        { greeting: `Afternoon, ${userName}.`, body: `${activeCount} PAX are in the middle of it right now. Day ${dayNumber}: ${workLeft}.` },
+        { greeting: `The crew is grinding.`, body: `${activeCount} PAX are mid-workout. ${workLeft} on your list — jump in.` },
+        { greeting: `${activeCount} PAX are already going, ${userName}.`, body: `Day ${dayNumber}: ${workLeft}. Join 'em.` },
+      ]
+      if (nudge) options.push({ greeting: `Afternoon, ${userName}.`, body: nudge })
+      return pick(options)
     }
-    return pick([
-      { greeting: `Afternoon, ${userName}.`, body: `Day ${dayNumber}: ${totalReps} reps (${repsPerExercise} each). ${completedCount > 0 ? `${completedCount} PAX down.` : 'Get a set in now.'}` },
-      { greeting: `Afternoon check-in, ${userName}.`, body: `Day ${dayNumber} isn't going to log itself. ${totalReps} reps — get started.` },
-      { greeting: `Still time today, ${userName}.`, body: `${totalReps} reps on the board for day ${dayNumber}. Knock out a set this afternoon.` },
-    ])
+    const options = [
+      { greeting: `Afternoon, ${userName}.`, body: `Day ${dayNumber}: ${workLeft}. ${completedCount > 0 ? `${completedCount} PAX down.` : 'Get the first one in now.'}` },
+      { greeting: `Afternoon check-in, ${userName}.`, body: `Day ${dayNumber} isn't going to log itself. ${workLeft} — get started.` },
+      { greeting: `Still time today, ${userName}.`, body: `${workLeft} on the board for day ${dayNumber}. Knock one out this afternoon.` },
+    ]
+    if (nudge) options.push({ greeting: `Still time today, ${userName}.`, body: nudge })
+    return pick(options)
   }
 
   if (tod === 'evening') {
     if (majorityDone) {
-      return pick([
-        { greeting: `Don't get left behind, ${userName}.`, body: `${completedCount}/${totalPAX} PAX are done. ${totalReps} reps before tonight's over.` },
-        { greeting: `The crew already handled it.`, body: `${completedCount}/${totalPAX} PAX logged day ${dayNumber}. ${totalReps} reps — your turn.` },
-        { greeting: `Everyone else showed up, ${userName}.`, body: `${completedCount} PAX are done. You've still got ${totalReps} reps before tonight ends.` },
-      ])
+      const options = [
+        { greeting: `Don't get left behind, ${userName}.`, body: `${completedCount}/${totalPAX} PAX are done. ${workLeft} before tonight's over.` },
+        { greeting: `The crew already handled it.`, body: `${completedCount}/${totalPAX} PAX logged day ${dayNumber}. ${workLeft} — your turn.` },
+        { greeting: `Everyone else showed up, ${userName}.`, body: `${completedCount} PAX are done. You've still got ${workLeft} before tonight ends.` },
+      ]
+      if (nudge) options.push({ greeting: `Don't get left behind, ${userName}.`, body: nudge })
+      return pick(options)
     }
     if (nearEnd) {
-      return pick([
-        { greeting: `Evening, ${userName}.`, body: `${daysLeft} days left in the challenge. Day ${dayNumber}: ${totalReps} reps — don't skip tonight.` },
-        { greeting: `So close to the finish.`, body: `${daysLeft} days remain. Day ${dayNumber}: ${totalReps} reps. This isn't the time to ease up.` },
-        { greeting: `${daysLeft} days left — protect that.`, body: `Day ${dayNumber}: ${totalReps} reps. Don't let this evening slip.` },
-      ])
+      const options = [
+        { greeting: `Evening, ${userName}.`, body: `${daysLeft} days left in the challenge. Day ${dayNumber}: ${workLeft} — don't skip tonight.` },
+        { greeting: `So close to the finish.`, body: `${daysLeft} days remain. Day ${dayNumber}: ${workLeft}. This isn't the time to ease up.` },
+        { greeting: `${daysLeft} days left — protect that.`, body: `Day ${dayNumber}: ${workLeft}. Don't let this evening slip.` },
+      ]
+      if (nudge) options.push({ greeting: `Evening, ${userName}.`, body: nudge })
+      return pick(options)
     }
-    return pick([
-      { greeting: `Evening, ${userName}.`, body: `Day ${dayNumber} isn't done yet. ${totalReps} reps before you call it a night.` },
-      { greeting: `Don't let today go unmarked.`, body: `${totalReps} reps left on day ${dayNumber}. You've still got time tonight.` },
-      { greeting: `Night's not over yet, ${userName}.`, body: `Day ${dayNumber}: ${totalReps} reps. Get 'em in before you wind down.` },
-    ])
+    const options = [
+      { greeting: `Evening, ${userName}.`, body: `Day ${dayNumber} isn't done yet. ${workLeft} before you call it a night.` },
+      { greeting: `Don't let today go unmarked.`, body: `${workLeft} left on day ${dayNumber}. You've still got time tonight.` },
+      { greeting: `Night's not over yet, ${userName}.`, body: `Day ${dayNumber}: ${workLeft}. Get it in before you wind down.` },
+    ]
+    if (nudge) options.push({ greeting: `Night's not over yet, ${userName}.`, body: nudge })
+    return pick(options)
   }
 
   // night
   if (majorityDone) {
-    return pick([
-      { greeting: `Last call, ${userName}.`, body: `${completedCount}/${totalPAX} PAX are done. ${totalReps} reps on the clock for day ${dayNumber}.` },
-      { greeting: `Clock's almost out.`, body: `${completedCount} PAX logged it. ${totalReps} reps remaining for day ${dayNumber} — last chance.` },
-      { greeting: `Don't let the day end like this.`, body: `${completedCount}/${totalPAX} PAX finished. ${totalReps} reps — you've still got time.` },
-    ])
+    const options = [
+      { greeting: `Last call, ${userName}.`, body: `${completedCount}/${totalPAX} PAX are done. ${workLeft} on the clock for day ${dayNumber}.` },
+      { greeting: `Clock's almost out.`, body: `${completedCount} PAX logged it. ${workLeft} remaining for day ${dayNumber} — last chance.` },
+      { greeting: `Don't let the day end like this.`, body: `${completedCount}/${totalPAX} PAX finished. ${workLeft} — you've still got time.` },
+    ]
+    if (nudge) options.push({ greeting: `Last call, ${userName}.`, body: nudge })
+    return pick(options)
   }
   if (nearEnd) {
-    return pick([
-      { greeting: `Last call, ${userName}.`, body: `Day ${dayNumber}, ${daysLeft} left. ${totalReps} reps — don't let tonight slip.` },
-      { greeting: `${daysLeft} days left. Don't waste one.`, body: `Day ${dayNumber}: ${totalReps} reps. Tonight's the last shot.` },
-      { greeting: `Almost at the finish line.`, body: `${daysLeft} days remain. Day ${dayNumber}: ${totalReps} reps — get it done tonight.` },
-    ])
+    const options = [
+      { greeting: `Last call, ${userName}.`, body: `Day ${dayNumber}, ${daysLeft} left. ${workLeft} — don't let tonight slip.` },
+      { greeting: `${daysLeft} days left. Don't waste one.`, body: `Day ${dayNumber}: ${workLeft}. Tonight's the last shot.` },
+      { greeting: `Almost at the finish line.`, body: `${daysLeft} days remain. Day ${dayNumber}: ${workLeft} — get it done tonight.` },
+    ]
+    if (nudge) options.push({ greeting: `Last call, ${userName}.`, body: nudge })
+    return pick(options)
   }
-  return pick([
-    { greeting: `Still up, ${userName}?`, body: `${totalReps} reps on the board for day ${dayNumber}. Get it done.` },
-    { greeting: `Late but not too late.`, body: `Day ${dayNumber}: ${totalReps} reps. Don't let the clock run out on this one.` },
-    { greeting: `Last chance tonight, ${userName}.`, body: `${totalReps} reps left for day ${dayNumber}. You know what to do.` },
-  ])
+  const options = [
+    { greeting: `Still up, ${userName}?`, body: `${workLeft} on the board for day ${dayNumber}. Get it done.` },
+    { greeting: `Late but not too late.`, body: `Day ${dayNumber}: ${workLeft}. Don't let the clock run out on this one.` },
+    { greeting: `Last chance tonight, ${userName}.`, body: `${workLeft} left for day ${dayNumber}. You know what to do.` },
+  ]
+  if (nudge) options.push({ greeting: `Late but not too late.`, body: nudge })
+  return pick(options)
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

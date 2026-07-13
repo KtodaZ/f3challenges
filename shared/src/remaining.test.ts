@@ -91,26 +91,37 @@ describe('getRemainingExercises', () => {
 // ─── remainingLabel / formatRemainingWork ─────────────────────────────────────
 
 describe('formatRemainingWork', () => {
-  it('labels timed exercises by duration', () => {
-    const remaining = getRemainingExercises(JUL_TARGET, [
+  it('labels partially done timed exercises by remaining duration, untouched ones by name', () => {
+    const partial = getRemainingExercises(JUL_TARGET, [
       ...allDoneExcept('dead-hang'),
       ...logs({ 'dead-hang': 120 }),
     ])
-    expect(remainingLabel(remaining[0])).toBe('1 min of dead hang')
-    expect(formatRemainingWork(remaining, 8)).toBe('1 min of dead hang')
+    expect(remainingLabel(partial[0])).toBe('1 min of dead hang')
+    expect(formatRemainingWork(partial, 8)).toBe('1 min of dead hang')
+
+    const untouched = getRemainingExercises(JUL_TARGET, allDoneExcept('dead-hang'))
+    expect(formatRemainingWork(untouched, 8)).toBe('the dead hang')
   })
 
-  it('lists up to three remaining exercises by name', () => {
+  it('lists untouched exercises by name only — no rep counts', () => {
     const two = getRemainingExercises(JUL_TARGET, allDoneExcept('incline-merkin', 'decline-merkin'))
-    expect(formatRemainingWork(two, 8)).toBe('20 incline merkins and 20 decline merkins')
+    expect(formatRemainingWork(two, 8)).toBe('incline merkins and decline merkins')
 
     const three = getRemainingExercises(JUL_TARGET, allDoneExcept('incline-merkin', 'lbc', 'lunge'))
-    expect(formatRemainingWork(three, 8)).toBe('20 incline merkins, 100 LBCs, and 50 lunges')
+    expect(formatRemainingWork(three, 8)).toBe('incline merkins, LBCs, and lunges')
   })
 
-  it('summarizes a fresh day compactly instead of listing everything', () => {
+  it('leads with the small remaining count for partially done exercises', () => {
+    const remaining = getRemainingExercises(JUL_TARGET, [
+      ...allDoneExcept('incline-merkin', 'decline-merkin'),
+      ...logs({ 'incline-merkin': 12 }),
+    ])
+    expect(formatRemainingWork(remaining, 8)).toBe('8 incline merkins and decline merkins')
+  })
+
+  it('frames a fresh day as an exercise count, not a rep total', () => {
     const all = getRemainingExercises(JUL_TARGET, null)
-    expect(formatRemainingWork(all, 8)).toBe('250 reps + 3 min of dead hang')
+    expect(formatRemainingWork(all, 8)).toBe('8 exercises')
   })
 
   it('falls back to an exercise count when >3 remain mid-day', () => {
@@ -157,7 +168,7 @@ describe('getRemainingNudge', () => {
   it('falls back to a generic line when the exercise has no custom copy', () => {
     const feb = getChallengeById('feb-2026')!
     const target = getDailyTarget(feb, '2026-02-10')!
-    const nudge = getRemainingNudge(getRemainingExercises(target, null), 1)
+    const nudge = getRemainingNudge(getRemainingExercises(target, null), 0)
     expect(nudge).toContain('100 merkins')
   })
 
@@ -168,8 +179,19 @@ describe('getRemainingNudge', () => {
     expect(nudge).toMatch(/decline merkins/)
   })
 
-  it('returns null when nothing remains or more than three exercises are open', () => {
+  it('suggests a starter exercise on a fresh day with a long list', () => {
+    const fresh = getRemainingExercises(JUL_TARGET, null)
+    for (let seed = 0; seed < 3; seed++) {
+      const nudge = getRemainingNudge(fresh, seed)!
+      expect(nudge).toMatch(/exercises/)
+      expect(nudge).toMatch(/[Ss]tart|[Kk]nock out/)
+      expect(nudge).not.toMatch(/\d{3}/) // never leads with a big rep total
+    }
+  })
+
+  it('returns null when nothing remains or >3 exercises are open mid-day', () => {
     expect(getRemainingNudge([], 0)).toBeNull()
-    expect(getRemainingNudge(getRemainingExercises(JUL_TARGET, null), 0)).toBeNull()
+    const midDay = getRemainingExercises(JUL_TARGET, logs({ 'std-merkin': 8 }))
+    expect(getRemainingNudge(midDay, 0)).toBeNull()
   })
 })

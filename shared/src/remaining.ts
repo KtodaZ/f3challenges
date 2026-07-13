@@ -46,12 +46,19 @@ export function formatDuration(seconds: number): string {
   return `${Math.floor(seconds / 60)} min ${seconds % 60}s`
 }
 
-/** Noun phrase for one exercise's remaining amount: "20 incline merkins", "90s of dead hang". */
+/**
+ * Noun phrase for one remaining exercise. Untouched exercises read as plain
+ * names ("incline merkins", "the dead hang") — leading with numbers makes the
+ * work feel bigger than it is. Partially done ones lead with the small number
+ * left ("8 incline merkins", "1 min of dead hang") because that's motivating.
+ */
 export function remainingLabel(r: RemainingExercise): string {
+  const untouched = r.remaining >= r.target
   if ((r.exercise.unit ?? 'reps') === 'seconds') {
-    return `${formatDuration(r.remaining)} of ${baseName(r.exercise)}`
+    const base = baseName(r.exercise)
+    return untouched ? `the ${base}` : `${formatDuration(r.remaining)} of ${base}`
   }
-  return `${r.remaining} ${exercisePlural(r.exercise)}`
+  return untouched ? exercisePlural(r.exercise) : `${r.remaining} ${exercisePlural(r.exercise)}`
 }
 
 /**
@@ -81,54 +88,74 @@ function joinList(items: string[]): string {
 
 /**
  * Noun phrase for everything still to do today — reads naturally in
- * "Only X left" / "X to go" positions.
- *   - ≤3 exercises left:  "20 incline merkins and 20 decline merkins"
- *   - >3 left, none started:  "220 reps + 3 min of dead hang"  (compact day summary)
+ * "Only X left" / "X to go" positions. Leads with exercise counts and names,
+ * never rep totals ("250 reps" is demoralizing; "8 exercises" is a list you
+ * can chip away at).
+ *   - ≤3 exercises left:  "incline merkins and decline merkins"
+ *   - >3 left, none started:  "8 exercises"
  *   - >3 left, partially done:  "5 of 8 exercises"
+ *   - single-exercise challenge, fresh day:  "150 merkins" (the count IS the day)
  * Returns '' when nothing remains.
  */
 export function formatRemainingWork(remaining: RemainingExercise[], totalExercises: number): string {
   if (remaining.length === 0) return ''
+  if (remaining.length === 1 && totalExercises === 1) {
+    const r = remaining[0]
+    return (r.exercise.unit ?? 'reps') === 'seconds'
+      ? `${formatDuration(r.remaining)} of ${baseName(r.exercise)}`
+      : `${r.remaining} ${exercisePlural(r.exercise)}`
+  }
   if (remaining.length <= 3) return joinList(remaining.map(remainingLabel))
 
   const notStarted =
     remaining.length === totalExercises && remaining.every(r => r.remaining === r.target)
-  if (notStarted) {
-    const reps = remaining.reduce(
-      (sum, r) => ((r.exercise.unit ?? 'reps') === 'reps' ? sum + r.remaining : sum), 0)
-    const timed = remaining
-      .filter(r => (r.exercise.unit ?? 'reps') === 'seconds')
-      .map(remainingLabel)
-    return [reps > 0 ? `${reps} reps` : '', ...timed].filter(Boolean).join(' + ')
-  }
-  return `${remaining.length} of ${totalExercises} exercises`
+  return notStarted
+    ? `${remaining.length} exercises`
+    : `${remaining.length} of ${totalExercises} exercises`
 }
 
 /**
  * A complete encouragement sentence for what's left — the "finish those dead
  * hangs" message. Uses the exercise's custom `encouragements` when a single
  * exercise remains (templates support {remaining} and {name}); otherwise falls
- * back to generic lines. Returns null when nothing remains or more than three
- * exercises are still open (generic day copy reads better there).
+ * back to generic lines. On a fresh day with a long list it suggests a starter
+ * exercise instead. Returns null only when nothing remains, or when more than
+ * three exercises are open mid-day (generic day copy reads better there).
  */
 export function getRemainingNudge(remaining: RemainingExercise[], seed: number): string | null {
-  if (remaining.length === 0 || remaining.length > 3) return null
+  if (remaining.length === 0) return null
+
+  if (remaining.length > 3) {
+    const fresh = remaining.every(r => r.remaining === r.target)
+    if (!fresh) return null
+    // Fresh day: don't recite the list — frame it as N checkboxes and hand
+    // the user an easy first move.
+    const starter = pickSeeded(remaining, seed + 7)
+    const starterName = (starter.exercise.unit ?? 'reps') === 'seconds'
+      ? `the ${baseName(starter.exercise)}`
+      : `the ${exercisePlural(starter.exercise)}`
+    return pickSeeded([
+      `Just ${remaining.length} exercises today, one at a time. Start with ${starterName} — momentum does the rest.`,
+      `${remaining.length} exercises on the list. Knock out ${starterName} first and you're rolling.`,
+      `Don't count reps — count exercises. ${remaining.length} to check off, starting with ${starterName}.`,
+    ], seed)
+  }
 
   if (remaining.length === 1) {
     const r = remaining[0]
-    const amount = (r.exercise.unit ?? 'reps') === 'seconds'
-      ? formatDuration(r.remaining)
-      : String(r.remaining)
+    const isTimed = (r.exercise.unit ?? 'reps') === 'seconds'
+    const amount = isTimed ? formatDuration(r.remaining) : String(r.remaining)
     if (r.exercise.encouragements?.length) {
       return pickSeeded(r.exercise.encouragements, seed)
         .replace(/\{remaining\}/g, amount)
         .replace(/\{name\}/g, exercisePlural(r.exercise))
     }
-    const label = remainingLabel(r)
+    const plural = exercisePlural(r.exercise)
+    const amountLabel = isTimed ? `${amount} of ${baseName(r.exercise)}` : `${amount} ${plural}`
     return pickSeeded([
-      `Just the ${exercisePlural(r.exercise)} left — ${label} and the day is yours.`,
-      `One exercise left: ${label}. Finish it off.`,
-      `Only ${label} between you and a green check. Knock it out.`,
+      `One exercise left: ${amountLabel}. Finish it off.`,
+      `Just the ${plural} to go — ${amount} and you're done for the day.`,
+      `Only ${amountLabel} between you and a green check. Knock it out.`,
     ], seed)
   }
 

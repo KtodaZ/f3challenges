@@ -522,7 +522,7 @@ function generateNotification(ctx: {
         `Lead From the Front, ${fn}`,
       ];
       const bodies = [
-        `${peerStr} already crushed Day ${dayNumber}. ${workLeft} — it's not going to do itself.`,
+        `${peerStr} already crushed Day ${dayNumber}. ${workLeft} left for you — get after it.`,
         `${peerStr} ${peerVerb} completed today's challenge. ${fn}, ${workLeft} — start your first set now.`,
         `${peerStr} put in the work. Day ${dayNumber}: ${workLeft} — be next.`,
         `${peerStr} ${peerVerb} completed today's challenge — don't let them show you up. ${workLeft}, ${fn}.`,
