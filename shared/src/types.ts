@@ -9,6 +9,12 @@ export interface Exercise {
   name: string
   shortName: string
   unit?: ExerciseUnit // default 'reps'
+  // Lowercased plural for message copy, e.g. 'LBCs'. Defaults to a
+  // pluralized lowercase `name` (see remaining.ts exercisePlural).
+  plural?: string
+  // Custom encouragement lines shown when this exercise is the last one
+  // standing today. Supports {remaining} (amount left) and {name} (plural).
+  encouragements?: string[]
 }
 
 // For 'weekly-tiers' challenges: each tier covers a day range with per-exercise amounts.
@@ -115,6 +121,9 @@ export interface NotificationVars {
   daysRemaining: number
   repsRemaining: number
   challengeName: string
+  // Exercise-aware phrase for what's left today, e.g. "20 incline merkins
+  // and 20 decline merkins" — see remaining.ts formatRemainingWork.
+  workRemaining?: string
 }
 
 export interface NotificationTemplatePair {

@@ -6,7 +6,11 @@
 //                   {hashtag} {challengeName} {exerciseName} {daysLeft}
 //                   {percent} {weekNumber} (weekly-tier challenges only)
 //   Notifications:  {fn} {dayNumber} {totalDays} {daysRemaining}
-//                   {repsRemaining} {challengeName}
+//                   {repsRemaining} {challengeName} {workRemaining}
+//
+// {workRemaining} is the exercise-aware phrase for what's left today
+// ("20 incline merkins and 20 decline merkins") — prefer it over
+// "{repsRemaining} reps" in pending copy.
 //
 // Challenge-specific templates augment (not replace) the defaults, so every
 // challenge gets the full variety of generic copy plus its own flavor.
@@ -179,11 +183,11 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "Day 1 — Don't Wait",
     ],
     bodies: [
-      "Day 1 of {totalDays}: {repsRemaining} reps. The crew is watching — go first.",
-      "{challengeName} kicked off today. {repsRemaining} reps on Day 1 — get it done, {fn}.",
-      "First day of {challengeName}. {repsRemaining} reps standing between you and Day 1. Go.",
-      "{fn}, Day 1 is now. {repsRemaining} reps — first PAX to finish sets the standard.",
-      "It starts today. {repsRemaining} reps, Day 1 of {totalDays}. Lock in, {fn}.",
+      "Day 1 of {totalDays}: {workRemaining}. The crew is watching — go first.",
+      "{challengeName} kicked off today. {workRemaining} on Day 1 — get it done, {fn}.",
+      "First day of {challengeName}. {workRemaining} standing between you and Day 1. Go.",
+      "{fn}, Day 1 is now: {workRemaining}. First PAX to finish sets the standard.",
+      "It starts today. {workRemaining}, Day 1 of {totalDays}. Lock in, {fn}.",
     ],
   },
   quarterCompleted: {
@@ -211,11 +215,11 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "25% — Finish Day {dayNumber}",
     ],
     bodies: [
-      "Day {dayNumber} is the quarter mark. {repsRemaining} reps to close out the first 25% strong.",
-      "You're a quarter of the way through {challengeName}. {repsRemaining} reps left on Day {dayNumber} — don't let it slip.",
-      "Day {dayNumber} of {totalDays}: the first quarter ends today. {repsRemaining} reps — go earn it, {fn}.",
-      "{fn}, close the first quarter right. {repsRemaining} reps on Day {dayNumber}. Don't leave it unfinished.",
-      "25% milestone. {repsRemaining} reps stand between you and a clean first quarter. Go, {fn}.",
+      "Day {dayNumber} is the quarter mark. {workRemaining} to close out the first 25% strong.",
+      "You're a quarter of the way through {challengeName}. {workRemaining} left on Day {dayNumber} — don't let it slip.",
+      "Day {dayNumber} of {totalDays}: the first quarter ends today. {workRemaining} — go earn it, {fn}.",
+      "{fn}, close the first quarter right. {workRemaining} on Day {dayNumber}. Don't leave it unfinished.",
+      "25% milestone. {workRemaining} between you and a clean first quarter. Go, {fn}.",
     ],
   },
   halfCompleted: {
@@ -243,11 +247,11 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "Don't Let Halfway Slip",
     ],
     bodies: [
-      "Day {dayNumber} is the halfway mark. {repsRemaining} reps to close the first half — don't let it slip, {fn}.",
-      "You're at the midpoint of {challengeName}. {repsRemaining} reps left on Day {dayNumber}. Finish the half strong.",
-      "Day {dayNumber} of {totalDays}: halfway. {repsRemaining} reps — you either quit now or you don't. Go, {fn}.",
-      "{fn}, the halfway line is right there. {repsRemaining} reps on Day {dayNumber}. Cross it.",
-      "50% milestone. {repsRemaining} reps stand between you and the halfway point. Make it count, {fn}.",
+      "Day {dayNumber} is the halfway mark. {workRemaining} to close the first half — don't let it slip, {fn}.",
+      "You're at the midpoint of {challengeName}. {workRemaining} left on Day {dayNumber}. Finish the half strong.",
+      "Day {dayNumber} of {totalDays}: halfway. {workRemaining} — you either quit now or you don't. Go, {fn}.",
+      "{fn}, the halfway line is right there. {workRemaining} on Day {dayNumber}. Cross it.",
+      "50% milestone. {workRemaining} between you and the halfway point. Make it count, {fn}.",
     ],
   },
   threeQuarterCompleted: {
@@ -275,11 +279,11 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "{daysRemaining} Days Left After This",
     ],
     bodies: [
-      "Day {dayNumber}: 75% through {challengeName}. {repsRemaining} reps — don't let up this close to done.",
-      "Three-quarter mark, {fn}. {repsRemaining} reps on Day {dayNumber}. Finish it and you're in the home stretch.",
-      "You're 75% through {challengeName}. {repsRemaining} reps left on Day {dayNumber} — close this out right.",
-      "{fn}, {daysRemaining} days after today. {repsRemaining} reps right now. Don't leave the three-quarter mark unfinished.",
-      "75% milestone. {repsRemaining} reps on Day {dayNumber}. This is where {challengeName} gets separated from the excuses. Go.",
+      "Day {dayNumber}: 75% through {challengeName}. {workRemaining} — don't let up this close to done.",
+      "Three-quarter mark, {fn}. {workRemaining} on Day {dayNumber}. Finish it and you're in the home stretch.",
+      "You're 75% through {challengeName}. {workRemaining} left on Day {dayNumber} — close this out right.",
+      "{fn}, {daysRemaining} days after today. {workRemaining} right now. Don't leave the three-quarter mark unfinished.",
+      "75% milestone. {workRemaining} on Day {dayNumber}. This is where {challengeName} gets separated from the excuses. Go.",
     ],
   },
 }
@@ -315,7 +319,10 @@ export function renderNotification(
   seed: number,
   vars: NotificationVars,
 ): { title: string; body: string } {
-  const v = vars as unknown as Record<string, string | number | undefined>
+  const v = {
+    ...vars,
+    workRemaining: vars.workRemaining || `${vars.repsRemaining} reps`,
+  } as unknown as Record<string, string | number | undefined>
   return {
     title: renderTemplate(pickSeeded(pair.titles, seed), v),
     body:  renderTemplate(pickSeeded(pair.bodies, seed + 1), v),
