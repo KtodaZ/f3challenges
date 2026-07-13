@@ -14,8 +14,11 @@ import {
   getDailyTarget,
   getNotificationTemplates,
   renderNotification,
+  getRemainingExercises,
+  formatRemainingWork,
+  getRemainingNudge,
 } from "@f3-bedrock/shared";
-import type { ChallengeTemplate, NotificationVars } from "@f3-bedrock/shared";
+import type { ChallengeTemplate, DailyTarget, NotificationVars } from "@f3-bedrock/shared";
 
 admin.initializeApp()
 
@@ -326,6 +329,8 @@ function fmtNames(names: string[]): string {
 
 function generateNotification(ctx: {
   challenge: ChallengeTemplate;
+  dailyTarget: DailyTarget;
+  exerciseLogs: ExerciseLogEntry[] | null;
   userName: string; challengeName: string; dayNumber: number; totalDays: number;
   todayTarget: number; repsCompleted: number; repsRemaining: number;
   repsPerExercise: number; primaryExercise: string;
@@ -335,7 +340,7 @@ function generateNotification(ctx: {
   completedNames: string[]; notDoneNames: string[];
 }): { title: string; body: string } {
   const {
-    challenge,
+    challenge, dailyTarget, exerciseLogs,
     userName, challengeName, dayNumber, totalDays,
     repsCompleted, repsRemaining,
     userCompleted, groupCompletedCount, groupTotalCount,
@@ -347,7 +352,15 @@ function generateNotification(ctx: {
   const seed = notifSeed(dayNumber, notificationType);
   const daysRemaining = totalDays - dayNumber;
 
-  const notifVars: NotificationVars = { fn, dayNumber, totalDays, daysRemaining, repsRemaining, challengeName };
+  // Exercise-aware "what's left" copy: "20 incline merkins and 20 decline
+  // merkins" beats "40 reps". nudge is a full custom sentence ("finish those
+  // dead hangs...") available when ≤3 exercises remain.
+  const remaining = getRemainingExercises(dailyTarget, exerciseLogs);
+  const exerciseCount = dailyTarget.exercises.filter(e => e.reps > 0).length;
+  const workLeft = formatRemainingWork(remaining, exerciseCount) || `${repsRemaining} reps`;
+  const nudge = getRemainingNudge(remaining, seed);
+
+  const notifVars: NotificationVars = { fn, dayNumber, totalDays, daysRemaining, repsRemaining, challengeName, workRemaining: workLeft };
   const daysWord = daysRemaining === 1 ? "day" : "days";
   const isEndgame = daysRemaining <= 3;
   const isLate = daysRemaining <= 10;
@@ -357,8 +370,8 @@ function generateNotification(ctx: {
   const peerVerb = completedNames.length === 1 ? "has" : "have";
   const partnerStr = fmtNames(notDoneNames);
   const progressNote = repsCompleted > 0
-    ? `${repsCompleted} done, ${repsRemaining} to go`
-    : `${repsRemaining} reps to go`;
+    ? `${workLeft} still to go`
+    : `${workLeft} to go`;
 
   // --- Milestone days ---
   const { quarter: quarterDay, half: halfDay, threeQuarter: threeQuarterDay } = getMilestoneDays(challenge);
@@ -458,14 +471,15 @@ function generateNotification(ctx: {
     ];
     const peerLine = hasPeers ? `${peerStr} ${peerVerb} completed today's challenge. ` : "";
     const bodies = [
-      `${peerLine}${daysRemaining} ${daysWord} left — ${repsRemaining} reps stand between you and the finish line.`,
+      `${peerLine}${daysRemaining} ${daysWord} left — ${workLeft} between you and the finish line.`,
       `${modNote}${progressNote}. ${daysRemaining} ${daysWord} in ${challengeName}. Don't quit this close to done.`,
-      `${fn}, ${daysRemaining} ${daysWord} left — ${repsRemaining} reps now. The crew is watching.`,
-      `You've come too far to stop. ${repsRemaining} reps, ${daysRemaining} ${daysWord} to go — finish strong.`,
+      `${fn}, ${daysRemaining} ${daysWord} left — ${workLeft} now. The crew is watching.`,
+      `You've come too far to stop. ${workLeft} today, ${daysRemaining} ${daysWord} to go — finish strong.`,
       `${peerLine}${progressNote}. ${daysRemaining} ${daysWord} left — make it count.`,
-      `${daysRemaining} ${daysWord} left in ${challengeName}. ${repsRemaining} reps today — this is what you trained for.`,
-      `${modNote}${repsRemaining} reps left. ${daysRemaining} ${daysWord} remaining — leave nothing on the table, ${fn}.`,
+      `${daysRemaining} ${daysWord} left in ${challengeName}. ${workLeft} today — this is what you trained for.`,
+      `${modNote}${workLeft} left. ${daysRemaining} ${daysWord} remaining — leave nothing on the table, ${fn}.`,
     ];
+    if (nudge) bodies.push(nudge, `${peerLine}${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
   }
 
@@ -482,14 +496,15 @@ function generateNotification(ctx: {
       `Almost Home, ${fn}`,
     ];
     const bodies = [
-      `${peerLine}${repsRemaining} reps left on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — hold the line.`,
+      `${peerLine}${workLeft} left on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — hold the line.`,
       `${modNote}${progressNote}. ${daysRemaining} ${daysWord} remaining in ${challengeName} — finish what you started.`,
-      `${fn}, ${daysRemaining} ${daysWord} left. ${repsRemaining} reps today, then you're one day closer.`,
-      `${peerLine}Day ${dayNumber} of ${totalDays}: ${repsRemaining} reps. ${daysRemaining} ${daysWord} remaining — let's close strong.`,
-      `You've put in the work. ${daysRemaining} ${daysWord} left — ${repsRemaining} reps today keeps the streak alive.`,
+      `${fn}, ${daysRemaining} ${daysWord} left. ${workLeft} today, then you're one day closer.`,
+      `${peerLine}Day ${dayNumber} of ${totalDays}: ${workLeft}. ${daysRemaining} ${daysWord} remaining — let's close strong.`,
+      `You've put in the work. ${daysRemaining} ${daysWord} left — finishing today keeps the streak alive. ${workLeft}.`,
       `${daysRemaining} ${daysWord} left in ${challengeName}. ${fn}: ${progressNote}. Stay locked in.`,
-      `${peerLine}${repsRemaining} reps on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — don't let up now.`,
+      `${peerLine}${workLeft} on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — don't let up now.`,
     ];
+    if (nudge) bodies.push(nudge, `${peerLine}${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
   }
 
@@ -507,14 +522,15 @@ function generateNotification(ctx: {
         `Lead From the Front, ${fn}`,
       ];
       const bodies = [
-        `${peerStr} already crushed Day ${dayNumber}. Your ${repsRemaining} reps aren't going to do themselves.`,
-        `${peerStr} ${peerVerb} completed today's challenge. ${fn}, ${repsRemaining} reps — start your first set now.`,
-        `${peerStr} put in the work. Day ${dayNumber}: ${repsRemaining} reps — be next.`,
-        `${peerStr} ${peerVerb} completed today's challenge — don't let them show you up. ${repsRemaining} reps, ${fn}.`,
+        `${peerStr} already crushed Day ${dayNumber}. ${workLeft} — it's not going to do itself.`,
+        `${peerStr} ${peerVerb} completed today's challenge. ${fn}, ${workLeft} — start your first set now.`,
+        `${peerStr} put in the work. Day ${dayNumber}: ${workLeft} — be next.`,
+        `${peerStr} ${peerVerb} completed today's challenge — don't let them show you up. ${workLeft}, ${fn}.`,
         `${peerStr} already done. Day ${dayNumber}: ${progressNote}. Get moving, ${fn}.`,
-        `${peerStr} led the way today. ${fn}, ${repsRemaining} reps — go now, thank yourself later.`,
-        `${peerStr} ${peerVerb} completed today's challenge. ${modNote}${repsRemaining} reps — you're next, ${fn}.`,
+        `${peerStr} led the way today. ${fn}, ${workLeft} — go now, thank yourself later.`,
+        `${peerStr} ${peerVerb} completed today's challenge. ${modNote}${workLeft} — you're next, ${fn}.`,
       ];
+      if (nudge) bodies.push(nudge, `${peerStr} ${peerVerb} completed today's challenge. ${nudge}`);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     } else if (hasPartners) {
       const titles = [
@@ -530,11 +546,12 @@ function generateNotification(ctx: {
         `${partnerStr} haven't started yet — be the first PAX to finish Day ${dayNumber}.`,
         `${modNote}${progressNote}. Day is young — knock out a set and be the one who leads today.`,
         `${progressNote}. ${fn}, go first — set the tone.`,
-        `Nobody's done yet. ${fn}, be the standard — ${repsRemaining} reps on Day ${dayNumber}.`,
+        `Nobody's done yet. ${fn}, be the standard — ${workLeft} on Day ${dayNumber}.`,
         `You and ${partnerStr} are all still in it. First one done fires up the rest — go.`,
-        `Morning sets pay dividends. ${fn}, ${repsRemaining} reps — lead the crew.`,
+        `Morning sets pay dividends. ${fn}, ${workLeft} — lead the crew.`,
         `${partnerStr} haven't finished yet. ${fn}: ${progressNote} — lead the charge.`,
       ];
+      if (nudge) bodies.push(nudge, `Nobody's done yet — go first. ${nudge}`);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     } else {
       const titles = [
@@ -545,12 +562,13 @@ function generateNotification(ctx: {
         `Own the Morning, ${fn}`,
       ];
       const bodies = [
-        `Day ${dayNumber} of ${totalDays}: ${repsRemaining} reps. Morning sets pay dividends — start now.`,
+        `Day ${dayNumber} of ${totalDays}: ${workLeft}. Morning sets pay dividends — start now.`,
         `${progressNote}. Day is young, ${fn} — get moving.`,
         `Day ${dayNumber} on ${challengeName}. Be the first PAX to finish today.`,
-        `${fn}, ${repsRemaining} reps today. Knock your first set out early and thank yourself later.`,
-        `${modNote}${repsRemaining} reps waiting, ${fn}. Morning is the best time — go.`,
+        `${fn}, ${workLeft} today. Knock your first set out early and thank yourself later.`,
+        `${modNote}${workLeft} waiting, ${fn}. Morning is the best time — go.`,
       ];
+      if (nudge) bodies.push(nudge);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     }
   }
@@ -568,13 +586,14 @@ function generateNotification(ctx: {
       ];
       const bodies = [
         `${peerStr} ${peerVerb} completed today's challenge. ${fn}: ${progressNote} — do it now, not tonight.`,
-        `${peerStr} already done. ${repsRemaining} reps on Day ${dayNumber} — don't let it pile up.`,
-        `${peerStr} checked in. ${fn}, ${repsRemaining} reps — knock a set out before dinner.`,
+        `${peerStr} already done. ${workLeft} on Day ${dayNumber} — don't let it pile up.`,
+        `${peerStr} checked in. ${fn}, ${workLeft} — knock a set out before dinner.`,
         `${peerStr} ${peerVerb} completed today's challenge. ${modNote}${progressNote} — you've got time, use it.`,
-        `${peerStr} are done for the day. ${fn}: ${repsRemaining} reps left, go now.`,
-        `${peerStr} already crushed it. Afternoon's the sweet spot — ${repsRemaining} reps, ${fn}.`,
-        `${peerStr} ${peerVerb} completed today's challenge. ${fn}, don't push it to tonight — ${repsRemaining} reps now.`,
+        `${peerStr} are done for the day. ${fn}: ${workLeft} left, go now.`,
+        `${peerStr} already crushed it. Afternoon's the sweet spot — ${workLeft}, ${fn}.`,
+        `${peerStr} ${peerVerb} completed today's challenge. ${fn}, don't push it to tonight — ${workLeft} now.`,
       ];
+      if (nudge) bodies.push(nudge, `${peerStr} ${peerVerb} completed today's challenge. ${nudge}`);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     } else if (hasPartners) {
       const titles = [
@@ -585,12 +604,13 @@ function generateNotification(ctx: {
         `Beat the Clock, ${fn}`,
       ];
       const bodies = [
-        `You and ${partnerStr} are still grinding. ${repsRemaining} reps — finish before tonight.`,
+        `You and ${partnerStr} are still grinding. ${workLeft} — finish before tonight.`,
         `${partnerStr} haven't finished yet either. Day ${dayNumber}: ${progressNote} — go now.`,
-        `You're not alone — ${partnerStr} still have reps left too. ${repsRemaining} to go, ${fn}.`,
-        `${groupCompletedCount}/${groupTotalCount} PAX done. ${fn}: ${repsRemaining} reps — don't push it to evening.`,
-        `${modNote}${partnerStr} still grinding too. ${repsRemaining} reps left — who finishes first?`,
+        `You're not alone — ${partnerStr} still have work left too. ${workLeft} to go, ${fn}.`,
+        `${groupCompletedCount}/${groupTotalCount} PAX done. ${fn}: ${workLeft} — don't push it to evening.`,
+        `${modNote}${partnerStr} still grinding too. ${workLeft} left — who finishes first?`,
       ];
+      if (nudge) bodies.push(nudge, `${partnerStr} haven't finished yet either. ${nudge}`);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     } else {
       const titles = [
@@ -601,10 +621,11 @@ function generateNotification(ctx: {
       ];
       const bodies = [
         `${modNote}${progressNote} on Day ${dayNumber}. Afternoon's the sweet spot — knock it out now.`,
-        `Day ${dayNumber}: ${repsRemaining} reps. Don't let it pile up for tonight.`,
+        `Day ${dayNumber}: ${workLeft}. Don't let it pile up for tonight.`,
         `${fn}, ${progressNote}. Go now while it's light.`,
-        `${modNote}${repsRemaining} reps left on Day ${dayNumber}. Afternoons are for grinding — go.`,
+        `${modNote}${workLeft} left on Day ${dayNumber}. Afternoons are for grinding — go.`,
       ];
+      if (nudge) bodies.push(nudge);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     }
   }
@@ -621,14 +642,15 @@ function generateNotification(ctx: {
       `Finish Day ${dayNumber}, ${fn}`,
     ];
     const bodies = [
-      `${peerStr} ${peerVerb} completed today's challenge. ${fn}: ${repsRemaining} reps before midnight — let's go.`,
-      `${peerStr} already done. Day ${dayNumber} ends soon — ${repsRemaining} reps, ${fn}.`,
+      `${peerStr} ${peerVerb} completed today's challenge. ${fn}: ${workLeft} before midnight — let's go.`,
+      `${peerStr} already done. Day ${dayNumber} ends soon — ${workLeft}, ${fn}.`,
       `${peerStr} ${peerVerb} completed today's challenge. ${modNote}${progressNote} — last chance to close Day ${dayNumber}.`,
       `${peerStr} checked in. ${fn}, ${progressNote} — do it now.`,
-      `${peerStr} are done for the day. ${fn}: clock's running — ${repsRemaining} reps left.`,
-      `${peerStr} ${peerVerb} completed today's challenge. Don't let Day ${dayNumber} slip — ${repsRemaining} reps now.`,
-      `${peerStr} put it in. ${fn}, ${repsRemaining} reps — don't be the one who didn't finish today.`,
+      `${peerStr} are done for the day. ${fn}: clock's running — ${workLeft} left.`,
+      `${peerStr} ${peerVerb} completed today's challenge. Don't let Day ${dayNumber} slip — ${workLeft} now.`,
+      `${peerStr} put it in. ${fn}, ${workLeft} — don't be the one who didn't finish today.`,
     ];
+    if (nudge) bodies.push(nudge, `${peerStr} ${peerVerb} completed today's challenge. ${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
   } else if (hasPartners) {
     const titles = [
@@ -639,12 +661,13 @@ function generateNotification(ctx: {
       `Final Hour, ${fn}`,
     ];
     const bodies = [
-      `You and ${partnerStr} still need to finish. ${repsRemaining} reps — don't let today slip.`,
+      `You and ${partnerStr} still need to finish. ${workLeft} — don't let today slip.`,
       `${partnerStr} are still grinding too. Day ${dayNumber}: ${progressNote}. Finish together.`,
-      `Only ${notDoneNames.length + 1} PAX left to finish Day ${dayNumber}. ${fn}, ${repsRemaining} reps — go.`,
-      `${partnerStr} haven't finished either. ${fn}: ${repsRemaining} reps — tonight's your last shot.`,
-      `${modNote}${partnerStr} still out there too. ${repsRemaining} reps, ${fn} — close it out.`,
+      `Only ${notDoneNames.length + 1} PAX left to finish Day ${dayNumber}. ${fn}, ${workLeft} — go.`,
+      `${partnerStr} haven't finished either. ${fn}: ${workLeft} — tonight's your last shot.`,
+      `${modNote}${partnerStr} still out there too. ${workLeft}, ${fn} — close it out.`,
     ];
+    if (nudge) bodies.push(nudge, `${partnerStr} haven't finished either. ${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
   } else {
     const titles = [
@@ -655,12 +678,13 @@ function generateNotification(ctx: {
       `Close It Out, ${fn}`,
     ];
     const bodies = [
-      `${fn}, ${repsRemaining} reps before midnight. Don't break the streak.`,
-      `Day ${dayNumber} ends soon — ${repsRemaining} reps left, ${fn}. Get it done.`,
-      `Tonight's your last shot on Day ${dayNumber}. ${modNote}${repsRemaining} reps — go.`,
+      `${fn}, ${workLeft} before midnight. Don't break the streak.`,
+      `Day ${dayNumber} ends soon — ${workLeft} left, ${fn}. Get it done.`,
+      `Tonight's your last shot on Day ${dayNumber}. ${modNote}${workLeft} — go.`,
       `${fn}: ${progressNote}. Don't let Day ${dayNumber} slip.`,
-      `${modNote}${repsRemaining} reps stand between you and Day ${dayNumber}. Close it out, ${fn}.`,
+      `${modNote}${workLeft} between you and Day ${dayNumber}. Close it out, ${fn}.`,
     ];
+    if (nudge) bodies.push(nudge);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
   }
 }
@@ -870,6 +894,8 @@ export const sendScheduledNotifications = onSchedule(
 
           let { title, body } = generateNotification({
             challenge,
+            dailyTarget:         todayTarget,
+            exerciseLogs:        userLog?.exerciseLogs ?? null,
             userName:            user.displayName,
             challengeName:       challenge.name,
             dayNumber,
@@ -987,6 +1013,8 @@ export const sendTestPush = onRequest(
 
       const result = generateNotification({
         challenge,
+        dailyTarget: testTarget,
+        exerciseLogs: userLog?.exerciseLogs ?? null,
         userName: user.displayName, challengeName: challenge.name,
         dayNumber, totalDays, todayTarget: todayReps,
         repsCompleted, repsRemaining, repsPerExercise,

@@ -219,14 +219,63 @@ export const CHALLENGES: ChallengeTemplate[] = [
     startDate: '2026-07-01',
     endDate: '2026-07-31',
     exercises: [
-      { id: 'dead-hang',      name: 'Dead Hang',       shortName: 'Hang',    unit: 'seconds' },
-      { id: 'diamond-merkin', name: 'Diamond Merkin',  shortName: 'Diamond'  },
-      { id: 'std-merkin',     name: 'Standard Merkin', shortName: 'Std'      },
-      { id: 'wide-merkin',    name: 'Wide Arm Merkin', shortName: 'Wide'     },
-      { id: 'incline-merkin', name: 'Incline Merkin',  shortName: 'Incline'  },
-      { id: 'decline-merkin', name: 'Decline Merkin',  shortName: 'Decline'  },
-      { id: 'lbc',            name: 'Little Baby Crunch', shortName: 'LBC'   },
-      { id: 'lunge',          name: 'Lunge (2:1)',     shortName: 'Lunge'    },
+      {
+        id: 'dead-hang', name: 'Dead Hang', shortName: 'Hang', unit: 'seconds',
+        encouragements: [
+          'Finish those dead hangs — find a bar and hang on. {remaining} and today is in the books.',
+          'Just the hang left. {remaining} on the bar — grip it and grit it out.',
+          'One thing left: {remaining} of dead hang. The bar is waiting.',
+        ],
+      },
+      {
+        id: 'diamond-merkin', name: 'Diamond Merkin', shortName: 'Diamond',
+        encouragements: [
+          "You've got diamond merkins left. Get on the floor and pump out a set — the hardest part is starting.",
+          'Just {remaining} diamond merkins to go. Hands in, core tight, knock them out.',
+        ],
+      },
+      {
+        id: 'std-merkin', name: 'Standard Merkin', shortName: 'Std',
+        encouragements: [
+          "You've got merkins left. Just get on the floor and pump out a set — the hardest part is starting.",
+          '{remaining} standard merkins between you and done. Drop and go.',
+        ],
+      },
+      {
+        id: 'wide-merkin', name: 'Wide Arm Merkin', shortName: 'Wide',
+        encouragements: [
+          'Only the wide arms left — {remaining} to go. Spread the hands, hit the floor.',
+          "{remaining} wide arm merkins and you're done for the day. Pump out a set.",
+        ],
+      },
+      {
+        id: 'incline-merkin', name: 'Incline Merkin', shortName: 'Incline',
+        encouragements: [
+          'Just the inclines left. Find a bench, a couch, a wall — {remaining} and done.',
+          '{remaining} incline merkins to close the day. Easiest ones on the list — go.',
+        ],
+      },
+      {
+        id: 'decline-merkin', name: 'Decline Merkin', shortName: 'Decline',
+        encouragements: [
+          'Declines are all that stand between you and done — feet up, {remaining} to go.',
+          'Just {remaining} decline merkins left. Kick the feet up and finish it.',
+        ],
+      },
+      {
+        id: 'lbc', name: 'Little Baby Crunch', shortName: 'LBC', plural: 'LBCs',
+        encouragements: [
+          '{remaining} LBCs to go. Hit the deck — crunch time, literally.',
+          'Just the LBCs left. Lie down, knock out {remaining}, call it a day.',
+        ],
+      },
+      {
+        id: 'lunge', name: 'Lunge (2:1)', shortName: 'Lunge',
+        encouragements: [
+          '{remaining} lunges left. Walk them out — hallway, driveway, wherever.',
+          "Only the lunges left. {remaining} steps and today's box is checked.",
+        ],
+      },
     ],
     weeklyTiers: [
       {

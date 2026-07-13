@@ -38,6 +38,7 @@ import {
   getBonusWeekFeedPost,
   CHALLENGES,
   buildFeedPost,
+  getRemainingExercises,
 } from '@/lib/challenges'
 import type { FeedPostVars } from '@/lib/challenges'
 import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak, isChallengeParticipant } from '@/lib/utils'
@@ -1069,6 +1070,7 @@ export default function HomePage() {
           totalPAX={totalPAX}
           activeCount={activeCount}
           incompleteNames={incompleteUsers.map(u => u.displayName)}
+          remaining={getRemainingExercises(target, todayLog?.exerciseLogs)}
         />
 
         {/* ── Rest day banner (fixed rest day — no log required) ── */}

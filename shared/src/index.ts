@@ -1,4 +1,5 @@
 export * from './types'
 export * from './challenges'
 export * from './copy'
+export * from './remaining'
 export * from './achievements'
