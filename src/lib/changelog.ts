@@ -1,0 +1,73 @@
+/**
+ * Participant-facing changelog — the single source of truth for "What's New".
+ *
+ * These are curated, plain-English notes written FOR the PAX, not raw commit
+ * messages. Keep each bullet short and about something a user would actually
+ * notice. Newest entry goes FIRST.
+ *
+ * Per project rule (see CLAUDE.md): every change that ships something a PAX
+ * could notice adds a bullet here — either to today's entry or a new one.
+ */
+
+export interface ChangelogEntry {
+  /** Ship date, YYYY-MM-DD. */
+  date: string
+  /** Short, user-facing notes. Keep them plain-English — no commit-speak. */
+  changes: string[]
+}
+
+export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-07-15',
+    changes: [
+      'Added this "What\'s New" changelog — tap the version in Settings anytime to see what changed.',
+      'Call Out a PAX now only lists guys in the current challenge, so drop-offs no longer clutter the list.',
+    ],
+  },
+  {
+    date: '2026-07-12',
+    changes: [
+      'Your "keep going" nudges now call out the exercises and reps you still have left, not just a rep total.',
+    ],
+  },
+  {
+    date: '2026-07-11',
+    changes: [
+      'The feed now loads endlessly as you scroll, with clear day-by-day separators.',
+    ],
+  },
+  {
+    date: '2026-07-10',
+    changes: [
+      'Lots of new badges to earn — group finishes, same-day stacks, socials, and a Completionist goal.',
+      'Tap any badge to see how to earn it, and check the Badge of the Month.',
+    ],
+  },
+  {
+    date: '2026-07-08',
+    changes: [
+      'New Tour de Bedrock Week 3 bonus: the Sierra College Blvd heavy ruck (up and back).',
+      'Time-based exercises now have a full-screen timer.',
+      'Added a weekly AI recap of the crew\'s week.',
+    ],
+  },
+]
+
+/** Newest entry first — the list is already sorted, this just guards intent. */
+export function getChangelog(): ChangelogEntry[] {
+  return [...CHANGELOG].sort((a, b) => b.date.localeCompare(a.date))
+}
+
+/** The most recent N entries — used by the update modal's "What's New" peek. */
+export function getRecentChangelog(limit = 3): ChangelogEntry[] {
+  return getChangelog().slice(0, limit)
+}
+
+/** "Jul 15, 2026" — changelog spans months, so unlike formatDate we show year. */
+export function formatChangelogDate(date: string): string {
+  return new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}

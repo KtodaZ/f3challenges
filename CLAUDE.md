@@ -26,6 +26,16 @@ pnpm install        # installs workspace deps (src/ + shared/)
 
 `tsc --noEmit` and `pnpm lint` will report hundreds of spurious "Cannot find module 'react'" errors until deps are installed — those are not code bugs.
 
+## Changelog — ALWAYS update it
+
+**Every change that a PAX could notice MUST add a bullet to the changelog.** No exceptions — treat it as part of "done," like a passing typecheck.
+
+- Single source of truth: `src/lib/changelog.ts` (the `CHANGELOG` array, newest entry first).
+- Entries are **curated, plain-English notes written FOR the PAX** — never raw commit messages, conventional-commit prefixes, or internal jargon. Describe what the user will notice, not how it was built.
+- Add a bullet to today's entry if one exists (match the `YYYY-MM-DD` date), otherwise prepend a new entry.
+- Purely internal changes (refactors, CI, build fixes, type-only edits with no user-visible effect) do **not** get an entry — the changelog is user-facing, not a commit log.
+- Surfaces that render it: the `/changelog` page (linked from Settings) and the "What's new" reveal inside `UpdateBanner` (the update modal). Both read from `src/lib/changelog.ts` — no other wiring needed.
+
 ## Critical Patterns
 
 ### stripUndefined — always use before Firestore writes
