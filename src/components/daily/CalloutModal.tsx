@@ -55,7 +55,11 @@ export function CalloutModal({
   defaultContent,
   onPosted,
 }: CalloutModalProps) {
-  const [targetUser, setTargetUser] = useState<User | null>(defaultTarget ?? null)
+  // Ids of the PAX being called out. Empty = a general shoutout (feed post, no
+  // pings); one = a direct callout; everyone = "the whole crew" rally.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(defaultTarget ? [defaultTarget.id] : [])
+  )
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
@@ -63,16 +67,36 @@ export function CalloutModal({
   const [placeholderIdx, setPlaceholderIdx] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Sync target and content when the modal opens; pick a fresh placeholder each time
+  // Sync selection and content when the modal opens; pick a fresh placeholder each time
   useEffect(() => {
     if (open) {
-      setTargetUser(defaultTarget ?? null)
+      setSelectedIds(new Set(defaultTarget ? [defaultTarget.id] : []))
       setContent(defaultContent ?? '')
       setPlaceholderIdx(Math.floor(Math.random() * CREW_PLACEHOLDERS.length))
     }
   }, [open, defaultTarget, defaultContent])
 
   const otherUsers = users.filter(u => u.id !== currentUser.id)
+
+  const allSelected = otherUsers.length > 0 && otherUsers.every(u => selectedIds.has(u.id))
+  // When exactly one PAX is picked we keep the classic single-callout behavior
+  // (targetUserId → guaranteed ping + "shouted out @X" in the feed).
+  const singleTarget = selectedIds.size === 1
+    ? otherUsers.find(u => selectedIds.has(u.id)) ?? null
+    : null
+
+  function toggleUser(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleWholeCrew() {
+    setSelectedIds(allSelected ? new Set() : new Set(otherUsers.map(u => u.id)))
+  }
 
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setContent(e.target.value)
@@ -97,15 +121,16 @@ export function CalloutModal({
     if (!content.trim()) return
     setSaving(true)
     try {
-      // Resolve @mention names → user IDs (additive to targetUser)
+      // Resolve @mention names → user IDs (additive to the selected PAX)
       const mentionedNames = extractMentionNames(content, users)
       const mentionedUsers = users.filter(u =>
         mentionedNames.some(name => name.toLowerCase() === u.displayName.toLowerCase())
       )
       const mentionIds = mentionedUsers.map(u => u.id)
-      const allMentions = targetUser
-        ? [...new Set([targetUser.id, ...mentionIds])]
-        : mentionIds
+      // Everyone selected (or typed) gets tagged — the Cloud Function notifies
+      // each one who has mentions enabled. A single pick also becomes the
+      // targetUserId so the feed reads "shouted out @X" and they always ping.
+      const allMentions = [...new Set([...selectedIds, ...mentionIds])]
 
       const post: FeedPost = {
         id: generateId(),
@@ -115,16 +140,16 @@ export function CalloutModal({
         hashtags: extractHashtags(content),
         mentions: allMentions,
         challengeId,
-        ...(targetUser ? { targetUserId: targetUser.id } : {}),
+        ...(singleTarget ? { targetUserId: singleTarget.id } : {}),
         createdAt: new Date().toISOString(),
         deleted: false,
       }
       await createFeedPost(post)
-      onPosted?.(targetUser?.id ?? null)
+      onPosted?.(singleTarget?.id ?? null)
       setDone(true)
       setTimeout(() => {
         setDone(false)
-        setTargetUser(null)
+        setSelectedIds(new Set())
         setContent('')
         onClose()
       }, 1200)
@@ -135,7 +160,7 @@ export function CalloutModal({
 
   function handleClose() {
     if (saving) return
-    setTargetUser(null)
+    setSelectedIds(new Set())
     setContent('')
     setDone(false)
     setMentionQuery(null)
@@ -156,24 +181,33 @@ export function CalloutModal({
       ) : (
         <div className="space-y-4">
           <div>
-            <p className="text-sm font-medium text-zinc-300 mb-2">Who are you calling out?</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-zinc-300">Who are you calling out?</p>
+              {selectedIds.size > 0 && (
+                <span className="text-xs text-zinc-500">
+                  {allSelected
+                    ? `Whole crew · ${selectedIds.size}`
+                    : `${selectedIds.size} selected`}
+                </span>
+              )}
+            </div>
             <div className="flex gap-2 flex-wrap">
               <button
-                onClick={() => setTargetUser(null)}
+                onClick={toggleWholeCrew}
                 className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                  targetUser === null
+                  allSelected
                     ? 'bg-orange-500 text-white'
                     : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                 }`}
               >
-                The whole crew
+                {allSelected ? 'Clear crew' : 'The whole crew'}
               </button>
               {otherUsers.map(u => (
                 <button
                   key={u.id}
-                  onClick={() => setTargetUser(u)}
+                  onClick={() => toggleUser(u.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                    targetUser?.id === u.id
+                    selectedIds.has(u.id)
                       ? 'bg-orange-500 text-white'
                       : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                   }`}
@@ -199,8 +233,8 @@ export function CalloutModal({
                   }
                 }}
                 placeholder={
-                  targetUser
-                    ? TARGET_PLACEHOLDERS[placeholderIdx % TARGET_PLACEHOLDERS.length](targetUser.displayName)
+                  singleTarget
+                    ? TARGET_PLACEHOLDERS[placeholderIdx % TARGET_PLACEHOLDERS.length](singleTarget.displayName)
                     : CREW_PLACEHOLDERS[placeholderIdx]
                 }
                 rows={3}
