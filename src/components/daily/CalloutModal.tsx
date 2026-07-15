@@ -13,7 +13,9 @@ interface CalloutModalProps {
   open: boolean
   onClose: () => void
   currentUser: User
-  allUsers: User[]
+  /** Users who can be called out / @-mentioned — filter to current-challenge
+   *  participants at the call site so drop-off PAX don't appear. */
+  users: User[]
   challengeId: string
   /** Pre-select a target user when the modal opens. */
   defaultTarget?: User | null
@@ -47,7 +49,7 @@ export function CalloutModal({
   open,
   onClose,
   currentUser,
-  allUsers,
+  users,
   challengeId,
   defaultTarget,
   defaultContent,
@@ -70,7 +72,7 @@ export function CalloutModal({
     }
   }, [open, defaultTarget, defaultContent])
 
-  const otherUsers = allUsers.filter(u => u.id !== currentUser.id)
+  const otherUsers = users.filter(u => u.id !== currentUser.id)
 
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setContent(e.target.value)
@@ -96,8 +98,8 @@ export function CalloutModal({
     setSaving(true)
     try {
       // Resolve @mention names → user IDs (additive to targetUser)
-      const mentionedNames = extractMentionNames(content, allUsers)
-      const mentionedUsers = allUsers.filter(u =>
+      const mentionedNames = extractMentionNames(content, users)
+      const mentionedUsers = users.filter(u =>
         mentionedNames.some(name => name.toLowerCase() === u.displayName.toLowerCase())
       )
       const mentionIds = mentionedUsers.map(u => u.id)

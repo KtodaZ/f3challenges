@@ -1351,7 +1351,7 @@ export default function HomePage() {
           }
         }}
         currentUser={currentUser}
-        allUsers={allUsers}
+        users={participants}
         challengeId={challenge.id}
         defaultTarget={calloutTarget}
         defaultContent={calloutDefaultContent}

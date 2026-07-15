@@ -227,6 +227,13 @@ export default function LeaderboardPage() {
     !e.todayComplete &&
     isChallengeParticipant(e.participation?.status, e.completedDays > 0 || e.totalReps > 0, dayNum)
   )
+  // Roster for the callout modal — same participant filter, so drop-off PAX
+  // don't appear in the "Who are you calling out?" list.
+  const calloutUsers   = entries
+    .filter(e =>
+      isChallengeParticipant(e.participation?.status, e.completedDays > 0 || e.totalReps > 0, dayNum)
+    )
+    .map(e => e.user)
 
   return (
     <div className="pb-nav">
@@ -310,7 +317,7 @@ export default function LeaderboardPage() {
           open={calloutTarget !== null}
           onClose={() => setCalloutTarget(null)}
           currentUser={currentUser}
-          allUsers={allUsers}
+          users={calloutUsers}
           challengeId={challenge.id}
           defaultTarget={calloutTarget}
         />
