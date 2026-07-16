@@ -9,6 +9,16 @@ import { createFeedPost } from '@/lib/firestore'
 import { generateId, extractHashtags, extractMentionNames } from '@/lib/utils'
 import type { User, FeedPost } from '@/types'
 
+/** Where a PAX stands on today's challenge — used to group the callout list. */
+export type CalloutUserStatus = 'notStarted' | 'started' | 'done'
+
+const STATUS_ORDER: CalloutUserStatus[] = ['notStarted', 'started', 'done']
+const STATUS_LABELS: Record<CalloutUserStatus, string> = {
+  notStarted: "Haven't started",
+  started: 'In progress',
+  done: 'Finished today',
+}
+
 interface CalloutModalProps {
   open: boolean
   onClose: () => void
@@ -16,6 +26,9 @@ interface CalloutModalProps {
   /** Users who can be called out / @-mentioned — filter to current-challenge
    *  participants at the call site so drop-off PAX don't appear. */
   users: User[]
+  /** Today's status per user id. When provided, the picker groups PAX by
+   *  progress (haven't started / in progress / finished). Missing = flat list. */
+  statusByUserId?: Map<string, CalloutUserStatus>
   challengeId: string
   /** Pre-select a target user when the modal opens. */
   defaultTarget?: User | null
@@ -50,6 +63,7 @@ export function CalloutModal({
   onClose,
   currentUser,
   users,
+  statusByUserId,
   challengeId,
   defaultTarget,
   defaultContent,
@@ -97,6 +111,45 @@ export function CalloutModal({
   function toggleWholeCrew() {
     setSelectedIds(allSelected ? new Set() : new Set(otherUsers.map(u => u.id)))
   }
+
+  function toggleGroup(group: User[], allInGroupSelected: boolean) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      for (const u of group) {
+        if (allInGroupSelected) next.delete(u.id)
+        else next.add(u.id)
+      }
+      return next
+    })
+  }
+
+  // Group the pickable PAX by today's progress. Only when the caller supplies
+  // statuses — otherwise fall back to one flat list.
+  const groupedUsers = statusByUserId
+    ? STATUS_ORDER
+        .map(status => ({
+          status,
+          members: otherUsers.filter(
+            u => (statusByUserId.get(u.id) ?? 'notStarted') === status
+          ),
+        }))
+        .filter(g => g.members.length > 0)
+    : null
+
+  const renderChip = (u: User) => (
+    <button
+      key={u.id}
+      onClick={() => toggleUser(u.id)}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
+        selectedIds.has(u.id)
+          ? 'bg-orange-500 text-white'
+          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+      }`}
+    >
+      <Avatar name={u.displayName} size="xs" />
+      {u.displayName}
+    </button>
+  )
 
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setContent(e.target.value)
@@ -191,32 +244,47 @@ export function CalloutModal({
                 </span>
               )}
             </div>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={toggleWholeCrew}
-                className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                  allSelected
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                }`}
-              >
-                {allSelected ? 'Clear crew' : 'The whole crew'}
-              </button>
-              {otherUsers.map(u => (
-                <button
-                  key={u.id}
-                  onClick={() => toggleUser(u.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                    selectedIds.has(u.id)
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                  }`}
-                >
-                  <Avatar name={u.displayName} size="xs" />
-                  {u.displayName}
-                </button>
-              ))}
-            </div>
+            <button
+              onClick={toggleWholeCrew}
+              className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors mb-3 ${
+                allSelected
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+              }`}
+            >
+              {allSelected ? 'Clear crew' : 'The whole crew'}
+            </button>
+
+            {groupedUsers ? (
+              <div className="space-y-3">
+                {groupedUsers.map(({ status, members }) => {
+                  const allInGroup = members.every(u => selectedIds.has(u.id))
+                  return (
+                    <div key={status}>
+                      <button
+                        onClick={() => toggleGroup(members, allInGroup)}
+                        className="flex items-center gap-2 mb-1.5 group"
+                      >
+                        <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                          {STATUS_LABELS[status]}
+                        </span>
+                        <span className="text-xs text-zinc-600">{members.length}</span>
+                        <span className="text-[11px] font-medium text-orange-400/70 group-hover:text-orange-400 transition-colors">
+                          {allInGroup ? 'Clear' : 'Select all'}
+                        </span>
+                      </button>
+                      <div className="flex gap-2 flex-wrap">
+                        {members.map(renderChip)}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex gap-2 flex-wrap">
+                {otherUsers.map(renderChip)}
+              </div>
+            )}
           </div>
 
           <div>

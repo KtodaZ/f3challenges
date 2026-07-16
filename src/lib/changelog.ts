@@ -23,6 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Added this "What\'s New" changelog — tap the version in Settings anytime to see what changed.',
       'Call Out a PAX now only lists guys in the current challenge, so drop-offs no longer clutter the list.',
       'You can now call out several PAX in one shoutout — or tap "The whole crew" to tag and notify everyone in the challenge at once.',
+      'The Call Out list is now grouped by today\'s progress — haven\'t started, in progress, finished — so you can nudge a whole group with one tap.',
     ],
   },
   {

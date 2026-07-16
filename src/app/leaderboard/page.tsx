@@ -10,7 +10,7 @@ import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
 import { GroupStats } from '@/components/leaderboard/GroupStats'
 import { GroupHeatMap } from '@/components/leaderboard/GroupHeatMap'
 import { CallOutCard } from '@/components/leaderboard/CallOutCard'
-import { CalloutModal } from '@/components/daily/CalloutModal'
+import { CalloutModal, type CalloutUserStatus } from '@/components/daily/CalloutModal'
 import { PastFinishers } from '@/components/leaderboard/PastFinishers'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProgressBar } from '@/components/ui/ProgressBar'
@@ -234,6 +234,13 @@ export default function LeaderboardPage() {
       isChallengeParticipant(e.participation?.status, e.completedDays > 0 || e.totalReps > 0, dayNum)
     )
     .map(e => e.user)
+  // Today's progress per PAX — lets the callout modal group by status
+  const calloutStatusById = new Map<string, CalloutUserStatus>(
+    entries.map(e => {
+      const frac = e.todayLog?.completionFraction ?? 0
+      return [e.user.id, frac >= 1 ? 'done' : frac > 0 ? 'started' : 'notStarted']
+    })
+  )
 
   return (
     <div className="pb-nav">
@@ -318,6 +325,7 @@ export default function LeaderboardPage() {
           onClose={() => setCalloutTarget(null)}
           currentUser={currentUser}
           users={calloutUsers}
+          statusByUserId={calloutStatusById}
           challengeId={challenge.id}
           defaultTarget={calloutTarget}
         />

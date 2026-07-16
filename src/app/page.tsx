@@ -54,7 +54,7 @@ import { LogDayModal } from '@/components/daily/LogDayModal'
 import { MakeupDayPicker } from '@/components/daily/MakeupDayPicker'
 import { MakeupBonusPicker } from '@/components/daily/MakeupBonusPicker'
 import type { MissedBonusWeek } from '@/components/daily/MakeupBonusPicker'
-import { CalloutModal } from '@/components/daily/CalloutModal'
+import { CalloutModal, type CalloutUserStatus } from '@/components/daily/CalloutModal'
 import { CelebrationModal } from '@/components/ui/CelebrationModal'
 import { CelebrationOverlay } from '@/components/ui/CelebrationOverlay'
 import type { CelebrationContent } from '@/components/ui/CelebrationOverlay'
@@ -913,6 +913,14 @@ export default function HomePage() {
   const completedTodayIds = new Set(groupLogs.filter(l => l.completionFraction >= 1).map(l => l.userId))
   const incompleteUsers = participants.filter(u => u.id !== currentUser.id && !completedTodayIds.has(u.id))
 
+  // Today's progress per PAX — lets the callout modal group by status
+  const calloutStatusById = new Map<string, CalloutUserStatus>(
+    participants.map(u => {
+      const frac = groupLogs.find(l => l.userId === u.id)?.completionFraction ?? 0
+      return [u.id, frac >= 1 ? 'done' : frac > 0 ? 'started' : 'notStarted']
+    })
+  )
+
   const majorityDone = totalPAX > 0 && completedCount / totalPAX > 0.5
 
   // Show notification setup banner when user wants notifications but has no registered device
@@ -1352,6 +1360,7 @@ export default function HomePage() {
         }}
         currentUser={currentUser}
         users={participants}
+        statusByUserId={calloutStatusById}
         challengeId={challenge.id}
         defaultTarget={calloutTarget}
         defaultContent={calloutDefaultContent}
