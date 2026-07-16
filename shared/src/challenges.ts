@@ -340,6 +340,17 @@ export const CHALLENGES: ChallengeTemplate[] = [
             'Miners Ravine to Secret Ravine and back, 45 lb on the back the whole way. @{name} earns Tour de Bedrock Week 3. 🔥 {hashtag}',
           ],
         },
+        {
+          startDate: '2026-07-19',
+          endDate: '2026-07-25',
+          description: 'Bear crawl up Claudio and then back down. Bonus bonus: do it twice.',
+          feedPostTemplates: [
+            '@{name} bear crawled up Claudio and back down. Palms and toes only — Tour de Bedrock Week 4 done. 🐻 {hashtag}',
+            'Up Claudio and down, on all fours. @{name} earned Tour de Bedrock Week 4 the hard way. 🔥 {hashtag}',
+            '@{name} bear crawled Claudio — up and back. Some PAX went twice. Week 4 in the books. 💪 {hashtag}',
+            'Claudio never stood a chance. @{name} bear crawled up and down for Tour de Bedrock Week 4. 🐻 {hashtag}',
+          ],
+        },
       ],
     },
     copy: {
