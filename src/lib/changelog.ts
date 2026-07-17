@@ -23,6 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'You can now add photos to a feed post — up to 8 at once. Pick them straight from your camera roll and they upload while you finish typing.',
       'Posts with photos show a clean grid; tap any photo to open a full-screen, swipeable viewer.',
       'Editing a post now lets you add or remove its photos too.',
+      'Photo uploads no longer get stuck spinning — if one fails, it now shows a clear error you can tap to retry.',
     ],
   },
   {

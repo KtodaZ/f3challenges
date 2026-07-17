@@ -9,6 +9,7 @@ on:
       - 'shared/src/**'
       - 'firestore.rules'
       - 'firestore.indexes.json'
+      - 'storage.rules'
 
 jobs:
   deploy:
@@ -40,4 +41,4 @@ jobs:
         run: pnpm build
 
       - name: Deploy to Firebase
-        run: npx firebase-tools deploy --only functions,firestore --force --token "${{ secrets.FIREBASE_TOKEN }}"
+        run: npx firebase-tools deploy --only functions,firestore,storage --force --token "${{ secrets.FIREBASE_TOKEN }}"

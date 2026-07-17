@@ -138,6 +138,7 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
           disabled={submitting}
           onAdd={images.addFiles}
           onRemove={images.remove}
+          onRetry={images.retry}
         />
 
         <div className="flex items-center justify-between">
