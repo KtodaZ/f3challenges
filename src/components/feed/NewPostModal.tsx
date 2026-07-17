@@ -4,6 +4,8 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { MentionAutocomplete } from './MentionAutocomplete'
+import { ImageUploadStrip } from './ImageUploadStrip'
+import { useFeedImages } from '@/hooks/useFeedImages'
 import { createFeedPost, createNotification } from '@/lib/firestore'
 import { generateId, extractHashtags, extractMentionNames } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
@@ -22,12 +24,15 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
   const [submitting, setSubmitting]     = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const images = useFeedImages()
+  const { reset: resetImages } = images
 
   const handleClose = useCallback(() => {
     setContent('')
     setMentionQuery(null)
+    resetImages()
     onClose()
-  }, [onClose])
+  }, [onClose, resetImages])
 
   /** Track @ typing to surface mention autocomplete. */
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -59,7 +64,8 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
   }
 
   async function handleSubmit() {
-    if (!currentUser || !content.trim() || submitting) return
+    if (!currentUser || submitting) return
+    if (!content.trim() && images.doneUrls.length === 0) return
 
     setSubmitting(true)
     try {
@@ -80,6 +86,7 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
         content: content.trim(),
         hashtags: extractHashtags(content),
         mentions,
+        imageUrls: images.doneUrls.length ? images.doneUrls : undefined,
         createdAt: now,
         deleted: false,
       })
@@ -120,7 +127,10 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
   }, [content, allUsers, currentUser?.id])
 
   const remaining = MAX_CHARS - content.length
-  const canSubmit = content.trim().length > 0 && !submitting
+  const canSubmit =
+    (content.trim().length > 0 || images.doneUrls.length > 0) &&
+    !submitting &&
+    !images.isUploading
 
   return (
     <Modal open={open} onClose={handleClose} title="New Post">
@@ -151,6 +161,14 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
           )}
         </div>
 
+        <ImageUploadStrip
+          items={images.items}
+          canAddMore={images.canAddMore}
+          disabled={submitting}
+          onAdd={images.addFiles}
+          onRemove={images.remove}
+        />
+
         {noNotifMentions.length > 0 && (
           <div className="flex items-start gap-2.5 p-3 bg-amber-900/20 border border-amber-700/40 rounded-xl">
             <span className="text-base leading-none mt-0.5">🔕</span>
@@ -162,9 +180,13 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
         )}
 
         <div className="flex items-center justify-between">
-          <span className={`text-xs tabular-nums ${remaining < 50 ? 'text-orange-400' : 'text-zinc-500'}`}>
-            {remaining} left
-          </span>
+          {images.isUploading ? (
+            <span className="text-xs text-orange-400">Uploading photos…</span>
+          ) : (
+            <span className={`text-xs tabular-nums ${remaining < 50 ? 'text-orange-400' : 'text-zinc-500'}`}>
+              {remaining} left
+            </span>
+          )}
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={handleClose} disabled={submitting}>
               Cancel

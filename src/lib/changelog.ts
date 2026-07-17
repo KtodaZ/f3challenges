@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-17',
+    changes: [
+      'You can now add photos to a feed post — up to 8 at once. Pick them straight from your camera roll and they upload while you finish typing.',
+      'Posts with photos show a clean grid; tap any photo to open a full-screen, swipeable viewer.',
+      'Editing a post now lets you add or remove its photos too.',
+    ],
+  },
+  {
     date: '2026-07-15',
     changes: [
       'Added this "What\'s New" changelog — tap the version in Settings anytime to see what changed.',
