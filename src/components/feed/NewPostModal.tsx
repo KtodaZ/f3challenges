@@ -167,6 +167,7 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
           disabled={submitting}
           onAdd={images.addFiles}
           onRemove={images.remove}
+          onRetry={images.retry}
         />
 
         {noNotifMentions.length > 0 && (

@@ -8,6 +8,34 @@ export const MAX_FEED_IMAGES = 8
 /** Reject anything a phone camera wouldn't reasonably produce. */
 const MAX_SOURCE_BYTES = 25 * 1024 * 1024 // 25 MB before compression
 
+/** Bound each in-browser compression step so a stuck decode can't hang forever. */
+const COMPRESS_TIMEOUT_MS = 15_000
+/** If an upload makes no progress for this long, fail it instead of spinning. */
+const STALL_TIMEOUT_MS = 30_000
+
+// Lightweight remote logging (see CLAUDE.md "Debug Logging") so we can trace
+// what happens on a real device — no-ops unless NEXT_PUBLIC_DEBUG_URL is set.
+const DBG = process.env.NEXT_PUBLIC_DEBUG_URL
+function dbg(label: string, data: unknown) {
+  if (!DBG) return
+  fetch(DBG, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label, src: 'feed-upload', data }),
+  }).catch(() => {})
+}
+
+/** Reject `p` if it hasn't settled within `ms` — used to fence hangy browser APIs. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    p.then(
+      v => { clearTimeout(timer); resolve(v) },
+      e => { clearTimeout(timer); reject(e) }
+    )
+  })
+}
+
 /**
  * Downscale + re-encode an image entirely in the browser before upload.
  *
@@ -26,7 +54,14 @@ export async function compressImage(
   quality = 0.82
 ): Promise<Blob> {
   try {
-    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+    // Both createImageBitmap and canvas.toBlob have documented cases (large
+    // photos, memory pressure) where they never settle / never call back on
+    // mobile browsers. Fence each so a stall becomes a fallback, not a hang.
+    const bitmap = await withTimeout(
+      createImageBitmap(file, { imageOrientation: 'from-image' }),
+      COMPRESS_TIMEOUT_MS,
+      'createImageBitmap'
+    )
     const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height))
     const width = Math.max(1, Math.round(bitmap.width * scale))
     const height = Math.max(1, Math.round(bitmap.height * scale))
@@ -40,13 +75,16 @@ export async function compressImage(
     ctx.drawImage(bitmap, 0, 0, width, height)
     bitmap.close()
 
-    const blob = await new Promise<Blob | null>(resolve =>
-      canvas.toBlob(resolve, 'image/jpeg', quality)
+    const blob = await withTimeout(
+      new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', quality)),
+      COMPRESS_TIMEOUT_MS,
+      'canvas.toBlob'
     )
     // Fall back to the original if encoding failed or didn't actually help.
     if (!blob || blob.size >= file.size) return file
     return blob
-  } catch {
+  } catch (err) {
+    dbg('compress:fallback', { name: file.name, size: file.size, type: file.type, err: String(err) })
     return file
   }
 }
@@ -73,9 +111,10 @@ export function uploadFeedImage(
 
   const promise = (async () => {
     if (file.size > MAX_SOURCE_BYTES) {
-      throw new Error('Image is too large (max 25 MB).')
+      throw new Error('That image is too large (max 25 MB).')
     }
 
+    dbg('compress:start', { name: file.name, size: file.size, type: file.type })
     const blob = await compressImage(file)
     if (cancelled) throw new Error('Upload cancelled')
 
@@ -87,26 +126,60 @@ export function uploadFeedImage(
     if (ext === 'jpeg') ext = 'jpg'
 
     const path = `feed-images/${generateId()}.${ext}`
+    dbg('upload:start', { path, contentType, size: blob.size, bucket: storage.app.options.storageBucket })
     const task = uploadBytesResumable(ref(storage, path), blob, {
       contentType,
     })
     cancelUpload = () => task.cancel()
 
     return await new Promise<string>((resolve, reject) => {
+      let settled = false
+      let stallTimer: ReturnType<typeof setTimeout>
+
+      const finish = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        clearTimeout(stallTimer)
+        fn()
+      }
+
+      // Watchdog: if the upload never reports progress (the classic Firebase
+      // Storage "stuck at 0%" when the bucket/rules aren't reachable), give up
+      // with a real error instead of an eternal spinner. Re-armed on progress.
+      const armStallTimer = () => {
+        clearTimeout(stallTimer)
+        stallTimer = setTimeout(() => {
+          dbg('upload:stall', { path })
+          finish(() => {
+            try { task.cancel() } catch {}
+            reject(new Error('Upload stalled — check your connection and try again.'))
+          })
+        }, STALL_TIMEOUT_MS)
+      }
+      armStallTimer()
+
       task.on(
         'state_changed',
         snap => {
           if (snap.totalBytes > 0) {
             onProgress?.(Math.round((snap.bytesTransferred / snap.totalBytes) * 100))
           }
+          armStallTimer()
         },
-        reject,
-        async () => {
-          try {
-            resolve(await getDownloadURL(task.snapshot.ref))
-          } catch (err) {
-            reject(err)
-          }
+        err => {
+          dbg('upload:error', { code: (err as { code?: string })?.code, message: String(err) })
+          finish(() => reject(err))
+        },
+        () => {
+          finish(async () => {
+            try {
+              const url = await withTimeout(getDownloadURL(task.snapshot.ref), COMPRESS_TIMEOUT_MS, 'getDownloadURL')
+              dbg('upload:done', { path })
+              resolve(url)
+            } catch (err) {
+              reject(err)
+            }
+          })
         }
       )
     })

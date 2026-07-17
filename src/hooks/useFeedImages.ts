@@ -1,8 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { uploadFeedImage, MAX_FEED_IMAGES, type FeedImageUpload } from '@/lib/images'
 import { generateId } from '@/lib/utils'
+
+/** True for a rejection caused by the user removing the image mid-upload. */
+function isCancellation(err: unknown): boolean {
+  const e = err as { code?: string; message?: string }
+  return e?.code === 'storage/canceled' || /cancel/i.test(e?.message ?? '')
+}
 
 export type FeedImageStatus = 'uploading' | 'done' | 'error'
 
@@ -36,6 +43,8 @@ export function useFeedImages(initialUrls: string[] = []) {
   // Track in-flight uploads and object URLs so we can cancel / revoke on removal.
   const uploads = useRef(new Map<string, FeedImageUpload>())
   const objectUrls = useRef(new Set<string>())
+  // Keep the source File per item so a failed upload can be retried.
+  const files = useRef(new Map<string, File>())
   // Mirror of `items` so addFiles (an event handler) can read the current
   // count without a stale closure — and without doing side effects in a
   // state updater, which StrictMode double-invokes in dev.
@@ -48,28 +57,40 @@ export function useFeedImages(initialUrls: string[] = []) {
     setItems(prev => prev.map(it => (it.id === id ? { ...it, ...updates } : it)))
   }, [])
 
+  const startUpload = useCallback(
+    (id: string, file: File) => {
+      const upload = uploadFeedImage(file, pct => patch(id, { progress: pct }))
+      uploads.current.set(id, upload)
+      upload.promise
+        .then(url => patch(id, { status: 'done', progress: 100, url }))
+        .catch(err => {
+          if (isCancellation(err)) return // item was removed on purpose
+          patch(id, { status: 'error' })
+          toast.error("Couldn't upload a photo — tap it to retry.")
+        })
+        .finally(() => uploads.current.delete(id))
+    },
+    [patch]
+  )
+
   const addFiles = useCallback(
     (fileList: FileList | File[]) => {
-      const files = Array.from(fileList).filter(f => f.type.startsWith('image/'))
-      if (!files.length) return
+      const picked = Array.from(fileList).filter(f => f.type.startsWith('image/'))
+      if (!picked.length) return
 
       // Side effects (upload, createObjectURL) run here exactly once — never
       // inside the setState updater, which StrictMode double-invokes in dev.
       const room = MAX_FEED_IMAGES - itemsRef.current.length
       if (room <= 0) return
-      const accepted = files.slice(0, room)
+      const accepted = picked.slice(0, room)
 
       const newItems: FeedImageItem[] = accepted.map(file => {
         const id = generateId()
         const previewUrl = URL.createObjectURL(file)
         objectUrls.current.add(previewUrl)
+        files.current.set(id, file)
 
-        const upload = uploadFeedImage(file, pct => patch(id, { progress: pct }))
-        uploads.current.set(id, upload)
-        upload.promise
-          .then(url => patch(id, { status: 'done', progress: 100, url }))
-          .catch(() => patch(id, { status: 'error' }))
-          .finally(() => uploads.current.delete(id))
+        startUpload(id, file)
 
         return { id, previewUrl, status: 'uploading' as const, progress: 0, existing: false }
       })
@@ -78,12 +99,23 @@ export function useFeedImages(initialUrls: string[] = []) {
       itemsRef.current = [...itemsRef.current, ...newItems]
       setItems(prev => [...prev, ...newItems])
     },
-    [patch]
+    [startUpload]
+  )
+
+  const retry = useCallback(
+    (id: string) => {
+      const file = files.current.get(id)
+      if (!file) return
+      patch(id, { status: 'uploading', progress: 0 })
+      startUpload(id, file)
+    },
+    [patch, startUpload]
   )
 
   const remove = useCallback((id: string) => {
     uploads.current.get(id)?.cancel()
     uploads.current.delete(id)
+    files.current.delete(id)
     setItems(prev => {
       const target = prev.find(it => it.id === id)
       if (target && objectUrls.current.has(target.previewUrl)) {
@@ -97,6 +129,7 @@ export function useFeedImages(initialUrls: string[] = []) {
   const reset = useCallback((urls: string[] = []) => {
     uploads.current.forEach(u => u.cancel())
     uploads.current.clear()
+    files.current.clear()
     objectUrls.current.forEach(url => URL.revokeObjectURL(url))
     objectUrls.current.clear()
     setItems(urls.map(makeExisting))
@@ -116,5 +149,5 @@ export function useFeedImages(initialUrls: string[] = []) {
   const hasError = items.some(it => it.status === 'error')
   const canAddMore = items.length < MAX_FEED_IMAGES
 
-  return { items, addFiles, remove, reset, doneUrls, isUploading, hasError, canAddMore, count: items.length }
+  return { items, addFiles, remove, retry, reset, doneUrls, isUploading, hasError, canAddMore, count: items.length }
 }
