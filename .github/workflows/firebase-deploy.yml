@@ -1,6 +1,9 @@
 name: Deploy Firebase
 
 on:
+  # Manual trigger — lets us redeploy Firebase (functions, Firestore + Storage
+  # rules) on demand without having to touch a tracked file.
+  workflow_dispatch:
   push:
     branches:
       - main

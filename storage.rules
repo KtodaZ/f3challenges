@@ -1,5 +1,6 @@
 rules_version = '2';
 
+// Bucket: f3-bedrock-monthly-challenge.firebasestorage.app
 // Trust-based (matches Firestore rules — no auth in this app). Reads are open;
 // writes are limited to the feed-images path, image content types, and a sane
 // size ceiling so a bad upload can't blow up storage.
