@@ -4,6 +4,8 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { MentionAutocomplete } from './MentionAutocomplete'
+import { ImageUploadStrip } from './ImageUploadStrip'
+import { useFeedImages } from '@/hooks/useFeedImages'
 import { updateFeedPost } from '@/lib/firestore'
 import { extractHashtags, extractMentionNames } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
@@ -23,12 +25,22 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
   const [submitting, setSubmitting]     = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const images = useFeedImages(post.imageUrls ?? [])
+  const { reset: resetImages } = images
+  const lastPostId = useRef(post.id)
 
-  // Sync content when post changes (e.g., modal reopened for a different post)
+  // Re-init only when the modal is reused for a *different* post. State is
+  // already seeded from props on mount, so we must not re-run on same-id
+  // re-renders — the feed's onSnapshot hands us a new post object (with a
+  // fresh imageUrls array) on any feed activity, which would otherwise wipe
+  // the user's unsaved edits mid-typing.
   useEffect(() => {
+    if (lastPostId.current === post.id) return
+    lastPostId.current = post.id
     setContent(post.content)
     setMentionQuery(null)
-  }, [post.id, post.content])
+    resetImages(post.imageUrls ?? [])
+  }, [post.id, post.content, post.imageUrls, resetImages])
 
   const handleClose = useCallback(() => {
     setMentionQuery(null)
@@ -61,7 +73,8 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
   }
 
   async function handleSubmit() {
-    if (!currentUser || !content.trim() || submitting) return
+    if (!currentUser || submitting) return
+    if (!content.trim() && images.doneUrls.length === 0) return
 
     setSubmitting(true)
     try {
@@ -74,6 +87,7 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
         content: content.trim(),
         hashtags: extractHashtags(content),
         mentions,
+        imageUrls: images.doneUrls,
       })
 
       handleClose()
@@ -83,7 +97,13 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
   }
 
   const remaining = MAX_CHARS - content.length
-  const canSubmit = content.trim().length > 0 && content.trim() !== post.content.trim() && !submitting
+  const contentChanged = content.trim() !== post.content.trim()
+  const imagesChanged =
+    images.doneUrls.length !== (post.imageUrls?.length ?? 0) ||
+    images.doneUrls.some((url, i) => url !== post.imageUrls?.[i])
+  const hasBody = content.trim().length > 0 || images.doneUrls.length > 0
+  const canSubmit =
+    hasBody && (contentChanged || imagesChanged) && !submitting && !images.isUploading
 
   return (
     <Modal open={open} onClose={handleClose} title="Edit Post">
@@ -112,10 +132,22 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
           )}
         </div>
 
+        <ImageUploadStrip
+          items={images.items}
+          canAddMore={images.canAddMore}
+          disabled={submitting}
+          onAdd={images.addFiles}
+          onRemove={images.remove}
+        />
+
         <div className="flex items-center justify-between">
-          <span className={`text-xs tabular-nums ${remaining < 50 ? 'text-orange-400' : 'text-zinc-500'}`}>
-            {remaining} left
-          </span>
+          {images.isUploading ? (
+            <span className="text-xs text-orange-400">Uploading photos…</span>
+          ) : (
+            <span className={`text-xs tabular-nums ${remaining < 50 ? 'text-orange-400' : 'text-zinc-500'}`}>
+              {remaining} left
+            </span>
+          )}
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={handleClose} disabled={submitting}>
               Cancel

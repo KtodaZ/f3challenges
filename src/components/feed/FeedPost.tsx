@@ -6,6 +6,8 @@ import { Avatar } from '@/components/ui/Avatar'
 import { EditPostModal } from './EditPostModal'
 import { CommentThread } from './CommentThread'
 import { ReactionBar } from './ReactionBar'
+import { FeedImageGrid } from './FeedImageGrid'
+import { Lightbox } from './Lightbox'
 import { softDeletePost, togglePostReaction, subscribeToComments } from '@/lib/firestore'
 import { timeAgo, highlightMentions, cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
@@ -149,7 +151,10 @@ export function FeedPost({ post }: FeedPostProps) {
   const [deleting, setDeleting]           = useState(false)
   const [threadOpen, setThreadOpen]       = useState(false)
   const [comments, setComments]           = useState<FeedComment[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const hasAutoOpened                     = useRef(false)
+
+  const images = post.imageUrls ?? []
 
   useEffect(() => {
     return subscribeToComments(post.id, setComments)
@@ -273,6 +278,9 @@ export function FeedPost({ post }: FeedPostProps) {
             dangerouslySetInnerHTML={{ __html: highlightMentions(post.content, allUsers) }}
           />
 
+          {/* Images */}
+          {images.length > 0 && <FeedImageGrid urls={images} onOpen={setLightboxIndex} />}
+
           {/* Actions row */}
           <div className="flex items-center gap-3 mt-2.5">
             <ReactionBar
@@ -308,6 +316,10 @@ export function FeedPost({ post }: FeedPostProps) {
         </article>
 
         {threadOpen && <CommentThread post={post} comments={comments} />}
+
+        {lightboxIndex !== null && (
+          <Lightbox urls={images} index={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+        )}
 
         {editOpen && (
           <EditPostModal
@@ -358,6 +370,9 @@ export function FeedPost({ post }: FeedPostProps) {
             {/* Content */}
             <PostBody post={post} />
 
+            {/* Images */}
+            {images.length > 0 && <FeedImageGrid urls={images} onOpen={setLightboxIndex} />}
+
             {/* Actions row */}
             <div className="flex items-center gap-3 mt-2.5">
               <ReactionBar
@@ -396,6 +411,10 @@ export function FeedPost({ post }: FeedPostProps) {
       </article>
 
       {threadOpen && <CommentThread post={post} comments={comments} />}
+
+      {lightboxIndex !== null && (
+        <Lightbox urls={images} index={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+      )}
 
       {editOpen && (
         <EditPostModal

@@ -1,0 +1,17 @@
+rules_version = '2';
+
+// Trust-based (matches Firestore rules — no auth in this app). Reads are open;
+// writes are limited to the feed-images path, image content types, and a sane
+// size ceiling so a bad upload can't blow up storage.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /feed-images/{imageId} {
+      allow read: if true;
+      // Deletes (request.resource == null) are allowed so removing a photo
+      // from a post can clean up its file.
+      allow write: if request.resource == null
+        || (request.resource.size < 10 * 1024 * 1024
+            && request.resource.contentType.matches('image/.*'));
+    }
+  }
+}

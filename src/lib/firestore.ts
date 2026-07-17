@@ -188,7 +188,7 @@ export async function getChallengeParticipants(challengeId: string): Promise<Cha
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 
 export async function createFeedPost(post: FeedPost): Promise<void> {
-  await setDoc(doc(feedCol(), post.id), post)
+  await setDoc(doc(feedCol(), post.id), stripUndefined(post))
 }
 
 /** Creates a feed post only if a doc with that ID doesn't already exist. */
@@ -200,7 +200,7 @@ export async function createFeedPostOnce(post: FeedPost): Promise<void> {
 }
 
 export async function updateFeedPost(postId: string, updates: Partial<FeedPost>): Promise<void> {
-  await updateDoc(doc(feedCol(), postId), { ...updates, updatedAt: new Date().toISOString() })
+  await updateDoc(doc(feedCol(), postId), stripUndefined({ ...updates, updatedAt: new Date().toISOString() }))
 }
 
 export async function softDeletePost(postId: string): Promise<void> {

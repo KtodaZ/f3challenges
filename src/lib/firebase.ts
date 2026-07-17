@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getFirestore } from 'firebase/firestore'
+import { getStorage } from 'firebase/storage'
 import { getMessaging, isSupported } from 'firebase/messaging'
 
 const firebaseConfig = {
@@ -14,6 +15,7 @@ const firebaseConfig = {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig)
 
 export const db = getFirestore(app)
+export const storage = getStorage(app)
 
 /** Returns FCM messaging instance only in supported environments (not SSR, not Safari < 16.4). */
 export async function getMessagingInstance() {
