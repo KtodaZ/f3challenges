@@ -174,6 +174,8 @@ export interface AchievementExtras {
   groupLogs?: DailyLog[]
   /** Current challenge id — scopes Ambassador coverage to this challenge. */
   currentChallengeId?: string
+  /** Challenge ids where this user's participation status is 'modifying'. */
+  modifyingChallengeIds?: string[]
 }
 
 export function buildAchievementContext(
@@ -200,6 +202,7 @@ export function buildAchievementContext(
       ? computeShoutoutCoverage(extras.givenShoutouts, extras.groupLogs, user.id, extras.currentChallengeId)
       : undefined,
     earnedBadgesCount: (user.achievements ?? []).filter(a => a.id !== 'completionist').length,
+    modifyingChallengeIds: extras?.modifyingChallengeIds,
   }
 }
 

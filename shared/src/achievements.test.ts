@@ -172,6 +172,18 @@ describe('special achievements', () => {
     expect(progressOf('conqueror', ctx({ logs: fullFebLogs() }))).toMatchObject({ earned: false, current: 1, target: 3 })
   })
 
+  it('adapt-and-overcome: full challenge finished while status is modifying', () => {
+    const logs = fullFebLogs()
+    // Completed the whole challenge, but not marked as modifying → not earned
+    expect(progressOf('adapt-and-overcome', ctx({ logs })).earned).toBe(false)
+    // Marked modifying on that challenge → earned
+    expect(progressOf('adapt-and-overcome', ctx({ logs, modifyingChallengeIds: ['feb-2026'] })).earned).toBe(true)
+    // Modifying but the challenge isn't fully completed → not earned
+    expect(progressOf('adapt-and-overcome', ctx({ logs: logs.slice(0, 20), modifyingChallengeIds: ['feb-2026'] })).earned).toBe(false)
+    // Modifying a different challenge than the one completed → not earned
+    expect(progressOf('adapt-and-overcome', ctx({ logs, modifyingChallengeIds: ['jul-2026'] })).earned).toBe(false)
+  })
+
   it('secret badges: over-9000, surgeon, juggernaut', () => {
     expect(progressOf('over-9000', ctx({ logs: [log({ completedReps: 9001 })] })).earned).toBe(true)
     expect(progressOf('over-9000', ctx({ logs: [log({ completedReps: 9000 })] })).earned).toBe(false)

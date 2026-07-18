@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useUser } from '@/contexts/UserContext'
 import { getTodayPT } from '@/lib/challenges'
-import { getSocialStats, getUserBonusLogs, getChallengeLogs } from '@/lib/firestore'
+import { getSocialStats, getUserBonusLogs, getChallengeLogs, getUserParticipations } from '@/lib/firestore'
 import type { SocialStats } from '@/lib/firestore'
 import {
   buildAchievementContext,
@@ -43,6 +43,7 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
   const [social, setSocial] = useState<SocialStats | null>(null)
   const [bonusLogs, setBonusLogs] = useState<BonusLog[] | null>(null)
   const [groupLogs, setGroupLogs] = useState<DailyLog[] | null>(null)
+  const [modifyingChallengeIds, setModifyingChallengeIds] = useState<string[] | null>(null)
   const sessionAwarded = useRef<EarnedAchievement[]>([])
   const awarding = useRef(false)
 
@@ -56,18 +57,23 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
       getSocialStats(userId),
       getUserBonusLogs(userId),
       challengeId ? getChallengeLogs(challengeId) : Promise.resolve([]),
+      getUserParticipations(userId),
     ])
-      .then(([s, b, g]) => {
+      .then(([s, b, g, p]) => {
         if (cancelled) return
         setSocial(s)
         setBonusLogs(b)
         setGroupLogs(g)
+        setModifyingChallengeIds(
+          p.filter(x => x.status === 'modifying').map(x => x.challengeId)
+        )
       })
       .catch(() => {
         if (cancelled) return
         setSocial({ givenShoutouts: [], shoutoutsReceived: 0, commentsPosted: 0 })
         setBonusLogs([])
         setGroupLogs([])
+        setModifyingChallengeIds([])
       })
     return () => { cancelled = true }
   }, [userId, challengeId])
@@ -89,8 +95,9 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
       bonusLogs: bonusLogs ?? undefined,
       groupLogs: mergedGroupLogs,
       currentChallengeId: challengeId,
+      modifyingChallengeIds: modifyingChallengeIds ?? undefined,
     })
-  }, [currentUser, logs, social, bonusLogs, groupLogs, challengeId])
+  }, [currentUser, logs, social, bonusLogs, groupLogs, modifyingChallengeIds, challengeId])
 
   // Award anything newly earned
   useEffect(() => {

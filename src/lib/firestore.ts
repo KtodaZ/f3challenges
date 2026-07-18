@@ -185,6 +185,12 @@ export async function getChallengeParticipants(challengeId: string): Promise<Cha
   return snap.docs.map(d => d.data() as ChallengeParticipation)
 }
 
+export async function getUserParticipations(userId: string): Promise<ChallengeParticipation[]> {
+  const q = query(participationCol(), where('userId', '==', userId))
+  const snap = await getDocs(q)
+  return snap.docs.map(d => d.data() as ChallengeParticipation)
+}
+
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 
 export async function createFeedPost(post: FeedPost): Promise<void> {

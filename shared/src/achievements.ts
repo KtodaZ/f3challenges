@@ -57,6 +57,8 @@ export interface AchievementContext {
   earnedBadgesCount?: number
   /** Shoutout coverage of the current challenge's active PAX (Ambassador). */
   shoutoutCoverage?: { covered: number; total: number }
+  /** Challenge ids where this user's participation status is 'modifying'. */
+  modifyingChallengeIds?: string[]
 }
 
 /** Earned achievement as persisted on the user document. */
@@ -553,6 +555,21 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
   },
 
   // ── Advanced ──
+  {
+    id: 'adapt-and-overcome',
+    name: 'Adapt & Overcome',
+    emoji: '🧗',
+    description: 'Finished a full challenge your own way — scaled, modified, but done.',
+    howTo: 'Complete every required day of a challenge while your status is set to ✏️ Modifying. Makeups count.',
+    category: 'special', unitLabel: 'challenges', theme: 'fireworks',
+    progress: ctx => {
+      const modifying = new Set(ctx.modifyingChallengeIds ?? [])
+      const done = perChallengeStats(ctx).filter(
+        s => modifying.has(s.challengeId) && s.completedDays >= s.requiredDays
+      ).length
+      return countProgress(done, 1)
+    },
+  },
   {
     id: 'conqueror',
     name: 'Conqueror',
