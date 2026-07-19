@@ -24,6 +24,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Posts with photos show a clean grid; tap any photo to open a full-screen, swipeable viewer.',
       'Editing a post now lets you add or remove its photos too.',
       'Photo uploads no longer get stuck spinning — if one fails, it now shows a clear error you can tap to retry.',
+      'New trophy: earn the 🧗 Adapt & Overcome badge by finishing a full challenge while your status is set to Modifying — scaling the work still counts as showing up.',
     ],
   },
   {
