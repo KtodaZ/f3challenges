@@ -47,8 +47,10 @@ export function VideoUploadStrip({
 
   if (items.length === 0 && !canAddMore) return null
 
+  // Inline flex group — the parent modal owns the scroll/padding so photos and
+  // videos share one row.
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+    <div className="flex gap-2 shrink-0">
       {items.map(item => (
         <div
           key={item.id}
