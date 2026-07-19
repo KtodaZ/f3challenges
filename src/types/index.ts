@@ -120,6 +120,7 @@ export interface FeedPost {
   challengeId?: string
   targetUserId?: string   // shoutout recipient
   imageUrls?: string[]    // attached photos (Firebase Storage), ordered
+  videoUrls?: string[]    // attached videos (Firebase Storage), ordered
   reactions?: Record<string, string[]>  // emoji → userId[]
   createdAt: string       // ISO
   updatedAt?: string      // ISO

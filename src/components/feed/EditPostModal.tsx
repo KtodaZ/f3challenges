@@ -5,7 +5,9 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { MentionAutocomplete } from './MentionAutocomplete'
 import { ImageUploadStrip } from './ImageUploadStrip'
+import { VideoUploadStrip } from './VideoUploadStrip'
 import { useFeedImages } from '@/hooks/useFeedImages'
+import { useFeedVideos } from '@/hooks/useFeedVideos'
 import { updateFeedPost } from '@/lib/firestore'
 import { extractHashtags, extractMentionNames } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
@@ -26,7 +28,9 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const images = useFeedImages(post.imageUrls ?? [])
+  const videos = useFeedVideos(post.videoUrls ?? [])
   const { reset: resetImages } = images
+  const { reset: resetVideos } = videos
   const lastPostId = useRef(post.id)
 
   // Re-init only when the modal is reused for a *different* post. State is
@@ -40,7 +44,8 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
     setContent(post.content)
     setMentionQuery(null)
     resetImages(post.imageUrls ?? [])
-  }, [post.id, post.content, post.imageUrls, resetImages])
+    resetVideos(post.videoUrls ?? [])
+  }, [post.id, post.content, post.imageUrls, post.videoUrls, resetImages, resetVideos])
 
   const handleClose = useCallback(() => {
     setMentionQuery(null)
@@ -74,7 +79,7 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
 
   async function handleSubmit() {
     if (!currentUser || submitting) return
-    if (!content.trim() && images.doneUrls.length === 0) return
+    if (!content.trim() && images.doneUrls.length === 0 && videos.doneUrls.length === 0) return
 
     setSubmitting(true)
     try {
@@ -88,6 +93,7 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
         hashtags: extractHashtags(content),
         mentions,
         imageUrls: images.doneUrls,
+        videoUrls: videos.doneUrls,
       })
 
       handleClose()
@@ -101,9 +107,14 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
   const imagesChanged =
     images.doneUrls.length !== (post.imageUrls?.length ?? 0) ||
     images.doneUrls.some((url, i) => url !== post.imageUrls?.[i])
-  const hasBody = content.trim().length > 0 || images.doneUrls.length > 0
+  const videosChanged =
+    videos.doneUrls.length !== (post.videoUrls?.length ?? 0) ||
+    videos.doneUrls.some((url, i) => url !== post.videoUrls?.[i])
+  const hasBody =
+    content.trim().length > 0 || images.doneUrls.length > 0 || videos.doneUrls.length > 0
+  const mediaUploading = images.isUploading || videos.isUploading
   const canSubmit =
-    hasBody && (contentChanged || imagesChanged) && !submitting && !images.isUploading
+    hasBody && (contentChanged || imagesChanged || videosChanged) && !submitting && !mediaUploading
 
   return (
     <Modal open={open} onClose={handleClose} title="Edit Post">
@@ -141,9 +152,18 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
           onRetry={images.retry}
         />
 
+        <VideoUploadStrip
+          items={videos.items}
+          canAddMore={videos.canAddMore}
+          disabled={submitting}
+          onAdd={videos.addFiles}
+          onRemove={videos.remove}
+          onRetry={videos.retry}
+        />
+
         <div className="flex items-center justify-between">
-          {images.isUploading ? (
-            <span className="text-xs text-orange-400">Uploading photos…</span>
+          {mediaUploading ? (
+            <span className="text-xs text-orange-400">Uploading media…</span>
           ) : (
             <span className={`text-xs tabular-nums ${remaining < 50 ? 'text-orange-400' : 'text-zinc-500'}`}>
               {remaining} left
