@@ -2,8 +2,8 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { storage } from './firebase'
 import { generateId } from './utils'
 
-/** Max videos allowed on a single feed post. */
-export const MAX_FEED_VIDEOS = 3
+/** Max videos allowed on a single feed post. One keeps the UI simple. */
+export const MAX_FEED_VIDEOS = 1
 
 /**
  * Hard ceiling on an uploaded video. Browsers can't reliably transcode video

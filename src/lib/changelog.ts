@@ -20,9 +20,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-19',
     changes: [
-      'You can now add videos to a feed post — up to 3 at once, picked straight from your phone. They upload in the background while you finish typing.',
-      'Posts with videos show inline players you can tap to play right in the feed.',
-      'Editing a post now lets you add or remove its videos too.',
+      'You can now add a video to a feed post, picked straight from your phone. It uploads in the background while you finish typing.',
+      'Posts with a video show an inline player you can tap to play right in the feed.',
+      'Editing a post now lets you add or swap its video too.',
     ],
   },
   {
