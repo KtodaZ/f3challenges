@@ -168,23 +168,25 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
           )}
         </div>
 
-        <ImageUploadStrip
-          items={images.items}
-          canAddMore={images.canAddMore}
-          disabled={submitting}
-          onAdd={images.addFiles}
-          onRemove={images.remove}
-          onRetry={images.retry}
-        />
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <ImageUploadStrip
+            items={images.items}
+            canAddMore={images.canAddMore}
+            disabled={submitting}
+            onAdd={images.addFiles}
+            onRemove={images.remove}
+            onRetry={images.retry}
+          />
 
-        <VideoUploadStrip
-          items={videos.items}
-          canAddMore={videos.canAddMore}
-          disabled={submitting}
-          onAdd={videos.addFiles}
-          onRemove={videos.remove}
-          onRetry={videos.retry}
-        />
+          <VideoUploadStrip
+            items={videos.items}
+            canAddMore={videos.canAddMore}
+            disabled={submitting}
+            onAdd={videos.addFiles}
+            onRemove={videos.remove}
+            onRetry={videos.retry}
+          />
+        </div>
 
         {noNotifMentions.length > 0 && (
           <div className="flex items-start gap-2.5 p-3 bg-amber-900/20 border border-amber-700/40 rounded-xl">

@@ -143,23 +143,25 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
           )}
         </div>
 
-        <ImageUploadStrip
-          items={images.items}
-          canAddMore={images.canAddMore}
-          disabled={submitting}
-          onAdd={images.addFiles}
-          onRemove={images.remove}
-          onRetry={images.retry}
-        />
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <ImageUploadStrip
+            items={images.items}
+            canAddMore={images.canAddMore}
+            disabled={submitting}
+            onAdd={images.addFiles}
+            onRemove={images.remove}
+            onRetry={images.retry}
+          />
 
-        <VideoUploadStrip
-          items={videos.items}
-          canAddMore={videos.canAddMore}
-          disabled={submitting}
-          onAdd={videos.addFiles}
-          onRemove={videos.remove}
-          onRetry={videos.retry}
-        />
+          <VideoUploadStrip
+            items={videos.items}
+            canAddMore={videos.canAddMore}
+            disabled={submitting}
+            onAdd={videos.addFiles}
+            onRemove={videos.remove}
+            onRetry={videos.retry}
+          />
+        </div>
 
         <div className="flex items-center justify-between">
           {mediaUploading ? (
