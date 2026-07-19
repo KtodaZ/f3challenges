@@ -5,7 +5,9 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { MentionAutocomplete } from './MentionAutocomplete'
 import { ImageUploadStrip } from './ImageUploadStrip'
+import { VideoUploadStrip } from './VideoUploadStrip'
 import { useFeedImages } from '@/hooks/useFeedImages'
+import { useFeedVideos } from '@/hooks/useFeedVideos'
 import { createFeedPost, createNotification } from '@/lib/firestore'
 import { generateId, extractHashtags, extractMentionNames } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
@@ -25,14 +27,17 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const images = useFeedImages()
+  const videos = useFeedVideos()
   const { reset: resetImages } = images
+  const { reset: resetVideos } = videos
 
   const handleClose = useCallback(() => {
     setContent('')
     setMentionQuery(null)
     resetImages()
+    resetVideos()
     onClose()
-  }, [onClose, resetImages])
+  }, [onClose, resetImages, resetVideos])
 
   /** Track @ typing to surface mention autocomplete. */
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -65,7 +70,7 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
 
   async function handleSubmit() {
     if (!currentUser || submitting) return
-    if (!content.trim() && images.doneUrls.length === 0) return
+    if (!content.trim() && images.doneUrls.length === 0 && videos.doneUrls.length === 0) return
 
     setSubmitting(true)
     try {
@@ -87,6 +92,7 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
         hashtags: extractHashtags(content),
         mentions,
         imageUrls: images.doneUrls.length ? images.doneUrls : undefined,
+        videoUrls: videos.doneUrls.length ? videos.doneUrls : undefined,
         createdAt: now,
         deleted: false,
       })
@@ -127,10 +133,11 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
   }, [content, allUsers, currentUser?.id])
 
   const remaining = MAX_CHARS - content.length
+  const mediaUploading = images.isUploading || videos.isUploading
   const canSubmit =
-    (content.trim().length > 0 || images.doneUrls.length > 0) &&
+    (content.trim().length > 0 || images.doneUrls.length > 0 || videos.doneUrls.length > 0) &&
     !submitting &&
-    !images.isUploading
+    !mediaUploading
 
   return (
     <Modal open={open} onClose={handleClose} title="New Post">
@@ -170,6 +177,15 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
           onRetry={images.retry}
         />
 
+        <VideoUploadStrip
+          items={videos.items}
+          canAddMore={videos.canAddMore}
+          disabled={submitting}
+          onAdd={videos.addFiles}
+          onRemove={videos.remove}
+          onRetry={videos.retry}
+        />
+
         {noNotifMentions.length > 0 && (
           <div className="flex items-start gap-2.5 p-3 bg-amber-900/20 border border-amber-700/40 rounded-xl">
             <span className="text-base leading-none mt-0.5">🔕</span>
@@ -181,8 +197,8 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
         )}
 
         <div className="flex items-center justify-between">
-          {images.isUploading ? (
-            <span className="text-xs text-orange-400">Uploading photos…</span>
+          {mediaUploading ? (
+            <span className="text-xs text-orange-400">Uploading media…</span>
           ) : (
             <span className={`text-xs tabular-nums ${remaining < 50 ? 'text-orange-400' : 'text-zinc-500'}`}>
               {remaining} left

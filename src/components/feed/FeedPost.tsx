@@ -7,6 +7,7 @@ import { EditPostModal } from './EditPostModal'
 import { CommentThread } from './CommentThread'
 import { ReactionBar } from './ReactionBar'
 import { FeedImageGrid } from './FeedImageGrid'
+import { FeedVideoGrid } from './FeedVideoGrid'
 import { Lightbox } from './Lightbox'
 import { softDeletePost, togglePostReaction, subscribeToComments } from '@/lib/firestore'
 import { timeAgo, highlightMentions, cn } from '@/lib/utils'
@@ -155,6 +156,7 @@ export function FeedPost({ post }: FeedPostProps) {
   const hasAutoOpened                     = useRef(false)
 
   const images = post.imageUrls ?? []
+  const videos = post.videoUrls ?? []
 
   useEffect(() => {
     return subscribeToComments(post.id, setComments)
@@ -280,6 +282,9 @@ export function FeedPost({ post }: FeedPostProps) {
 
           {/* Images */}
           {images.length > 0 && <FeedImageGrid urls={images} onOpen={setLightboxIndex} />}
+
+          {/* Videos */}
+          {videos.length > 0 && <FeedVideoGrid urls={videos} />}
 
           {/* Actions row */}
           <div className="flex items-center gap-3 mt-2.5">

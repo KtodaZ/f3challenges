@@ -2,8 +2,12 @@ rules_version = '2';
 
 // Bucket: f3-bedrock-monthly-challenge.firebasestorage.app
 // Trust-based (matches Firestore rules — no auth in this app). Reads are open;
-// writes are limited to the feed-images path, image content types, and a sane
-// size ceiling so a bad upload can't blow up storage.
+// writes are limited to the media paths, their content types, and a sane size
+// ceiling so a bad upload can't blow up storage.
+//
+// Note: feed-videos/ objects auto-expire after 1 year via a bucket lifecycle
+// rule (see the ensureStorageLifecycle Cloud Function) to keep video storage
+// from growing without bound.
 service firebase.storage {
   match /b/{bucket}/o {
     match /feed-images/{imageId} {
@@ -13,6 +17,14 @@ service firebase.storage {
       allow write: if request.resource == null
         || (request.resource.size < 10 * 1024 * 1024
             && request.resource.contentType.matches('image/.*'));
+    }
+    match /feed-videos/{videoId} {
+      allow read: if true;
+      // Videos are far larger than photos — allow up to 100 MB. Deletes
+      // (request.resource == null) are allowed so removing a video cleans up.
+      allow write: if request.resource == null
+        || (request.resource.size < 100 * 1024 * 1024
+            && request.resource.contentType.matches('video/.*'));
     }
   }
 }

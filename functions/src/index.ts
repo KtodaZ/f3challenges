@@ -1119,3 +1119,44 @@ export const backfillAprilBadges = onRequest(async (_req, res) => {
   const results = await runBadgeBackfill("apr-2026");
   res.json({ ok: true, results });
 });
+
+// ---------------------------------------------------------------------------
+// ensureStorageLifecycle — keeps a 1-year TTL on uploaded feed videos.
+//
+// Videos are far larger than photos, so we cap how long they live in Storage.
+// This sets a GCS Object Lifecycle rule that auto-deletes anything under
+// `feed-videos/` 365 days after it's created. Photos (feed-images/) are left
+// untouched. The rule is a bucket-level setting, so we reconcile it on a
+// schedule (idempotent — setMetadata replaces the lifecycle wholesale) rather
+// than trusting a one-time manual `gsutil lifecycle set`.
+// ---------------------------------------------------------------------------
+
+const STORAGE_BUCKET = "f3-bedrock-monthly-challenge.firebasestorage.app";
+const VIDEO_TTL_DAYS = 365;
+
+export const ensureStorageLifecycle = onSchedule(
+  {
+    schedule: "0 5 * * 1", // Mondays 05:00 PT
+    timeZone: "America/Los_Angeles",
+  },
+  async () => {
+    const bucket = admin.storage().bucket(STORAGE_BUCKET);
+    try {
+      await bucket.setMetadata({
+        lifecycle: {
+          rule: [
+            {
+              action: { type: "Delete" },
+              condition: { age: VIDEO_TTL_DAYS, matchesPrefix: ["feed-videos/"] },
+            },
+          ],
+        },
+      });
+      console.log(`[lifecycle] feed-videos/ TTL set to ${VIDEO_TTL_DAYS} days on ${STORAGE_BUCKET}`);
+    } catch (err) {
+      // Non-fatal: if the service account can't update bucket metadata, log it
+      // so it can be granted storage.buckets.update (or the rule set by hand).
+      console.error("[lifecycle] failed to set feed-videos/ lifecycle rule:", err);
+    }
+  }
+);

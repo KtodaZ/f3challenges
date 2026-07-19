@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-19',
+    changes: [
+      'You can now add videos to a feed post — up to 3 at once, picked straight from your phone. They upload in the background while you finish typing.',
+      'Posts with videos show inline players you can tap to play right in the feed.',
+      'Editing a post now lets you add or remove its videos too.',
+    ],
+  },
+  {
     date: '2026-07-17',
     changes: [
       'You can now add photos to a feed post — up to 8 at once. Pick them straight from your camera roll and they upload while you finish typing.',
