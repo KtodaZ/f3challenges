@@ -40,6 +40,18 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   })
 }
 
+/**
+ * Pick a sensible file extension from an upload's content type. Falls back to
+ * `mp4` when the browser gives us no type, strips any `;codecs=…` parameter,
+ * and normalises `video/quicktime` (what iOS reports for .mov) to `mov`.
+ */
+export function videoExtensionFor(contentType: string): string {
+  const ext = (contentType.split('/')[1] || 'mp4').split(';')[0].trim().toLowerCase()
+  if (!ext) return 'mp4'
+  if (ext === 'quicktime') return 'mov'
+  return ext
+}
+
 export interface FeedVideoUpload {
   /** Resolves to the public download URL once the upload completes. */
   promise: Promise<string>
@@ -71,8 +83,7 @@ export function uploadFeedVideo(
     if (cancelled) throw new Error('Upload cancelled')
 
     const contentType = file.type || 'video/mp4'
-    let ext = (contentType.split('/')[1] || 'mp4').split(';')[0].toLowerCase()
-    if (ext === 'quicktime') ext = 'mov'
+    const ext = videoExtensionFor(contentType)
 
     const path = `feed-videos/${generateId()}.${ext}`
     dbg('upload:start', { path, contentType, size: file.size, bucket: storage.app.options.storageBucket })
