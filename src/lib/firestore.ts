@@ -245,7 +245,10 @@ export interface SocialStats {
 
 /** Social activity powering the social achievements. */
 export async function getSocialStats(userId: string): Promise<SocialStats> {
-  const [given, received, comments] = await Promise.all([
+  // allSettled so one failing query (e.g. a missing index or rule on a single
+  // collection) degrades just that stat to its default instead of wiping out
+  // every social badge at once.
+  const [given, received, comments] = await Promise.allSettled([
     getDocs(query(
       feedCol(),
       where('type', '==', 'shoutout'),
@@ -258,14 +261,19 @@ export async function getSocialStats(userId: string): Promise<SocialStats> {
       where('targetUserId', '==', userId),
       where('deleted', '==', false),
     )),
-    // Single-field collection-group query (index in firestore.indexes.json);
-    // deleted is filtered client-side to avoid needing a composite index.
+    // Single-field collection-group query (index in firestore.indexes.json,
+    // rule in firestore.rules); deleted is filtered client-side to avoid
+    // needing a composite index.
     getDocs(query(collectionGroup(db, 'comments'), where('authorId', '==', userId))),
   ])
   return {
-    givenShoutouts: given.docs.map(d => d.data() as FeedPost),
-    shoutoutsReceived: received.size,
-    commentsPosted: comments.docs.filter(d => !(d.data() as FeedComment).deleted).length,
+    givenShoutouts: given.status === 'fulfilled'
+      ? given.value.docs.map(d => d.data() as FeedPost)
+      : [],
+    shoutoutsReceived: received.status === 'fulfilled' ? received.value.size : 0,
+    commentsPosted: comments.status === 'fulfilled'
+      ? comments.value.docs.filter(d => !(d.data() as FeedComment).deleted).length
+      : 0,
   }
 }
 

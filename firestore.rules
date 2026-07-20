@@ -31,6 +31,16 @@ service cloud.firestore {
       }
     }
 
+    // Collection-group reads for comments (e.g. the Conversationalist badge
+    // counts a user's comments via collectionGroup('comments')). Collection
+    // group queries are NOT covered by the path-scoped /feed/.../comments rule
+    // above — they require a recursive-wildcard match on the collection group.
+    // Read-only: creates/updates still go through the path-scoped rule, and
+    // hard deletes stay blocked (no rule grants delete).
+    match /{path=**}/comments/{commentId} {
+      allow read: if true;
+    }
+
     // Participation: readable and writable by all (trust-based)
     match /participation/{participationId} {
       allow read: if true;
