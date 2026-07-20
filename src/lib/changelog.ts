@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-20',
+    changes: [
+      'Fixed the 💬 Conversationalist badge — your feed comments are counted again, so it now unlocks once you hit 25.',
+    ],
+  },
+  {
     date: '2026-07-19',
     changes: [
       'You can now add a video to a feed post, picked straight from your phone. It uploads in the background while you finish typing.',
