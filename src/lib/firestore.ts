@@ -241,6 +241,10 @@ export interface SocialStats {
   givenShoutouts: FeedPost[]
   shoutoutsReceived: number
   commentsPosted: number
+  /** Cumulative photos this user has attached across their feed posts. */
+  photosUploaded: number
+  /** Cumulative videos this user has attached across their feed posts. */
+  videosUploaded: number
 }
 
 /** Social activity powering the social achievements. */
@@ -248,7 +252,7 @@ export async function getSocialStats(userId: string): Promise<SocialStats> {
   // allSettled so one failing query (e.g. a missing index or rule on a single
   // collection) degrades just that stat to its default instead of wiping out
   // every social badge at once.
-  const [given, received, comments] = await Promise.allSettled([
+  const [given, received, comments, posts] = await Promise.allSettled([
     getDocs(query(
       feedCol(),
       where('type', '==', 'shoutout'),
@@ -265,7 +269,17 @@ export async function getSocialStats(userId: string): Promise<SocialStats> {
     // rule in firestore.rules); deleted is filtered client-side to avoid
     // needing a composite index.
     getDocs(query(collectionGroup(db, 'comments'), where('authorId', '==', userId))),
+    // All of the user's live posts — powers the photo/video media badges.
+    // Equality-only filters need no composite index.
+    getDocs(query(
+      feedCol(),
+      where('authorId', '==', userId),
+      where('deleted', '==', false),
+    )),
   ])
+  const authoredPosts = posts.status === 'fulfilled'
+    ? posts.value.docs.map(d => d.data() as FeedPost)
+    : []
   return {
     givenShoutouts: given.status === 'fulfilled'
       ? given.value.docs.map(d => d.data() as FeedPost)
@@ -274,6 +288,8 @@ export async function getSocialStats(userId: string): Promise<SocialStats> {
     commentsPosted: comments.status === 'fulfilled'
       ? comments.value.docs.filter(d => !(d.data() as FeedComment).deleted).length
       : 0,
+    photosUploaded: authoredPosts.reduce((n, p) => n + (p.imageUrls?.length ?? 0), 0),
+    videosUploaded: authoredPosts.reduce((n, p) => n + (p.videoUrls?.length ?? 0), 0),
   }
 }
 

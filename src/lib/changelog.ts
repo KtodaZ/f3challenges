@@ -21,6 +21,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-20',
     changes: [
       'Fixed the 💬 Conversationalist badge — your feed comments are counted again, so it now unlocks once you hit 25.',
+      'Four new badges for lighting up the feed: 📸 Pics or It Didn\'t Happen (first photo), 📷 Shutterbug (5 photos), 🎬 Lights, Camera, Merkin (first video), and 🎞️ Director\'s Cut (3 videos).',
     ],
   },
   {

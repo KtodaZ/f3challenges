@@ -51,6 +51,10 @@ export interface AchievementContext {
   fullHouseDays?: number
   /** Feed comments this user has posted. */
   commentsPosted?: number
+  /** Photos this user has attached to feed posts (cumulative across posts). */
+  photosUploaded?: number
+  /** Videos this user has attached to feed posts (cumulative across posts). */
+  videosUploaded?: number
   /** Callouts where the called-out PAX went on to finish that day. */
   successfulCallouts?: number
   /** Achievements already earned (excluding Completionist itself). */
@@ -516,6 +520,44 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
     howTo: 'Post 25 comments on feed posts.',
     category: 'social', unitLabel: 'comments', theme: 'confetti',
     progress: ctx => countProgress(ctx.commentsPosted ?? 0, 25),
+  },
+
+  // ── Feed media 📸 ──
+  {
+    id: 'pics-or-it-didnt-happen',
+    name: "Pics or It Didn't Happen",
+    emoji: '📸',
+    description: 'Posted your first photo to the feed. Proof of the pain.',
+    howTo: 'Attach at least 1 photo to a feed post.',
+    category: 'social', unitLabel: 'photos', chain: 'photos', tier: 1, theme: 'confetti',
+    progress: ctx => countProgress(ctx.photosUploaded ?? 0, 1),
+  },
+  {
+    id: 'shutterbug',
+    name: 'Shutterbug',
+    emoji: '📷',
+    description: '5 photos posted to the feed. The unofficial AO photographer.',
+    howTo: 'Attach 5 photos to feed posts — across any number of posts.',
+    category: 'social', unitLabel: 'photos', chain: 'photos', tier: 2, theme: 'confetti',
+    progress: ctx => countProgress(ctx.photosUploaded ?? 0, 5),
+  },
+  {
+    id: 'lights-camera-merkin',
+    name: 'Lights, Camera, Merkin',
+    emoji: '🎬',
+    description: 'Posted your first video to the feed. Roll tape.',
+    howTo: 'Attach at least 1 video to a feed post.',
+    category: 'social', unitLabel: 'videos', chain: 'videos', tier: 1, theme: 'confetti',
+    progress: ctx => countProgress(ctx.videosUploaded ?? 0, 1),
+  },
+  {
+    id: 'directors-cut',
+    name: "Director's Cut",
+    emoji: '🎞️',
+    description: '3 videos in the feed. Putting together a whole highlight reel.',
+    howTo: 'Attach 3 videos to feed posts — across any number of posts.',
+    category: 'social', unitLabel: 'videos', chain: 'videos', tier: 2, theme: 'confetti',
+    progress: ctx => countProgress(ctx.videosUploaded ?? 0, 3),
   },
   {
     id: 'ambassador',

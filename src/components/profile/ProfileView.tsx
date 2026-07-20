@@ -99,6 +99,8 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
       givenShoutouts: socialStats?.givenShoutouts,
       shoutoutsReceived: socialStats?.shoutoutsReceived,
       commentsPosted: socialStats?.commentsPosted,
+      photosUploaded: socialStats?.photosUploaded,
+      videosUploaded: socialStats?.videosUploaded,
       bonusLogs: bonusLogs ?? undefined,
       groupLogs: groupLogs ?? undefined,
       currentChallengeId: getCurrentChallenge()?.id,

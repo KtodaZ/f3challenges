@@ -70,7 +70,7 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
       })
       .catch(() => {
         if (cancelled) return
-        setSocial({ givenShoutouts: [], shoutoutsReceived: 0, commentsPosted: 0 })
+        setSocial({ givenShoutouts: [], shoutoutsReceived: 0, commentsPosted: 0, photosUploaded: 0, videosUploaded: 0 })
         setBonusLogs([])
         setGroupLogs([])
         setModifyingChallengeIds([])
@@ -92,6 +92,8 @@ export function useAchievementEngine({ logs, challengeId, onUnlocked }: UseAchie
       givenShoutouts: social?.givenShoutouts,
       shoutoutsReceived: social?.shoutoutsReceived,
       commentsPosted: social?.commentsPosted,
+      photosUploaded: social?.photosUploaded,
+      videosUploaded: social?.videosUploaded,
       bonusLogs: bonusLogs ?? undefined,
       groupLogs: mergedGroupLogs,
       currentChallengeId: challengeId,

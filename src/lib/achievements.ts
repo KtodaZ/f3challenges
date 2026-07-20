@@ -168,6 +168,8 @@ export interface AchievementExtras {
   shoutoutsReceived?: number
   bonusLogs?: BonusLog[]
   commentsPosted?: number
+  photosUploaded?: number
+  videosUploaded?: number
   /** This user's outgoing shoutout posts (for Shot Caller / Ambassador). */
   givenShoutouts?: Array<Pick<FeedPost, 'targetUserId' | 'createdAt' | 'challengeId'>>
   /** All logs for the current challenge, every user (group placements). */
@@ -195,6 +197,8 @@ export function buildAchievementContext(
     photoFinishDays: group?.photoFinishDays,
     fullHouseDays: group?.fullHouseDays,
     commentsPosted: extras?.commentsPosted,
+    photosUploaded: extras?.photosUploaded,
+    videosUploaded: extras?.videosUploaded,
     successfulCallouts: extras?.givenShoutouts && extras?.groupLogs
       ? countSuccessfulCallouts(extras.givenShoutouts, extras.groupLogs)
       : undefined,

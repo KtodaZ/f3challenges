@@ -292,6 +292,21 @@ describe('special achievements', () => {
     expect(progressOf('completionist', ctx({ earnedBadgesCount: 12 }))).toMatchObject({ earned: false, current: 12, target: 25 })
   })
 
+  it('feed media badges read photo/video counts', () => {
+    // Photos
+    expect(progressOf('pics-or-it-didnt-happen', ctx({ photosUploaded: 1 })).earned).toBe(true)
+    expect(progressOf('pics-or-it-didnt-happen', ctx({ photosUploaded: 0 })).earned).toBe(false)
+    expect(progressOf('shutterbug', ctx({ photosUploaded: 5 })).earned).toBe(true)
+    expect(progressOf('shutterbug', ctx({ photosUploaded: 4 }))).toMatchObject({ earned: false, current: 4, target: 5 })
+    // Videos
+    expect(progressOf('lights-camera-merkin', ctx({ videosUploaded: 1 })).earned).toBe(true)
+    expect(progressOf('lights-camera-merkin', ctx({ videosUploaded: 0 })).earned).toBe(false)
+    expect(progressOf('directors-cut', ctx({ videosUploaded: 3 })).earned).toBe(true)
+    expect(progressOf('directors-cut', ctx({ videosUploaded: 2 }))).toMatchObject({ earned: false, current: 2, target: 3 })
+    // Counts don't cross-contaminate
+    expect(progressOf('lights-camera-merkin', ctx({ photosUploaded: 10 })).earned).toBe(false)
+  })
+
   it('bonus-hunter needs every bonus week', () => {
     expect(progressOf('bonus-hunter', ctx({ bonusWeeks: { completed: 2, total: 2 } })).earned).toBe(true)
     expect(progressOf('bonus-hunter', ctx({ bonusWeeks: { completed: 1, total: 2 } })).earned).toBe(false)
