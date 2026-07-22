@@ -24,7 +24,6 @@ type Tab = 'current' | 'past'
 
 interface CurrentLeaderboardProps {
   challenge: ChallengeTemplate
-  entries: LeaderboardEntry[]
   participantEntries: LeaderboardEntry[]
   dayCompletionCounts: Record<string, number>
   dayRepCounts: Record<string, number>
@@ -37,7 +36,6 @@ interface CurrentLeaderboardProps {
 
 function CurrentLeaderboard({
   challenge,
-  entries,
   participantEntries,
   dayCompletionCounts,
   dayRepCounts,
@@ -57,7 +55,7 @@ function CurrentLeaderboard({
       )}
 
       {/* Group charts — swipeable: reps, % completion, heatmap */}
-      {!loading && entries.length > 0 && (
+      {!loading && participantEntries.length > 0 && (
         <GroupCharts
           challenge={challenge}
           dayCompletionCounts={dayCompletionCounts}
@@ -80,23 +78,21 @@ function CurrentLeaderboard({
               <div className="w-10 h-6 bg-zinc-800 rounded" />
             </div>
           ))
-        ) : entries.length === 0 ? (
+        ) : participantEntries.length === 0 ? (
           <div className="py-12 text-center text-zinc-500 text-sm">No participants yet</div>
         ) : (
-          entries.map((entry, idx) => {
-            // Dense ranking: find the first entry with the same sort key
-            const denseRank = entries.findIndex(
-              e => e.participation?.status !== 'opted-out' &&
-                e.totalReps === entry.totalReps &&
+          participantEntries.map((entry) => {
+            // Dense ranking: first participant sharing this exact sort key
+            const denseRank = participantEntries.findIndex(
+              e => e.totalReps === entry.totalReps &&
                 e.completedDays === entry.completedDays &&
                 e.currentStreak === entry.currentStreak
             )
-            const rank = entry.participation?.status === 'opted-out' ? idx + 1 : denseRank + 1
             return (
               <LeaderboardRow
                 key={entry.user.id}
                 entry={entry}
-                rank={rank}
+                rank={denseRank + 1}
                 isCurrentUser={entry.user.id === currentUserId}
                 onClick={() => router.push(`/profile/${entry.user.id}`)}
               />
@@ -357,7 +353,6 @@ export default function LeaderboardPage() {
         ) : (
           <CurrentLeaderboard
             challenge={challenge}
-            entries={entries}
             participantEntries={participantEntries}
             dayCompletionCounts={dayCompletionCounts}
             dayRepCounts={dayRepCounts}
