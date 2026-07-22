@@ -1,19 +1,37 @@
 'use client'
 
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Changelog } from '@/components/ui/Changelog'
-import { getRecentChangelog } from '@/lib/changelog'
+import { getRecentChangelog, type ChangelogEntry } from '@/lib/changelog'
 
 interface UpdateBannerProps {
   visible: boolean
 }
 
+async function fetchRecentChangelog(): Promise<ChangelogEntry[]> {
+  const res = await fetch('/api/changelog')
+  const data = await res.json()
+  return data.entries as ChangelogEntry[]
+}
+
 export function UpdateBanner({ visible }: UpdateBannerProps) {
   const [showChanges, setShowChanges] = useState(false)
 
+  // The bundled changelog belongs to the version the browser is CURRENTLY
+  // running, so it would show the PREVIOUS release's notes. Fetch the notes
+  // from the freshly-deployed server instead, falling back to the local copy
+  // if the request fails (e.g. offline).
+  const { data: fetched } = useQuery({
+    queryKey: ['update-changelog'],
+    queryFn: fetchRecentChangelog,
+    enabled: visible,
+    staleTime: 60 * 1000,
+  })
+
   if (!visible) return null
 
-  const recent = getRecentChangelog()
+  const recent = fetched ?? getRecentChangelog()
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 p-6">
