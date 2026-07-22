@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/Switch'
 import { useUser } from '@/contexts/UserContext'
 import { updateUser } from '@/lib/firestore'
 import { setCachedUser } from '@/lib/storage'
+import { COMPETITIVE_DISCLAIMER, COMPETITIVE_EXAMPLE } from '@/components/notifications/CompetitiveOptIn'
 import type { NotificationPreferences } from '@/types'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 
@@ -78,10 +79,14 @@ export function NotificationSettings() {
   async function handleSave() {
     if (!currentUser) return
     setSaving(true)
+    // Saving from settings counts as answering the competitive prompt, so the
+    // one-time leaderboard modal won't nag afterward.
+    const toSave: NotificationPreferences = { ...prefs, competitivePrompted: true }
     try {
-      await updateUser(currentUser.id, { notificationPreferences: prefs })
-      const updatedUser = { ...currentUser, notificationPreferences: prefs }
+      await updateUser(currentUser.id, { notificationPreferences: toSave })
+      const updatedUser = { ...currentUser, notificationPreferences: toSave }
       setCachedUser(updatedUser)
+      setPrefs(toSave)
       toast.success('Notification preferences saved')
     } catch {
       toast.error('Failed to save preferences')
@@ -157,6 +162,27 @@ export function NotificationSettings() {
             id="switch-mentions"
           />
         </div>
+      </div>
+
+      {/* Competitive nudges — opt-in */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white">🏁 Competitive Nudges</p>
+            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+              Rank-based nudges layered onto your reminders, like{' '}
+              <span className="text-zinc-300 italic">{COMPETITIVE_EXAMPLE}</span>
+            </p>
+          </div>
+          <Switch
+            checked={prefs.competitive ?? false}
+            onCheckedChange={v => setPrefs(p => ({ ...p, competitive: v }))}
+            id="switch-competitive"
+          />
+        </div>
+        <p className="text-xs text-zinc-500 leading-relaxed border-t border-zinc-800 pt-3">
+          {COMPETITIVE_DISCLAIMER}
+        </p>
       </div>
 
       <button

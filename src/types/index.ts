@@ -35,6 +35,14 @@ export interface NotificationPreferences {
   evening: NotificationWindow
   weeklyRecap: NotificationWindow & { dayOfWeek: number } // 0=Sun
   mentions: boolean
+  /** Opt-in: competitive, rank-based nudges layered onto the time-of-day
+   *  reminders ("Milkman just passed you — 100 reps to retake #3"). Off by
+   *  default; only ever turned on by an explicit choice. */
+  competitive: boolean
+  /** True once the PAX has been asked about competitive notifications (in
+   *  onboarding, settings, or the leaderboard prompt). Absent = never asked,
+   *  which is what triggers the one-time leaderboard opt-in modal. */
+  competitivePrompted?: boolean
 }
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
@@ -43,6 +51,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
   evening:     { enabled: true, time: '20:00' },
   weeklyRecap: { enabled: true, time: '20:00', dayOfWeek: 0 },
   mentions:    true,
+  competitive: false,
 }
 
 export interface AchievementBadge {

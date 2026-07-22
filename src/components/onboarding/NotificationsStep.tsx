@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/Switch'
 import { cn } from '@/lib/utils'
+import { COMPETITIVE_DISCLAIMER, COMPETITIVE_EXAMPLE } from '@/components/notifications/CompetitiveOptIn'
 import type { NotificationPreferences } from '@/types'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 
@@ -90,10 +91,23 @@ export function NotificationsStep({ onNext, existingPrefs }: Props) {
             description="Get notified when someone shouts you out"
           />
         </div>
+
+        {/* Competitive nudges — opt-in */}
+        <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-4 space-y-3">
+          <Switch
+            checked={prefs.competitive ?? false}
+            onCheckedChange={v => setPrefs(prev => ({ ...prev, competitive: v }))}
+            label="🏁 Competitive nudges"
+            description={COMPETITIVE_EXAMPLE}
+          />
+          <p className="text-xs text-zinc-500 leading-relaxed border-t border-zinc-800 pt-3">
+            {COMPETITIVE_DISCLAIMER}
+          </p>
+        </div>
       </div>
 
       <div className="mt-8">
-        <Button onClick={() => onNext(prefs)} size="lg" fullWidth>
+        <Button onClick={() => onNext({ ...prefs, competitivePrompted: true })} size="lg" fullWidth>
           Continue →
         </Button>
       </div>

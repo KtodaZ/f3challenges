@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-22',
+    changes: [
+      'The leaderboard’s Group Activity is now swipeable: a line chart of the group’s total reps per day, a chart of what % of PAX finished each day, and the classic completion grid — swipe between them.',
+      'Group stats now count only PAX actually in the challenge, and the middle stat shows the group’s average completion % instead of a “perfect days” count that nobody could realistically hit this far into the month.',
+      'New opt-in “Competitive Nudges”: turn them on to get rank-based reminders like “100 reps to pass Splice for #3.” Off by default — flip it on in Settings → Notifications, during onboarding, or from the prompt on the leaderboard. Turn it off any time.',
+    ],
+  },
+  {
     date: '2026-07-20',
     changes: [
       'Fixed the 💬 Conversationalist badge — your feed comments are counted again, so it now unlocks once you hit 25.',
