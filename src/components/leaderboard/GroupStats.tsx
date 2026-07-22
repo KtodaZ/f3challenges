@@ -5,16 +5,18 @@ import { Card } from '@/components/ui/Card'
 import type { LeaderboardEntry } from '@/types'
 
 interface GroupStatsProps {
+  /** Actual participants only (opted-out / inactive PAX already filtered out). */
   entries: LeaderboardEntry[]
 }
 
 export function GroupStats({ entries }: GroupStatsProps) {
-  const activeEntries = entries.filter(e => e.participation?.status !== 'opted-out')
-  const totalDays = activeEntries[0]?.totalDays ?? 0
-
   const totalGroupReps = entries.reduce((sum, e) => sum + e.totalReps, 0)
 
-  const onTrack = activeEntries.filter(e => e.completedDays === totalDays && totalDays > 0).length
+  // Percent-based headline instead of "perfect / no missed days" — 20+ days in,
+  // nobody has a spotless record, so a completion average is the useful signal.
+  const avgCompletion = entries.length > 0
+    ? Math.round(entries.reduce((sum, e) => sum + e.completionPct, 0) / entries.length)
+    : 0
 
   const longestStreak = entries.reduce((max, e) => Math.max(max, e.currentStreak), 0)
   const longestStreakHolder = entries.find(e => e.currentStreak === longestStreak && longestStreak > 0)
@@ -28,10 +30,10 @@ export function GroupStats({ entries }: GroupStatsProps) {
       href: undefined,
     },
     {
-      label: 'On track',
-      value: `${onTrack} / ${activeEntries.length}`,
-      sub: 'no missed days',
-      icon: '✅',
+      label: 'Avg completion',
+      value: `${avgCompletion}%`,
+      sub: `across ${entries.length} PAX`,
+      icon: '📊',
       href: undefined,
     },
     {

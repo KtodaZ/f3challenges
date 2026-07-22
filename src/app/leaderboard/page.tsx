@@ -1,20 +1,22 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { useUser } from '@/contexts/UserContext'
 import { getCurrentChallenge, getTodayPT, getChallengeDates, getDayNumber, getTotalDays } from '@/lib/challenges'
-import { getUserChallengeLogs, getChallengeParticipants, getDailyLog } from '@/lib/firestore'
+import { getUserChallengeLogs, getChallengeParticipants, getDailyLog, updateUser } from '@/lib/firestore'
 import { monthProgress, cn, isChallengeParticipant } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
 import { GroupStats } from '@/components/leaderboard/GroupStats'
-import { GroupHeatMap } from '@/components/leaderboard/GroupHeatMap'
+import { GroupCharts } from '@/components/leaderboard/GroupCharts'
 import { CallOutCard } from '@/components/leaderboard/CallOutCard'
 import { CalloutModal, type CalloutUserStatus } from '@/components/daily/CalloutModal'
 import { PastFinishers } from '@/components/leaderboard/PastFinishers'
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
+import { CompetitiveOptInModal } from '@/components/notifications/CompetitiveOptIn'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import type { LeaderboardEntry, ChallengeParticipation, User, ChallengeTemplate } from '@/types'
+import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 
 type Tab = 'current' | 'past'
 
@@ -23,7 +25,10 @@ type Tab = 'current' | 'past'
 interface CurrentLeaderboardProps {
   challenge: ChallengeTemplate
   entries: LeaderboardEntry[]
+  participantEntries: LeaderboardEntry[]
   dayCompletionCounts: Record<string, number>
+  dayRepCounts: Record<string, number>
+  participantCount: number
   loading: boolean
   currentUserId: string | undefined
   needsPush: LeaderboardEntry[]
@@ -33,7 +38,10 @@ interface CurrentLeaderboardProps {
 function CurrentLeaderboard({
   challenge,
   entries,
+  participantEntries,
   dayCompletionCounts,
+  dayRepCounts,
+  participantCount,
   loading,
   currentUserId,
   needsPush,
@@ -44,21 +52,18 @@ function CurrentLeaderboard({
   return (
     <div className="px-4 py-4 space-y-4">
       {/* Group stats */}
-      {!loading && entries.length > 0 && <GroupStats entries={entries} />}
+      {!loading && participantEntries.length > 0 && (
+        <GroupStats entries={participantEntries} />
+      )}
 
-      {/* Group heatmap */}
+      {/* Group charts — swipeable: reps, % completion, heatmap */}
       {!loading && entries.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Group Activity</CardTitle>
-            <span className="text-xs text-zinc-500 font-normal">completion by day</span>
-          </CardHeader>
-          <GroupHeatMap
-            challenge={challenge}
-            dayCompletionCounts={dayCompletionCounts}
-            activeCount={entries.filter(e => e.participation?.status !== 'opted-out').length}
-          />
-        </Card>
+        <GroupCharts
+          challenge={challenge}
+          dayCompletionCounts={dayCompletionCounts}
+          dayRepCounts={dayRepCounts}
+          participantCount={participantCount}
+        />
       )}
 
       {/* Leaderboard rows */}
@@ -111,12 +116,15 @@ function CurrentLeaderboard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
-  const { currentUser, allUsers } = useUser()
+  const { currentUser, allUsers, refreshCurrentUser } = useUser()
   const challenge = getCurrentChallenge()
 
   const [tab, setTab] = useState<Tab>('current')
+  const [competitiveModalOpen, setCompetitiveModalOpen] = useState(false)
+  const competitivePromptShown = useRef(false)
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [dayCompletionCounts, setDayCompletionCounts] = useState<Record<string, number>>({})
+  const [dayRepCounts, setDayRepCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [calloutTarget, setCalloutTarget] = useState<User | null>(null)
@@ -136,8 +144,12 @@ export default function LeaderboardPage() {
     )
     const challengeDates = getChallengeDates(challenge)
     const pastDates = challengeDates.filter(d => d <= today)
+    const dayNum = getDayNumber(challenge, today) ?? 1
 
+    // Per-day group aggregates — restricted to actual participants so a stray
+    // one-rep log or an opted-out PAX doesn't skew the charts.
     const dayCounts: Record<string, number> = {}
+    const repCounts: Record<string, number> = {}
 
     const entriesData = await Promise.all(
       allUsers.map(async (user, idx) => {
@@ -155,9 +167,22 @@ export default function LeaderboardPage() {
           0
         )
 
-        // Accumulate per-day group completion counts
-        for (const log of completedLogs) {
-          dayCounts[log.date] = (dayCounts[log.date] ?? 0) + 1
+        // Only real participants feed the group charts/stats
+        const isParticipant = isChallengeParticipant(
+          part?.status,
+          completedDays > 0 || totalReps > 0,
+          dayNum,
+        )
+        if (isParticipant) {
+          // Per-day completion counts (heatmap + % completion chart)
+          for (const log of completedLogs) {
+            dayCounts[log.date] = (dayCounts[log.date] ?? 0) + 1
+          }
+          // Per-day total reps (reps line chart) — include partial days too
+          for (const log of logs) {
+            const reps = log.exerciseLogs.reduce((s, e) => s + e.completedReps, 0)
+            if (reps > 0) repCounts[log.date] = (repCounts[log.date] ?? 0) + reps
+          }
         }
 
         // Compute streak — don't dock mid-day, start from yesterday if today isn't done
@@ -204,12 +229,38 @@ export default function LeaderboardPage() {
 
     setEntries(entriesData)
     setDayCompletionCounts(dayCounts)
+    setDayRepCounts(repCounts)
     setLoading(false)
     setRefreshing(false)
   }, [challenge, allUsers])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadData() }, [loadData])
+
+  // First time a PAX lands on the leaderboard without having chosen a
+  // competitive-notifications preference, surface the opt-in prompt (once).
+  useEffect(() => {
+    if (competitivePromptShown.current) return
+    if (currentUser && currentUser.notificationPreferences?.competitivePrompted !== true) {
+      competitivePromptShown.current = true
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCompetitiveModalOpen(true)
+    }
+  }, [currentUser])
+
+  async function handleCompetitiveDecide(optIn: boolean) {
+    setCompetitiveModalOpen(false)
+    if (!currentUser) return
+    const base = currentUser.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFS
+    const prefs = { ...base, competitive: optIn, competitivePrompted: true }
+    try {
+      await updateUser(currentUser.id, { notificationPreferences: prefs })
+      refreshCurrentUser()
+      if (optIn) toast.success('Competitive nudges are on — game on. 🏁')
+    } catch {
+      toast.error('Could not save your choice')
+    }
+  }
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -220,20 +271,18 @@ export default function LeaderboardPage() {
   const dayNum         = challenge ? getDayNumber(challenge, todayStr) ?? 1 : 1
   const totalDays      = challenge ? getTotalDays(challenge) : 0
   const progress       = challenge ? monthProgress(challenge.startDate, challenge.endDate) : 0
-  const completedToday = entries.filter(e => e.todayComplete).length
-  // Only nudge PAX participating in this challenge (logged something, opted
-  // in, or still in the early-month grace window) — not inactive users
-  const needsPush      = entries.filter(e =>
-    !e.todayComplete &&
+  // PAX actually participating in this challenge (logged something, opted in,
+  // or still in the early-month grace window) — not inactive users. Drives the
+  // group charts/stats denominators, the nudge list, and the callout roster.
+  const participantEntries = entries.filter(e =>
     isChallengeParticipant(e.participation?.status, e.completedDays > 0 || e.totalReps > 0, dayNum)
   )
+  const participantCount = participantEntries.length
+  const completedToday   = participantEntries.filter(e => e.todayComplete).length
+  const needsPush        = participantEntries.filter(e => !e.todayComplete)
   // Roster for the callout modal — same participant filter, so drop-off PAX
   // don't appear in the "Who are you calling out?" list.
-  const calloutUsers   = entries
-    .filter(e =>
-      isChallengeParticipant(e.participation?.status, e.completedDays > 0 || e.totalReps > 0, dayNum)
-    )
-    .map(e => e.user)
+  const calloutUsers     = participantEntries.map(e => e.user)
   // Today's progress per PAX — lets the callout modal group by status
   const calloutStatusById = new Map<string, CalloutUserStatus>(
     entries.map(e => {
@@ -290,7 +339,7 @@ export default function LeaderboardPage() {
           <ProgressBar
             value={progress}
             label={`Day ${dayNum} of ${totalDays}`}
-            sublabel={`${completedToday} of ${entries.length} done today`}
+            sublabel={`${completedToday} of ${participantCount} done today`}
             className="mt-2"
           />
         )}
@@ -309,7 +358,10 @@ export default function LeaderboardPage() {
           <CurrentLeaderboard
             challenge={challenge}
             entries={entries}
+            participantEntries={participantEntries}
             dayCompletionCounts={dayCompletionCounts}
+            dayRepCounts={dayRepCounts}
+            participantCount={participantCount}
             loading={loading}
             currentUserId={currentUser?.id}
             needsPush={needsPush}
@@ -317,6 +369,9 @@ export default function LeaderboardPage() {
           />
         )
       )}
+
+      {/* Competitive notifications opt-in prompt (first leaderboard visit) */}
+      <CompetitiveOptInModal open={competitiveModalOpen} onDecide={handleCompetitiveDecide} />
 
       {/* Callout modal */}
       {currentUser && challenge && (
