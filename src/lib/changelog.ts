@@ -18,6 +18,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-23',
+    changes: [
+      'The leaderboard’s “Who needs a push?” now tells you *why* each PAX made the list — a quick note under every name, like “Almost done today — 70% of the way there,” “Hasn’t done a rep in 2 days,” or “3-day streak on the line.”',
+      '“Who needs a push?” is now ranked, not just a list: PAX who need a nudge most float to the top, weighing how long they’ve been quiet, how far they got today, whether a streak’s about to break, and how long it’s been since anyone gave them a shoutout.',
+    ],
+  },
+  {
     date: '2026-07-22',
     changes: [
       'The leaderboard now shows only PAX taking part in this month’s challenge — no more inactive or opted-out names cluttering the board.',
