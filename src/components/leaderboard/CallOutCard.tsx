@@ -31,12 +31,13 @@ const URGENCY_ACCENT: Record<PushUrgency, string> = {
 export function CallOutCard({ entries, onCallOut }: CallOutCardProps) {
   const today = getTodayPT()
 
-  // Only active/modifying PAX who haven't finished today, ranked by who needs a
-  // push most (weighted inactivity, today's progress, streaks, shoutout drought).
+  // Only active/modifying PAX who haven't finished today. Ordered so the
+  // closest-to-done (easiest wins) sit up top and the deepest holes sit at the
+  // bottom — ascending by the weighted push-priority score.
   const ranked = entries
     .filter(e => e.participation?.status !== 'opted-out' && !e.todayComplete)
     .map(entry => ({ entry, reason: getPushReason(entry, today) }))
-    .sort((a, b) => b.reason.score - a.reason.score)
+    .sort((a, b) => a.reason.score - b.reason.score)
 
   if (ranked.length === 0) {
     return (
@@ -56,7 +57,7 @@ export function CallOutCard({ entries, onCallOut }: CallOutCardProps) {
       <div className="px-4 py-3 border-b border-zinc-800">
         <div className="flex items-baseline gap-2">
           <h3 className="font-bold text-white text-base">Who needs a push?</h3>
-          <span className="text-xs text-zinc-500">ranked by who needs it most</span>
+          <span className="text-xs text-zinc-500">closest to done first</span>
         </div>
       </div>
       <ul>

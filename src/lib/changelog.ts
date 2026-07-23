@@ -21,7 +21,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-23',
     changes: [
       'The leaderboard’s “Who needs a push?” now tells you *why* each PAX made the list — a quick note under every name, like “Almost done today — 70% of the way there,” “Hasn’t done a rep in 2 days,” or “3-day streak on the line.”',
-      '“Who needs a push?” is now ranked, not just a list: PAX who need a nudge most float to the top, weighing how long they’ve been quiet, how far they got today, whether a streak’s about to break, and how long it’s been since anyone gave them a shoutout.',
+      '“Who needs a push?” is now ordered, not just a list: the PAX closest to finishing sit up top for a quick win, working down to the ones who’ve gone quietest — weighing how far they got today, how long they’ve been idle, whether a streak’s about to break, and how long it’s been since anyone gave them a shoutout.',
     ],
   },
   {
