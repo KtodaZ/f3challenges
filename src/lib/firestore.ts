@@ -293,6 +293,28 @@ export async function getSocialStats(userId: string): Promise<SocialStats> {
   }
 }
 
+/**
+ * Most-recent shoutout timestamp per recipient → `Map<userId, ISO createdAt>`.
+ * One equality-only query (no composite index) folded down client-side, so the
+ * leaderboard's "Who needs a push?" ranking can factor in who's been getting
+ * love lately and who's been overlooked. Users with no shoutout are absent.
+ */
+export async function getLatestShoutoutsByUser(): Promise<Map<string, string>> {
+  const snap = await getDocs(query(
+    feedCol(),
+    where('type', '==', 'shoutout'),
+    where('deleted', '==', false),
+  ))
+  const latest = new Map<string, string>()
+  for (const d of snap.docs) {
+    const post = d.data() as FeedPost
+    if (!post.targetUserId) continue
+    const prev = latest.get(post.targetUserId)
+    if (!prev || post.createdAt > prev) latest.set(post.targetUserId, post.createdAt)
+  }
+  return latest
+}
+
 // ─── Reactions ────────────────────────────────────────────────────────────────
 
 export async function togglePostReaction(

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useUser } from '@/contexts/UserContext'
 import { getCurrentChallenge, getTodayPT, getChallengeDates, getDayNumber, getTotalDays } from '@/lib/challenges'
-import { getUserChallengeLogs, getChallengeParticipants, getDailyLog, updateUser } from '@/lib/firestore'
+import { getUserChallengeLogs, getChallengeParticipants, getDailyLog, getLatestShoutoutsByUser, updateUser } from '@/lib/firestore'
 import { monthProgress, cn, isChallengeParticipant } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
 import { GroupStats } from '@/components/leaderboard/GroupStats'
@@ -130,9 +130,10 @@ export default function LeaderboardPage() {
 
     const today = getTodayPT()
 
-    const [participations, allTodayLogs] = await Promise.all([
+    const [participations, allTodayLogs, shoutoutMap] = await Promise.all([
       getChallengeParticipants(challenge.id),
       Promise.all(allUsers.map(u => getDailyLog(u.id, today))),
+      getLatestShoutoutsByUser(),
     ])
 
     const participationMap = new Map<string, ChallengeParticipation>(
@@ -155,6 +156,15 @@ export default function LeaderboardPage() {
 
         const completedLogs = logs.filter(l => l.completionFraction >= 0.25)
         const completedDays = completedLogs.length
+
+        // Most recent day this PAX actually put up reps — powers the
+        // "hasn't done a rep in N days" push-priority signal.
+        const activeDates = logs
+          .filter(l => l.exerciseLogs.some(e => e.completedReps > 0))
+          .map(l => l.date)
+        const lastActiveDate = activeDates.length
+          ? activeDates.reduce((a, b) => (a > b ? a : b))
+          : undefined
         const completionPct = pastDates.length > 0
           ? Math.round((completedDays / pastDates.length) * 100)
           : 0
@@ -209,6 +219,8 @@ export default function LeaderboardPage() {
           currentStreak: streak,
           todayComplete: (todayLog?.completionFraction ?? 0) >= 1,
           todayLog: todayLog ?? undefined,
+          lastActiveDate,
+          lastShoutoutAt: shoutoutMap.get(user.id),
         } satisfies LeaderboardEntry
       })
     )

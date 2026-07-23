@@ -184,6 +184,12 @@ export interface LeaderboardEntry {
   currentStreak: number
   todayComplete: boolean
   todayLog?: DailyLog
+  /** Most recent day (YYYY-MM-DD) this PAX logged any reps in the challenge.
+   *  Drives the "hasn't done a rep in N days" push-priority signal. */
+  lastActiveDate?: string
+  /** ISO timestamp of the most recent shoutout this PAX *received*, if any.
+   *  Lets the push queue spread the love — recently celebrated PAX rank lower. */
+  lastShoutoutAt?: string
 }
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
