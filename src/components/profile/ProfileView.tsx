@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Input } from '@/components/ui/Input'
 import { TrophyCase } from '@/components/profile/TrophyCase'
+import { TodaySummary } from '@/components/profile/TodaySummary'
 import { HeatMap } from '@/components/profile/HeatMap'
 import { CumulativeStats } from '@/components/profile/CumulativeStats'
 import { OptOutModal } from '@/components/profile/OptOutModal'
@@ -29,6 +30,7 @@ import {
   getCurrentChallenge,
   CHALLENGES,
   getChallengeDates,
+  getDailyTarget,
   getTodayPT,
 } from '@/lib/challenges'
 import { useUser } from '@/contexts/UserContext'
@@ -146,6 +148,8 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
 
   // Current month progress calculations
   const today = getTodayPT()
+  const todayTarget = currentChallenge ? getDailyTarget(currentChallenge, today) : null
+  const todayLog = currentLogs.find(l => l.date === today) ?? null
   const daysCompleted = currentLogs.filter(l => l.completionFraction >= 1).length
   const totalDays = currentChallenge ? getChallengeDates(currentChallenge).filter(d => d <= today).length : 0
   const totalRepsLogged = currentLogs.reduce((sum, log) => {
@@ -290,6 +294,15 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
             </div>
           )}
         </Card>
+
+        {/* ── Today: condensed done / to-do ──────────────────── */}
+        {currentChallenge && todayTarget && (
+          loading ? (
+            <div className="h-24 bg-zinc-800 rounded-2xl animate-pulse" />
+          ) : (
+            <TodaySummary target={todayTarget} log={todayLog} />
+          )
+        )}
 
         {/* ── Current Month Progress ─────────────────────────── */}
         {currentChallenge && (

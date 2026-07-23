@@ -20,6 +20,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-23',
     changes: [
+      'Profiles now open with a “Today” card — an at-a-glance look at what that PAX has already knocked out today and what’s still left on the board.',
       'The leaderboard’s “Who needs a push?” now tells you *why* each PAX made the list — a quick note under every name, like “Almost done today — 70% of the way there,” “Hasn’t done a rep in 2 days,” or “3-day streak on the line.”',
       '“Who needs a push?” is now ordered, not just a list: the PAX closest to finishing sit up top for a quick win, working down to the ones who’ve gone quietest — weighing how far they got today, how long they’ve been idle, whether a streak’s about to break, and how long it’s been since anyone gave them a shoutout.',
     ],
