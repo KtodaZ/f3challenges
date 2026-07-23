@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-23',
+    changes: [
+      'Fixed the Morning Reminder description in Notification settings — it no longer says the message is “AI-generated,” since your daily reminders are hand-crafted, not AI.',
+    ],
+  },
+  {
     date: '2026-07-22',
     changes: [
       'The leaderboard now shows only PAX taking part in this month’s challenge — no more inactive or opted-out names cluttering the board.',

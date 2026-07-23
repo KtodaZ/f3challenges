@@ -99,7 +99,7 @@ export function NotificationSettings() {
     <div className="space-y-4">
       <TimeRow
         label="Morning Reminder"
-        description="Your daily challenge reminder. We'll send you an AI-generated message to kick off the day — with how many PAX have already completed today's workout."
+        description="Your daily challenge reminder. We'll send you a fresh message to kick off the day — with how many PAX have already completed today's workout."
         enabled={prefs.morning.enabled}
         time={prefs.morning.time}
         onToggle={v => setWindow('morning', { enabled: v })}
