@@ -122,15 +122,29 @@ export function DayLogCarousel({
           </p>
         )}
         {hasMissed && (
-          <button
-            onClick={() => setJumpOpen(true)}
-            className="flex items-center gap-1 text-xs font-medium text-zinc-400 hover:text-amber-300 transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            Jump to a day
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Swipe affordance — only while earlier days sit to the left */}
+            {active > 0 && (
+              <span
+                className="swipe-hint flex items-center gap-0.5 text-[11px] font-semibold text-amber-400/80 uppercase tracking-wide"
+                aria-hidden="true"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 6l-6 6 6 6M11 6l-6 6 6 6" />
+                </svg>
+                Swipe
+              </span>
+            )}
+            <button
+              onClick={() => setJumpOpen(true)}
+              className="flex items-center gap-1 text-xs font-medium text-zinc-400 hover:text-amber-300 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Jump to a day
+            </button>
+          </div>
         )}
       </div>
 
