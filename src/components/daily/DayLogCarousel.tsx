@@ -38,6 +38,11 @@ function repsFromLog(target: DailyTarget | null, log: DailyLog | undefined): Rec
   return map
 }
 
+/** Every exercise at (or past) its target — i.e. the day is 100% done. */
+function isDayComplete(reps: Record<string, number>, target: DailyTarget): boolean {
+  return target.exercises.every(({ exercise, reps: r }) => r <= 0 || (reps[exercise.id] ?? 0) >= r)
+}
+
 export function DayLogCarousel({
   challenge,
   today,
@@ -67,6 +72,10 @@ export function DayLogCarousel({
   const makeupRef = useRef<Record<string, Record<string, number>>>({})
   const [, forceRender] = useState(0)
 
+  // Set when a make-up tap finishes a day — once it drops out of the swipe
+  // set, we glide back to today (handled in the effect below).
+  const snapToTodayRef = useRef(false)
+
   const seedMakeup = useCallback((date: string): Record<string, number> => {
     if (!makeupRef.current[date]) {
       makeupRef.current[date] = repsFromLog(getDailyTarget(challenge, date), logsByDate[date])
@@ -78,8 +87,11 @@ export function DayLogCarousel({
     const next = { ...seedMakeup(date), [exerciseId]: reps }
     makeupRef.current = { ...makeupRef.current, [date]: next }
     forceRender(n => n + 1)
+    const target = getDailyTarget(challenge, date)
+    // Finishing a make-up day removes it from the deck — cue the glide to today.
+    if (includeToday && target && isDayComplete(next, target)) snapToTodayRef.current = true
     await onMakeupReps(date, next)
-  }, [seedMakeup, onMakeupReps])
+  }, [seedMakeup, onMakeupReps, challenge, includeToday])
 
   // Slides differ in height (a done "today" is just the status card; a make-up
   // day carries a full stack of exercise cards). Size the viewport to the
@@ -118,6 +130,16 @@ export function DayLogCarousel({
     for (const child of Array.from(el.children)) ro.observe(child)
     return () => ro.disconnect()
   }, [recomputeHeight, slides.length])
+
+  // After finishing a make-up day, the deck reflows one shorter — glide back to
+  // today so you're not left parked on whatever slid into place.
+  useEffect(() => {
+    if (!snapToTodayRef.current) return
+    snapToTodayRef.current = false
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ left: (slides.length - 1) * el.clientWidth, behavior: 'smooth' })
+  }, [slides.length])
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current
