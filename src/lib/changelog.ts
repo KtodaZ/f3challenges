@@ -23,6 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Making up a missed day is now a swipe. From today’s card on the home screen, swipe left to step back through the days you still owe and quick-tap them in — no more opening a form for every day. Each missed day shows its date and switches to an amber look so it’s obvious you’re logging a past day, not today.',
       'Behind a lot of days? Tap “Jump to a day” to hop straight to any missed day instead of swiping through them one by one.',
       'Challenges from past months that you never finished are now tucked into a collapsible section at the bottom of the home screen, so they stay out of the way until you want to catch them up.',
+      'Your day’s completion percentage is now exact — it tracks the actual reps you’ve done instead of rounding to the nearest quarter. Log 7 of 10 and you’ll see 70%, not 75%. (Days you finished still read 100%, and past days keep the number they were saved with.)',
     ],
   },
   {

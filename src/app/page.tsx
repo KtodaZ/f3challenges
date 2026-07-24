@@ -70,7 +70,6 @@ import type {
   User,
   DailyLog,
   ChallengeParticipation,
-  CompletionFraction,
   ExerciseLog,
   AchievementBadge,
   AchievementDefinition,
@@ -123,24 +122,21 @@ function buildDailyCompleteMessage(
   return buildFeedPost(challenge, section, vars)
 }
 
-function snapFraction(val: number): CompletionFraction {
-  if (val >= 1)    return 1
-  if (val >= 0.75) return 0.75
-  if (val >= 0.5)  return 0.5
-  if (val >= 0.25) return 0.25
-  return 0
-}
-
+// Precise completion: reps done (capped per exercise) over reps targeted.
+// Weighting by target amount makes it a true "% of reps done" and stays exact
+// at 1 only when every exercise is fully in.
 function computeOverallFraction(
   repsMap: Record<string, number>,
   exercises: Array<{ exercise: { id: string }, reps: number }>
-): CompletionFraction {
-  if (exercises.length === 0) return 0
-  const sum = exercises.reduce((acc, { exercise, reps }) => {
-    const completed = repsMap[exercise.id] ?? 0
-    return acc + (reps > 0 ? Math.min(completed / reps, 1) : 0)
-  }, 0)
-  return snapFraction(sum / exercises.length)
+): number {
+  let done = 0
+  let target = 0
+  for (const { exercise, reps } of exercises) {
+    if (reps <= 0) continue
+    done += Math.min(repsMap[exercise.id] ?? 0, reps)
+    target += reps
+  }
+  return target > 0 ? done / target : 0
 }
 
 // ─── Loading Spinner ──────────────────────────────────────────────────────────

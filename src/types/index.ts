@@ -76,7 +76,12 @@ export interface User {
 
 // ─── Daily Logs ───────────────────────────────────────────────────────────────
 
-export type CompletionFraction = 0 | 0.25 | 0.5 | 0.75 | 1
+/**
+ * Day completion as a precise 0–1 fraction of reps done — the amount completed
+ * across all of the day's exercises over the amount targeted (each exercise
+ * capped at its target). 1 means every rep is in. No longer snapped to quarters.
+ */
+export type CompletionFraction = number
 
 export interface ExerciseLog {
   exerciseId: string

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import { DailyExerciseCard } from './DailyExerciseCard'
 import { formatDate } from '@/lib/utils'
-import type { CompletionFraction, DailyLog, DailyTarget } from '@/types'
+import type { DailyLog, DailyTarget } from '@/types'
 
 interface LogDayModalProps {
   open: boolean
@@ -22,21 +22,20 @@ interface LogDayModalProps {
   isMakeUp?: boolean
 }
 
+// Precise completion: reps done (capped per exercise) over reps targeted —
+// a true "% of reps done" that's exact at 1 only when every exercise is in.
 function computeOverallFraction(
   repsMap: Record<string, number>,
   exercises: DailyTarget['exercises']
-): CompletionFraction {
-  if (exercises.length === 0) return 0
-  const sum = exercises.reduce((acc, { exercise, reps }) => {
-    const completed = repsMap[exercise.id] ?? 0
-    return acc + (reps > 0 ? Math.min(completed / reps, 1) : 0)
-  }, 0)
-  const avg = sum / exercises.length
-  if (avg >= 1)    return 1
-  if (avg >= 0.75) return 0.75
-  if (avg >= 0.5)  return 0.5
-  if (avg >= 0.25) return 0.25
-  return 0
+): number {
+  let done = 0
+  let target = 0
+  for (const { exercise, reps } of exercises) {
+    if (reps <= 0) continue
+    done += Math.min(repsMap[exercise.id] ?? 0, reps)
+    target += reps
+  }
+  return target > 0 ? done / target : 0
 }
 
 export function LogDayModal({

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { DailyLog, CompletionFraction } from '@/types'
+import type { DailyLog } from '@/types'
 
 // ─── POST /api/log ────────────────────────────────────────────────────────────
 // Accepts a DailyLog payload, validates it, and writes it to Firestore.
@@ -28,8 +28,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 422 })
   }
 
-  const validFractions: CompletionFraction[] = [0, 0.25, 0.5, 0.75, 1]
-  if (!validFractions.includes(log.completionFraction as CompletionFraction)) {
+  // completionFraction is a precise 0–1 fraction of reps done (no longer snapped
+  // to quarters) — accept anything in range.
+  if (
+    typeof log.completionFraction !== 'number' ||
+    Number.isNaN(log.completionFraction) ||
+    log.completionFraction < 0 ||
+    log.completionFraction > 1
+  ) {
     return NextResponse.json({ error: 'Invalid completionFraction' }, { status: 422 })
   }
 
@@ -54,7 +60,7 @@ export async function POST(req: NextRequest) {
       userId: log.userId,
       challengeId: log.challengeId,
       date: log.date,
-      completionFraction: log.completionFraction as CompletionFraction,
+      completionFraction: log.completionFraction,
       exerciseLogs: log.exerciseLogs,
       isMakeUp: log.isMakeUp ?? false,
       notes: log.notes,
