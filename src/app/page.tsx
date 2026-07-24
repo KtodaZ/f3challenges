@@ -46,9 +46,8 @@ import { toast } from 'sonner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
-import { WelcomeMessage } from '@/components/home/WelcomeMessage'
 import { BonusChallengeCard } from '@/components/home/BonusChallengeCard'
-import { LogDayModal } from '@/components/daily/LogDayModal'
+import { TodayStatusCard } from '@/components/daily/TodayStatusCard'
 import { DayLogCarousel } from '@/components/daily/DayLogCarousel'
 import { PastChallengeMakeup } from '@/components/daily/PastChallengeMakeup'
 import { MakeupBonusPicker } from '@/components/daily/MakeupBonusPicker'
@@ -204,7 +203,6 @@ export default function HomePage() {
   const [quickReps, setQuickReps] = useState<Record<string, number>>({})
 
   // Modal state
-  const [logModalOpen, setLogModalOpen] = useState(false)
   const [calloutOpen, setCalloutOpen] = useState(false)
 
   // Pre-fill callout modal with a specific target user
@@ -1078,24 +1076,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── Dynamic welcome message ── */}
-        <WelcomeMessage
-          userName={currentUser.displayName}
-          dayNumber={dayNumber}
-          totalDays={totalDays}
-          totalReps={target.totalReps}
-          repsPerExercise={target.repsPerExercise}
-          exerciseCount={target.exercises.length}
-          completionFraction={todayFraction}
-          loggedReps={todayLoggedReps}
-          streak={streak}
-          completedCount={completedCount}
-          totalPAX={totalPAX}
-          activeCount={activeCount}
-          incompleteNames={incompleteUsers.map(u => u.displayName)}
-          remaining={getRemainingExercises(target, todayLog?.exerciseLogs)}
-        />
-
         {/* ── Rest day banner (fixed rest day — no log required) ── */}
         {target.isRestDay && (
           <div className="rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-5 flex items-center gap-4">
@@ -1129,13 +1109,29 @@ export default function HomePage() {
             missedDates={incompletePastDates}
             logsByDate={logsMap}
             includeToday={!target.isRestDay}
-            todayLog={todayLog}
+            todayHeader={
+              <TodayStatusCard
+                userName={currentUser.displayName}
+                dayNumber={dayNumber}
+                totalDays={totalDays}
+                totalReps={target.totalReps}
+                repsPerExercise={target.repsPerExercise}
+                exerciseCount={target.exercises.length}
+                completionFraction={todayFraction}
+                loggedReps={todayLoggedReps}
+                streak={streak}
+                completedCount={completedCount}
+                totalPAX={totalPAX}
+                activeCount={activeCount}
+                incompleteNames={incompleteUsers.map(u => u.displayName)}
+                remaining={getRemainingExercises(target, todayLog?.exerciseLogs)}
+              />
+            }
             todayTarget={target}
             todayReps={quickReps}
             onTodayReps={handleQuickReps}
             todaySaving={quickSaving}
             isDayDone={isDayDone}
-            onOpenTodayModal={() => setLogModalOpen(true)}
             onMakeupReps={handleMakeupReps}
           />
         )}
@@ -1303,18 +1299,6 @@ export default function HomePage() {
         </div>
 
       </div>
-
-      {/* ── Log day modal ── */}
-      {!target.isRestDay && (
-        <LogDayModal
-          open={logModalOpen}
-          onClose={() => setLogModalOpen(false)}
-          target={target}
-          existingLog={todayLog}
-          onSave={saveTodayLog}
-          isMakeUp={false}
-        />
-      )}
 
       {/* ── Challenge completion celebration ── */}
       {showCelebration && celebrationChallenge && (

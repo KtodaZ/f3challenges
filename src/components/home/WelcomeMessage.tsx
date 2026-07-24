@@ -6,7 +6,7 @@ import type { RemainingExercise } from '@/lib/challenges'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface WelcomeMessageProps {
+export interface WelcomeMessageProps {
   userName: string
   dayNumber: number
   totalDays: number
@@ -351,6 +351,12 @@ function getWelcomeMessage(
   ]
   if (nudge) options.push({ greeting: `Late but not too late.`, body: nudge })
   return pick(options)
+}
+
+/** The dynamic greeting + subtext for today's status, time-of-day aware.
+ *  Exposed so the today status card can pair it with the completion dial. */
+export function getWelcomeCopy(props: WelcomeMessageProps): { greeting: string; body: string } {
+  return getWelcomeMessage({ ...props, hour: getHourPT() })
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

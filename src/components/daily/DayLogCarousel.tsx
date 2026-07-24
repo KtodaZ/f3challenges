@@ -1,10 +1,9 @@
 'use client'
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cn, formatDate } from '@/lib/utils'
 import { getDailyTarget, getDayNumber } from '@/lib/challenges'
 import { Modal } from '@/components/ui/Modal'
-import { DailyLogCard } from './DailyLogCard'
 import { DailyExerciseCard } from './DailyExerciseCard'
 import type { ChallengeTemplate, DailyLog, DailyTarget } from '@/types'
 
@@ -19,13 +18,13 @@ interface DayLogCarouselProps {
   includeToday: boolean
 
   // ── Today slide ──
-  todayLog: DailyLog | null
+  /** Status card (completion dial + greeting) rendered atop today's slide. */
+  todayHeader: ReactNode
   todayTarget: DailyTarget
   todayReps: Record<string, number>
   onTodayReps: (exerciseId: string, reps: number) => void
   todaySaving: boolean
   isDayDone: boolean
-  onOpenTodayModal: () => void
 
   // ── Make-up days (immediate quick-tap save, no modal) ──
   onMakeupReps: (date: string, repsMap: Record<string, number>) => Promise<void>
@@ -45,13 +44,12 @@ export function DayLogCarousel({
   missedDates,
   logsByDate,
   includeToday,
-  todayLog,
+  todayHeader,
   todayTarget,
   todayReps,
   onTodayReps,
   todaySaving,
   isDayDone,
-  onOpenTodayModal,
   onMakeupReps,
 }: DayLogCarouselProps) {
   // Slides run oldest → newest, with today pinned on the far right so it's the
@@ -150,7 +148,7 @@ export function DayLogCarousel({
           if (isTodaySlide) {
             return (
               <div key={date} className="snap-center shrink-0 w-full px-0.5 space-y-2">
-                <DailyLogCard log={todayLog} target={todayTarget} onOpenLog={onOpenTodayModal} />
+                {todayHeader}
                 {!isDayDone && target.exercises.map(({ exercise, reps }) => (
                   <DailyExerciseCard
                     key={exercise.id}

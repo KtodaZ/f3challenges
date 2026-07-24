@@ -24,6 +24,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Behind a lot of days? Tap “Jump to a day” to hop straight to any missed day instead of swiping through them one by one.',
       'Challenges from past months that you never finished are now tucked into a collapsible section at the bottom of the home screen, so they stay out of the way until you want to catch them up.',
       'Your day’s completion percentage is now exact — it tracks the actual reps you’ve done instead of rounding to the nearest quarter. Log 7 of 10 and you’ll see 70%, not 75%. (Days you finished still read 100%, and past days keep the number they were saved with.)',
+      'Tidied up the top of the home screen: today’s progress dial and your daily pep-talk are now a single card, and the extra “Update” button is gone — just quick-tap the exercises to log.',
     ],
   },
   {
