@@ -46,12 +46,11 @@ import { toast } from 'sonner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
-import { DailyLogCard } from '@/components/daily/DailyLogCard'
 import { WelcomeMessage } from '@/components/home/WelcomeMessage'
 import { BonusChallengeCard } from '@/components/home/BonusChallengeCard'
-import { DailyExerciseCard } from '@/components/daily/DailyExerciseCard'
 import { LogDayModal } from '@/components/daily/LogDayModal'
-import { MakeupDayPicker } from '@/components/daily/MakeupDayPicker'
+import { DayLogCarousel } from '@/components/daily/DayLogCarousel'
+import { PastChallengeMakeup } from '@/components/daily/PastChallengeMakeup'
 import { MakeupBonusPicker } from '@/components/daily/MakeupBonusPicker'
 import type { MissedBonusWeek } from '@/components/daily/MakeupBonusPicker'
 import { CalloutModal, type CalloutUserStatus } from '@/components/daily/CalloutModal'
@@ -644,6 +643,24 @@ export default function HomePage() {
     [quickReps, quickSaving, saveTodayLog, todayLog, challenge]
   )
 
+  // ── Quick-tap save for a make-up day (current challenge, no modal) ──────
+  // Receives the full reps map for the date so rapid taps can't clobber each
+  // other; persists as a make-up log.
+
+  const handleMakeupReps = useCallback(
+    async (date: string, repsMap: Record<string, number>) => {
+      const existing = allLogs.find(l => l.date === date)
+      await saveLog(
+        date,
+        repsMap,
+        existing?.notes ?? '',
+        existing?.modificationNote ?? '',
+        true,
+      )
+    },
+    [allLogs, saveLog]
+  )
+
   // ── Save a log for a past (ended) challenge ─────────────────────────────
 
   const savePastChallengeLog = useCallback(async (
@@ -884,7 +901,9 @@ export default function HomePage() {
       !pastBonusLogs[week.startDate]
     )
 
-  const hasCatchUp = incompletePastDates.length > 0 || missedBonusWeeks.length > 0
+  // Missed days now live in the swipeable day carousel above — the Catch Up
+  // section is only for missed bonus weeks.
+  const hasCatchUp = missedBonusWeeks.length > 0
 
   const todayFraction = todayLog?.completionFraction ?? 0
   const todayLoggedReps = todayLog?.exerciseLogs.reduce((sum, el) => sum + el.completedReps, 0) ?? 0
@@ -1104,44 +1123,37 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── Summary log card ── */}
-        {!target.isRestDay && (
-          <DailyLogCard
-            log={todayLog}
-            target={target}
-            onOpenLog={() => setLogModalOpen(true)}
+        {/* ── Today + swipeable make-up days ──
+              Today sits on the right (default view); swipe left to quick-tap
+              any day still owed. No modal — it's all Quick Tap. */}
+        {(!target.isRestDay || incompletePastDates.length > 0) && (
+          <DayLogCarousel
+            challenge={challenge}
+            today={today}
+            missedDates={incompletePastDates}
+            logsByDate={logsMap}
+            includeToday={!target.isRestDay}
+            todayLog={todayLog}
+            todayTarget={target}
+            todayReps={quickReps}
+            onTodayReps={handleQuickReps}
+            todaySaving={quickSaving}
+            isDayDone={isDayDone}
+            onOpenTodayModal={() => setLogModalOpen(true)}
+            onMakeupReps={handleMakeupReps}
           />
         )}
-
-        {/* ── Quick-tap exercise cards ── */}
-        {!target.isRestDay && !isDayDone && <div className="space-y-2">
-          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider px-1">
-            Quick Tap
-          </p>
-          {target.exercises.map(({ exercise, reps }) => (
-            <DailyExerciseCard
-              key={exercise.id}
-              exerciseId={exercise.id}
-              name={exercise.name}
-              targetReps={reps}
-              completedReps={quickReps[exercise.id] ?? 0}
-              onChange={handleQuickReps}
-              disabled={quickSaving}
-              unit={exercise.unit}
-            />
-          ))}
-        </div>}
 
         {/* ── Next badge: near-miss advertising + Badge of the Month ── */}
         <NextBadgeCard nextUp={nextUp} featured={featuredEval} hasMissedDays={incompletePastDates.length > 0} />
 
-        {/* ── Catch Up: missed days + missed bonus weeks (current challenge) ── */}
+        {/* ── Catch Up: missed bonus weeks (current challenge) ── */}
         {hasCatchUp && (
           <div className="pt-2 space-y-4">
             <div className="flex items-center gap-2 px-1">
               <span className="text-base">⏳</span>
               <h2 className="text-sm font-bold text-white">Catch Up</h2>
-              <span className="text-zinc-500 text-xs">— make up anything you missed</span>
+              <span className="text-zinc-500 text-xs">— make up a missed bonus week</span>
             </div>
 
             {missedBonusWeeks.length > 0 && challenge.bonusChallenge && (
@@ -1152,21 +1164,10 @@ export default function HomePage() {
                 savingWeekStart={bonusMakeupSaving}
               />
             )}
-
-            {incompletePastDates.length > 0 && (
-              <MakeupDayPicker
-                challenge={challenge}
-                incompleteDates={incompletePastDates}
-                logs={logsMap}
-                onSave={(date, repsMap, notes, modNote, isMakeUp) =>
-                  saveLog(date, repsMap, notes, modNote, isMakeUp)
-                }
-              />
-            )}
           </div>
         )}
 
-        {/* ── Makeup section (past challenges) ── */}
+        {/* ── Makeup section (past challenges) — collapsible, keeps the modal ── */}
         {CHALLENGES.filter(c => c.endDate < today).map(pastChallenge => {
           const logs = pastChallengeLogs[pastChallenge.id] ?? []
           if (logs.length === 0) return null
@@ -1180,27 +1181,18 @@ export default function HomePage() {
           if (incomplete.length === 0) return null
           return (
             <div key={pastChallenge.id} className="pt-2">
-              <div className="flex items-center justify-between px-1 mb-1">
-                <p className="text-xs text-zinc-500">{pastChallenge.name} — missed days</p>
-                <button
-                  onClick={() => {
-                    const next = new Set(dismissedMakeups).add(pastChallenge.id)
-                    setDismissedMakeups(next)
-                    try { localStorage.setItem('dismissedMakeups', JSON.stringify([...next])) } catch { /* ignore */ }
-                  }}
-                  className="text-zinc-600 hover:text-zinc-400 transition-colors text-xs"
-                  aria-label="Dismiss"
-                >
-                  ✕
-                </button>
-              </div>
-              <MakeupDayPicker
+              <PastChallengeMakeup
                 challenge={pastChallenge}
                 incompleteDates={incomplete}
                 logs={pastLogsMap}
                 onSave={(date, repsMap, notes, modNote) =>
                   savePastChallengeLog(pastChallenge, date, repsMap, notes, modNote)
                 }
+                onDismiss={() => {
+                  const next = new Set(dismissedMakeups).add(pastChallenge.id)
+                  setDismissedMakeups(next)
+                  try { localStorage.setItem('dismissedMakeups', JSON.stringify([...next])) } catch { /* ignore */ }
+                }}
               />
             </div>
           )

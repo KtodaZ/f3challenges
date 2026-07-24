@@ -15,7 +15,23 @@ interface DailyExerciseCardProps {
   onChange: (exerciseId: string, reps: number) => void
   disabled?: boolean
   unit?: ExerciseUnit
+  /** Visual theme. 'amber' signals a make-up (past) day so it reads distinctly
+   *  from today's default orange. Defaults to 'orange'. */
+  accent?: 'orange' | 'amber'
 }
+
+const ACCENTS = {
+  orange: {
+    card: 'bg-zinc-900 border-zinc-800',
+    fractionActive: 'bg-orange-500/30 text-orange-300 border border-orange-500/50',
+    timerIdle: 'bg-orange-500/15 border border-orange-500/40 text-orange-300 hover:bg-orange-500/25 active:bg-orange-500/30',
+  },
+  amber: {
+    card: 'bg-amber-950/25 border-amber-800/50',
+    fractionActive: 'bg-amber-500/30 text-amber-200 border border-amber-500/60',
+    timerIdle: 'bg-amber-500/15 border border-amber-500/40 text-amber-200 hover:bg-amber-500/25 active:bg-amber-500/30',
+  },
+} as const
 
 const FRACTIONS = [
   { value: 0.25, label: '1/4' },
@@ -40,7 +56,9 @@ export function DailyExerciseCard({
   onChange,
   disabled,
   unit = 'reps',
+  accent = 'orange',
 }: DailyExerciseCardProps) {
+  const accentClasses = ACCENTS[accent]
   const [showModal, setShowModal] = useState(false)
   const [showTimer, setShowTimer] = useState(false)
   const [customValue, setCustomValue] = useState('')
@@ -83,8 +101,8 @@ export function DailyExerciseCard({
     <>
       <div
         className={cn(
-          'bg-zinc-900 border rounded-2xl p-4 transition-colors',
-          isDone ? 'border-green-600/60' : 'border-zinc-800'
+          'border rounded-2xl p-4 transition-colors',
+          isDone ? 'bg-zinc-900 border-green-600/60' : accentClasses.card
         )}
       >
         <div className="flex items-start justify-between mb-3">
@@ -132,7 +150,7 @@ export function DailyExerciseCard({
               'disabled:opacity-40 disabled:cursor-not-allowed',
               isDone
                 ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                : 'bg-orange-500/15 border border-orange-500/40 text-orange-300 hover:bg-orange-500/25 active:bg-orange-500/30'
+                : accentClasses.timerIdle
             )}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -159,7 +177,7 @@ export function DailyExerciseCard({
                   isActive && value === 1
                     ? 'bg-green-600 text-white'
                     : isActive
-                    ? 'bg-orange-500/30 text-orange-300 border border-orange-500/50'
+                    ? accentClasses.fractionActive
                     : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 active:bg-zinc-600'
                 )}
               >
