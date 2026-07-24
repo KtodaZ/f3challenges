@@ -21,9 +21,7 @@ function cellColor(fraction: CompletionFraction | undefined): string {
 function fractionLabel(fraction: CompletionFraction | undefined): string {
   if (!fraction) return 'No log'
   if (fraction >= 1) return 'Complete'
-  if (fraction >= 0.75) return '75%'
-  if (fraction >= 0.5) return '50%'
-  return '25%'
+  return `${Math.round(fraction * 100)}%`
 }
 
 export function HeatMap({ challenge, logs }: HeatMapProps) {

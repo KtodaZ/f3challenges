@@ -13,7 +13,7 @@ interface WelcomeMessageProps {
   totalReps: number
   repsPerExercise: number
   exerciseCount: number
-  completionFraction: number  // 0 | 0.25 | 0.5 | 0.75 | 1
+  completionFraction: number  // precise 0–1 fraction of reps done
   loggedReps: number
   streak: number
   completedCount: number      // PAX who finished today

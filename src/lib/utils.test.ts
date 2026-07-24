@@ -4,6 +4,10 @@ import { highlightMentions } from './utils'
 const span = (name: string) =>
   `<span class="text-orange-400 font-semibold">@${name}</span>`
 
+// A known user's mention renders as a tappable link to their profile.
+const link = (name: string, id: string) =>
+  `<a href="/profile/${id}" class="text-orange-400 font-semibold hover:underline">@${name}</a>`
+
 const tag = (name: string) =>
   `<span class="text-green-400">#${name}</span>`
 
@@ -42,45 +46,45 @@ describe('highlightMentions — with users list', () => {
     { id: '4', displayName: 'Big' },
   ]
 
-  it('highlights a single-word name', () => {
+  it('links a single-word name to the profile', () => {
     expect(highlightMentions('@Snuggles great job', users)).toBe(
-      `${span('Snuggles')} great job`
+      `${link('Snuggles', '1')} great job`
     )
   })
 
-  it('does not consume words after the name into the highlight', () => {
+  it('does not consume words after the name into the link', () => {
     const result = highlightMentions('@Snuggles did 210 merkins this morning', users)
-    expect(result).toBe(`${span('Snuggles')} did 210 merkins this morning`)
+    expect(result).toBe(`${link('Snuggles', '1')} did 210 merkins this morning`)
   })
 
-  it('highlights a multi-word name fully', () => {
+  it('links a multi-word name fully', () => {
     expect(highlightMentions('@Big Daddy crushed it', users)).toBe(
-      `${span('Big Daddy')} crushed it`
+      `${link('Big Daddy', '3')} crushed it`
     )
   })
 
   it('matches the longer name before the shorter prefix', () => {
     // "Big Daddy" should win over "Big" when both are in the list
     expect(highlightMentions('@Big Daddy is here', users)).toBe(
-      `${span('Big Daddy')} is here`
+      `${link('Big Daddy', '3')} is here`
     )
   })
 
   it('falls back to shorter name when longer does not match', () => {
     expect(highlightMentions('@Big showed up', users)).toBe(
-      `${span('Big')} showed up`
+      `${link('Big', '4')} showed up`
     )
   })
 
   it('is case-insensitive', () => {
     expect(highlightMentions('@snuggles did the work', users)).toBe(
-      `${span('snuggles')} did the work`
+      `${link('snuggles', '1')} did the work`
     )
   })
 
   it('handles multiple mentions in one string', () => {
     expect(highlightMentions('@Snuggles and @Sandman both showed up', users)).toBe(
-      `${span('Snuggles')} and ${span('Sandman')} both showed up`
+      `${link('Snuggles', '1')} and ${link('Sandman', '2')} both showed up`
     )
   })
 
@@ -88,9 +92,9 @@ describe('highlightMentions — with users list', () => {
     expect(highlightMentions('@Ghost showed up', users)).toBe('@Ghost showed up')
   })
 
-  it('highlights hashtags alongside mentions', () => {
+  it('links mentions alongside hashtags', () => {
     expect(highlightMentions('@Snuggles crushed it #TheMerkinGauntlet', users)).toBe(
-      `${span('Snuggles')} crushed it ${tag('TheMerkinGauntlet')}`
+      `${link('Snuggles', '1')} crushed it ${tag('TheMerkinGauntlet')}`
     )
   })
 
