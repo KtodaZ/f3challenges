@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cn, formatDate } from '@/lib/utils'
 import { getDailyTarget, getDayNumber } from '@/lib/challenges'
 import { Modal } from '@/components/ui/Modal'
@@ -81,20 +81,51 @@ export function DayLogCarousel({
     await onMakeupReps(date, next)
   }, [seedMakeup, onMakeupReps])
 
+  // Slides differ in height (a done "today" is just the status card; a make-up
+  // day carries a full stack of exercise cards). Size the viewport to the
+  // slide(s) currently in view so a short slide never leaves dead space below.
+  const [viewportH, setViewportH] = useState<number>()
+
+  const recomputeHeight = useCallback(() => {
+    const el = scrollRef.current
+    if (!el || el.clientWidth === 0) return
+    const pos = el.scrollLeft / el.clientWidth
+    const i = Math.floor(pos + 0.001)
+    const frac = pos - i
+    const kids = el.children
+    let h = (kids[i] as HTMLElement | undefined)?.offsetHeight ?? 0
+    // Mid-swipe: keep room for whichever neighbour is bleeding into view.
+    if (frac > 0.01 && kids[i + 1]) h = Math.max(h, (kids[i + 1] as HTMLElement).offsetHeight)
+    if (h > 0) setViewportH(h)
+  }, [])
+
   // Land on today (or the most recent missed day) without an animated scroll.
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollLeft = (slides.length - 1) * el.clientWidth
+    recomputeHeight()
     // Run once on mount — later slide changes shouldn't yank the view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Re-measure when a slide's own content changes height (e.g. today flips to
+  // done and sheds its Quick Tap cards) or the container is resized.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => recomputeHeight())
+    ro.observe(el)
+    for (const child of Array.from(el.children)) ro.observe(child)
+    return () => ro.disconnect()
+  }, [recomputeHeight, slides.length])
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
     const idx = Math.round(el.scrollLeft / el.clientWidth)
     setActive(prev => (prev === idx ? prev : idx))
-  }, [])
+    recomputeHeight()
+  }, [recomputeHeight])
 
   const goTo = useCallback((idx: number) => {
     const el = scrollRef.current
@@ -152,7 +183,8 @@ export function DayLogCarousel({
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        style={viewportH ? { height: viewportH } : undefined}
+        className="flex items-start overflow-x-auto overflow-y-hidden snap-x snap-mandatory transition-[height] duration-200 ease-out [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {slides.map(date => {
           const isTodaySlide = date === today
