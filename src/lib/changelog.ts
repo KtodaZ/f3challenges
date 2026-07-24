@@ -21,6 +21,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-24',
     changes: [
       'Competitive Nudges now pull from a much bigger, more varied set of messages, so your morning/afternoon/evening standings reminders feel fresh instead of repeating the same line.',
+      'Even with Competitive Nudges on, a regular reminder now mixes in every so often, so it’s not always a standings callout.',
     ],
   },
   {

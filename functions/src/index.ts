@@ -1100,17 +1100,27 @@ export const sendScheduledNotifications = onSchedule(
           ) {
             const rc = rankByUser.get(user.id);
             if (rc) {
-              const comp = generateCompetitiveNotification({
-                fn: firstName(user.displayName),
-                notificationType: w.type,
-                userCompleted,
-                workLeft: userCompleted ? "" : `${repsRemaining} reps`,
-                seed: notifSeed(dayNumber, `${w.type}_competitive`),
-                ...rc,
-              });
-              if (comp) {
-                ({ title, body } = comp);
-                console.log(`[notify]   → competitive override applied (rank ${rc.rank}/${rc.totalParticipants})`);
+              // Mix in the occasional standard reminder so the competitive
+              // framing doesn't get monotonous — roughly 1 in 3 sends keeps the
+              // normal nudge. Seeded per-user/day so PAX don't all get the
+              // standard message on the same day.
+              const mixSeed = notifSeed(dayNumber, `${w.type}_mix`) + rc.rank + rc.userReps;
+              const keepStandard = Math.abs(mixSeed) % 3 === 0;
+              if (keepStandard) {
+                console.log(`[notify]   → competitive mix: keeping standard nudge this send`);
+              } else {
+                const comp = generateCompetitiveNotification({
+                  fn: firstName(user.displayName),
+                  notificationType: w.type,
+                  userCompleted,
+                  workLeft: userCompleted ? "" : `${repsRemaining} reps`,
+                  seed: notifSeed(dayNumber, `${w.type}_competitive`),
+                  ...rc,
+                });
+                if (comp) {
+                  ({ title, body } = comp);
+                  console.log(`[notify]   → competitive override applied (rank ${rc.rank}/${rc.totalParticipants})`);
+                }
               }
             }
           }
