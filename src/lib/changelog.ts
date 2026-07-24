@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-24',
+    changes: [
+      'Competitive Nudges now pull from a much bigger, more varied set of messages, so your morning/afternoon/evening standings reminders feel fresh instead of repeating the same line.',
+    ],
+  },
+  {
     date: '2026-07-22',
     changes: [
       'The leaderboard now shows only PAX taking part in this month’s challenge — no more inactive or opted-out names cluttering the board.',

@@ -725,47 +725,104 @@ function generateCompetitiveNotification(ctx: {
   if (!chase && !defend) return null;
 
   const repWord = (n: number) => `${n} rep${n === 1 ? "" : "s"}`;
-  const todayTail = userCompleted
-    ? "You're locked in for today — keep stacking."
-    : (workLeft ? `${workLeft} left today — go get it.` : "Get after it.");
+  const ag = aheadGap ?? 0;
+  const bg = behindGap ?? 0;
 
+  // Fold the standings into the seed so two days with different gaps (or two
+  // PAX in different spots) don't land on the same template. Title, clause, and
+  // tail draw on decorrelated seeds so they vary independently.
+  const base       = seed + rank * 13 + ag * 3 + bg * 5 + (userCompleted ? 101 : 0);
+  const titleSeed  = base;
+  const clauseSeed = base * 3 + 1;
+  const tailSeed   = base * 7 + 5;
+
+  // ── Titles (time-of-day flavored) ──────────────────────────────────────────
   const titlesByType: Record<typeof notificationType, string[]> = {
-    morning:   [`Rise & Climb, ${fn} 🏁`, `Morning Standings, ${fn}`, `Chase It Down, ${fn}`, `Move Up Today, ${fn}`],
-    afternoon: [`Midday Standings, ${fn}`, `Close the Gap, ${fn} 🏁`, `Move Up, ${fn}`, `Check the Board, ${fn}`],
-    evening:   [`Hold Your Spot, ${fn} 🏁`, `Night Standings, ${fn}`, `Last Call on the Board`, `Lock In Your Rank, ${fn}`],
+    morning: [
+      `Rise & Climb, ${fn} 🏁`, `Morning Standings, ${fn}`, `Chase It Down, ${fn}`,
+      `Move Up Today, ${fn}`, `First Move Wins, ${fn}`, `The Board's Waiting, ${fn}`,
+      `Climb the Ranks, ${fn} 🏁`,
+    ],
+    afternoon: [
+      `Midday Standings, ${fn}`, `Close the Gap, ${fn} 🏁`, `Move Up, ${fn}`,
+      `Check the Board, ${fn}`, `Halftime Standings, ${fn}`, `Make Your Move, ${fn}`,
+      `Still Climbing, ${fn} 🏁`,
+    ],
+    evening: [
+      `Hold Your Spot, ${fn} 🏁`, `Night Standings, ${fn}`, `Last Call on the Board`,
+      `Lock In Your Rank, ${fn}`, `Close It on Top, ${fn}`, `Don't Give It Back, ${fn}`,
+      `Final Standings Tonight 🏁`,
+    ],
   };
 
-  const bodies: string[] = [];
-
-  if (chase) {
-    bodies.push(
-      `Only ${repWord(aheadGap!)} until you pass ${aheadName} for #${rank - 1}. ${todayTail}`,
-      `You're #${rank} of ${totalParticipants}. ${repWord(aheadGap!)} behind ${aheadName} — take the spot today.`,
-      `${aheadName} is right ahead of you — ${repWord(aheadGap!)} and #${rank - 1} is yours, ${fn}.`,
-    );
-  }
-
-  if (defend) {
-    if (rank === 1) {
-      bodies.push(
-        `You're #1 on the board, ${fn}. ${behindName} is ${repWord(behindGap!)} back — bury the lead deeper. ${todayTail}`,
-        `Top of the board and ${behindName} is closing — ${repWord(behindGap!)} back. Don't blink.`,
-      );
-    } else {
-      bodies.push(
-        `${behindName} is only ${repWord(behindGap!)} behind you. Defend #${rank}, ${fn}. ${todayTail}`,
-        `You're holding #${rank} — ${behindName} is ${repWord(behindGap!)} back. Keep the gap.`,
-      );
-    }
-  }
-
+  // ── Standings clause (the rank/gap sentence) ───────────────────────────────
+  let clauses: string[];
   if (chase && defend) {
-    bodies.push(
-      `Sandwiched at #${rank}: ${repWord(aheadGap!)} to pass ${aheadName}, ${behindName} just ${repWord(behindGap!)} behind. ${todayTail}`,
-    );
+    clauses = [
+      `Sandwiched at #${rank}: ${repWord(ag)} to pass ${aheadName}, ${behindName} just ${repWord(bg)} back.`,
+      `#${rank} and squeezed — ${aheadName} is ${repWord(ag)} up, ${behindName} ${repWord(bg)} down.`,
+      `${repWord(ag)} to catch ${aheadName}, ${repWord(bg)} to hold off ${behindName}. Busy at #${rank}.`,
+      `Move on ${aheadName} (${repWord(ag)} up) before ${behindName} (${repWord(bg)} back) moves on you.`,
+      `You're the meat in the sandwich at #${rank} — ${aheadName} ahead, ${behindName} chasing.`,
+    ];
+  } else if (chase) {
+    clauses = [
+      `Only ${repWord(ag)} until you pass ${aheadName} for #${rank - 1}.`,
+      `You're #${rank} of ${totalParticipants} — ${repWord(ag)} behind ${aheadName}.`,
+      `${aheadName} is ${repWord(ag)} ahead. Reel them in.`,
+      `${repWord(ag)} and #${rank - 1} is yours, ${fn}.`,
+      `Close the gap on ${aheadName} — just ${repWord(ag)}.`,
+      `${aheadName} has a ${repWord(ag)} lead on you. Not for long.`,
+      `#${rank - 1} is one good day away — ${repWord(ag)} to pass ${aheadName}.`,
+      `${repWord(ag)} separates you from ${aheadName} and the #${rank - 1} spot.`,
+    ];
+  } else if (rank === 1) {
+    clauses = [
+      `You're #1 on the board — ${behindName} is ${repWord(bg)} back. Bury the lead.`,
+      `Top of the board, ${fn}. ${behindName} is ${repWord(bg)} behind — extend it.`,
+      `Still #1. ${behindName} has closed to ${repWord(bg)} — don't blink.`,
+      `You own #1. Keep ${behindName} (${repWord(bg)} back) in the mirror.`,
+      `#1 and pulling away — ${behindName} is ${repWord(bg)} down. Stay greedy.`,
+      `King of the board. ${behindName} is ${repWord(bg)} back and hunting.`,
+    ];
+  } else {
+    clauses = [
+      `${behindName} is only ${repWord(bg)} behind you. Defend #${rank}.`,
+      `You're holding #${rank} — ${behindName} is ${repWord(bg)} back.`,
+      `${behindName} is breathing down your neck, ${repWord(bg)} back.`,
+      `Keep #${rank} — ${behindName} is just ${repWord(bg)} behind.`,
+      `${repWord(bg)} is all that's between you and ${behindName}. Hold the line.`,
+      `${behindName} wants your #${rank} spot. Don't give it up.`,
+      `Guard #${rank} — ${behindName} is ${repWord(bg)} back and climbing.`,
+    ];
   }
 
-  return { title: pick(titlesByType[notificationType], seed), body: pick(bodies, seed + 1) };
+  // ── Tail (motivational close) ──────────────────────────────────────────────
+  const tails = userCompleted
+    ? [
+        "You're logged for today — now it's all about the board.",
+        "Reps in the bank. Keep the pressure on.",
+        "Today's done — stay hungry.",
+        "You showed up today. Keep stacking.",
+        "Locked in for today — hold the standard.",
+      ]
+    : workLeft
+      ? [
+          `${workLeft} left today — go get it.`,
+          `Knock out today's ${workLeft} and make it happen.`,
+          `${workLeft} to go today.`,
+          `Today's ${workLeft} won't log themselves.`,
+          `Put in your ${workLeft} and climb.`,
+        ]
+      : [
+          "Get after it.",
+          "Go log it.",
+          "Make your move.",
+          "The board's waiting.",
+        ];
+
+  const body = `${pick(clauses, clauseSeed)} ${pick(tails, tailSeed)}`;
+  return { title: pick(titlesByType[notificationType], titleSeed), body };
 }
 
 // ---------------------------------------------------------------------------
