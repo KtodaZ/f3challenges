@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-27',
+    changes: [
+      'This week’s Tour de Bedrock bonus is live: a time trial around the big circle at Divento (Maidu Park). Run it, then post your time with picture proof in the feed. Reveal it on the home screen and tap “Mark Complete” once you’ve done it.',
+    ],
+  },
+  {
     date: '2026-07-24',
     changes: [
       'Making up a missed day is now a swipe. From today’s card on the home screen, swipe left to step back through the days you still owe and quick-tap them in — no more opening a form for every day. Each missed day shows its date and switches to an amber look so it’s obvious you’re logging a past day, not today.',
