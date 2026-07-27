@@ -351,6 +351,17 @@ export const CHALLENGES: ChallengeTemplate[] = [
             'Claudio never stood a chance. @{name} bear crawled up and down for Tour de Bedrock Week 4. 🐻 {hashtag}',
           ],
         },
+        {
+          startDate: '2026-07-26',
+          endDate: '2026-07-31',
+          description: 'Time trial around the big circle at Divento (Maidu Park). Post your time with picture proof.',
+          feedPostTemplates: [
+            '@{name} ran the time trial around the big circle at Divento — clock stopped, proof posted. ⏱️ {hashtag}',
+            'Time trial done. @{name} lapped the big circle at Maidu Park and dropped a time to beat. 🏃 {hashtag}',
+            '@{name} circled Divento against the clock and posted the receipt. Tour de Bedrock Week 5 in the books. ⏱️ {hashtag}',
+            'The clock doesn\'t lie. @{name} ran the Divento loop and posted the proof. Who\'s chasing that time? 🔥 {hashtag}',
+          ],
+        },
       ],
     },
     copy: {
