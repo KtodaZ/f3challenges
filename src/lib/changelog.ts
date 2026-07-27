@@ -20,6 +20,8 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-27',
     changes: [
+      'The leaderboard now opens on a “This Week” board that resets every Sunday. Just joined mid-month? You’re instantly in the running — stack up reps this week and you can top the board no matter how far into the challenge it is. Your season-long standings are still one tap away under “This Month.”',
+      'Competitive nudges (if you’ve turned them on) now mix the weekly board with the month-long race — so you’ll get both “someone’s right on your heels in this week’s leaderboard” and “X reps to pass the season leader.”',
       'This week’s Tour de Bedrock bonus is live: a time trial around the big circle at Divento (Maidu Park). Run it, then post your time with picture proof in the feed. Reveal it on the home screen and tap “Mark Complete” once you’ve done it.',
     ],
   },

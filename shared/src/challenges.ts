@@ -596,6 +596,36 @@ export function getTodayPT(): string {
     .toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 }
 
+// ─── Weekly scoping ─────────────────────────────────────────────────────────
+// The leaderboard's "This Week" view and the weekly competitive notifications
+// both slice the challenge by calendar week. A fresh weekly board every Sunday
+// is the whole point: a PAX who joins three-quarters of the way through the
+// month can still win THIS week, so they feel like a real contender instead of
+// someone who can never catch the month-long rep leaders. Keep the week
+// definition in one place so the UI and the Cloud Functions rank identically.
+
+/**
+ * Returns the YYYY-MM-DD of the week-start on or before `date` (PT calendar week).
+ * `weekStartsOn` is 0=Sunday (default, matches the weekly-recap default day) … 6=Saturday.
+ * Date-only math via noon-UTC so it's stable in any runtime timezone.
+ */
+export function getWeekStartPT(date: string, weekStartsOn = 0): string {
+  const d = new Date(date + 'T12:00:00Z')
+  const dow = d.getUTCDay() // 0=Sun … 6=Sat — the weekday of the calendar date
+  const diff = (dow - weekStartsOn + 7) % 7
+  d.setUTCDate(d.getUTCDate() - diff)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * The dates of the current calendar week that fall inside the challenge and are
+ * on/before `today` — i.e. the days that count toward this week's board so far.
+ */
+export function getCurrentWeekDates(challenge: ChallengeTemplate, today: string, weekStartsOn = 0): string[] {
+  const weekStart = getWeekStartPT(today, weekStartsOn)
+  return getChallengeDates(challenge).filter(d => d >= weekStart && d <= today)
+}
+
 /** Returns reps completed as a fraction of today's target. */
 export function repsFractionLabel(fraction: number): string {
   if (fraction >= 1)    return 'Done ✓'

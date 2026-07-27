@@ -10,9 +10,10 @@ export const COMPETITIVE_DISCLAIMER =
   'This isn’t about beating anyone; it’s about all of us finishing together. ' +
   'But if a little friendly rivalry keeps you logging, flip it on — and turn it off any time.'
 
-/** One-line example of what these notifications sound like. */
+/** One-line example of what these notifications sound like. Mixes the weekly
+ *  board (resets every Sunday) with the month-long standings. */
 export const COMPETITIVE_EXAMPLE =
-  '“Milkman just passed you — 100 reps to retake #3 from Splice.”'
+  '“Milkman is right on your heels in this week’s leaderboard — 40 reps back. Hold your spot.”'
 
 interface CompetitiveOptInModalProps {
   open: boolean

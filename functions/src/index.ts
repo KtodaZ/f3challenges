@@ -11,6 +11,7 @@ import {
   getTotalDays,
   getMilestoneDays,
   getTodayPT,
+  getWeekStartPT,
   getDailyTarget,
   getNotificationTemplates,
   renderNotification,
@@ -705,67 +706,149 @@ interface CompetitiveContext {
   behindGap?: number;      // how far back they are
 }
 
-/** Rank-based message for a PAX who opted into competitive nudges. Returns null
- *  when there's no one to chase or defend against (caller falls back to the
- *  normal template). */
+type CompScope = "week" | "month";
+
+/** Ranks active PAX by a reps map and returns each one's chase/defend context.
+ *  Reused for both the month-long board and the weekly board. */
+function buildStandings(
+  activeUsers: Array<{ id: string; displayName: string }>,
+  repsByUser: Map<string, number>,
+): Map<string, CompetitiveContext> {
+  const ranked = activeUsers
+    .map(u => ({ id: u.id, name: u.displayName, reps: repsByUser.get(u.id) ?? 0 }))
+    .sort((a, b) => (b.reps - a.reps) || a.name.localeCompare(b.name));
+  const out = new Map<string, CompetitiveContext>();
+  ranked.forEach((entry, i) => {
+    // Nearest PAX strictly ahead / behind (skip ties so the gap is real).
+    let ahead: { name: string; reps: number } | undefined;
+    for (let j = i - 1; j >= 0; j--) {
+      if (ranked[j].reps > entry.reps) { ahead = ranked[j]; break; }
+    }
+    let behind: { name: string; reps: number } | undefined;
+    for (let j = i + 1; j < ranked.length; j++) {
+      if (ranked[j].reps < entry.reps) { behind = ranked[j]; break; }
+    }
+    out.set(entry.id, {
+      rank: i + 1,
+      totalParticipants: ranked.length,
+      userReps: entry.reps,
+      aheadName: ahead?.name,
+      aheadGap: ahead ? ahead.reps - entry.reps : undefined,
+      behindName: behind?.name,
+      behindGap: behind ? entry.reps - behind.reps : undefined,
+    });
+  });
+  return out;
+}
+
+const repWord = (n: number) => `${n} rep${n === 1 ? "" : "s"}`;
+
+/** Scope-specific chase/defend body lines. Weekly copy leans on "this week's
+ *  board" so a mid-month joiner sees a race they can actually win right now;
+ *  monthly copy frames the season-long standings. */
+function competitiveBodies(scope: CompScope, c: CompetitiveContext, fn: string, todayTail: string): string[] {
+  const chase  = c.aheadName != null && c.aheadGap != null && c.aheadGap > 0;
+  const defend = c.behindName != null && c.behindGap != null && c.behindGap > 0;
+  const bodies: string[] = [];
+
+  if (scope === "week") {
+    if (chase) {
+      bodies.push(
+        `Only ${repWord(c.aheadGap!)} until you pass ${c.aheadName} on this week's board. ${todayTail}`,
+        `You're #${c.rank} this week — ${repWord(c.aheadGap!)} behind ${c.aheadName}. Take the spot before Sunday.`,
+        `${c.aheadName} is ${repWord(c.aheadGap!)} ahead of you in this week's leaderboard. Reel them in, ${fn}.`,
+      );
+    }
+    if (defend) {
+      if (c.rank === 1) {
+        bodies.push(
+          `You own this week's board, ${fn}. ${c.behindName} is ${repWord(c.behindGap!)} back — keep your foot down. ${todayTail}`,
+          `Top of the weekly board and ${c.behindName} is closing — ${repWord(c.behindGap!)} behind. Don't blink.`,
+        );
+      } else {
+        bodies.push(
+          `${c.behindName} is right on your heels in this week's leaderboard — ${repWord(c.behindGap!)} back. Hold #${c.rank}, ${fn}. ${todayTail}`,
+          `Watch your six: ${c.behindName} is ${repWord(c.behindGap!)} behind you on this week's board. ${todayTail}`,
+        );
+      }
+    }
+    if (chase && defend) {
+      bodies.push(
+        `Sandwiched on this week's board at #${c.rank}: ${repWord(c.aheadGap!)} to catch ${c.aheadName}, ${c.behindName} just ${repWord(c.behindGap!)} behind. ${todayTail}`,
+      );
+    }
+  } else {
+    if (chase) {
+      bodies.push(
+        `Only ${repWord(c.aheadGap!)} until you pass ${c.aheadName} for #${c.rank - 1} overall. ${todayTail}`,
+        `You're #${c.rank} of ${c.totalParticipants} for the month. ${repWord(c.aheadGap!)} behind ${c.aheadName} — take the spot.`,
+        `${c.aheadName} is right ahead of you overall — ${repWord(c.aheadGap!)} and #${c.rank - 1} is yours, ${fn}.`,
+      );
+    }
+    if (defend) {
+      if (c.rank === 1) {
+        bodies.push(
+          `You're #1 for the month, ${fn}. ${c.behindName} is ${repWord(c.behindGap!)} back — bury the lead deeper. ${todayTail}`,
+          `Top of the month and ${c.behindName} is closing — ${repWord(c.behindGap!)} back. Don't blink.`,
+        );
+      } else {
+        bodies.push(
+          `${c.behindName} is only ${repWord(c.behindGap!)} behind you overall. Defend #${c.rank}, ${fn}. ${todayTail}`,
+          `You're holding #${c.rank} for the month — ${c.behindName} is ${repWord(c.behindGap!)} back. Keep the gap.`,
+        );
+      }
+    }
+    if (chase && defend) {
+      bodies.push(
+        `Sandwiched at #${c.rank} overall: ${repWord(c.aheadGap!)} to pass ${c.aheadName}, ${c.behindName} just ${repWord(c.behindGap!)} behind. ${todayTail}`,
+      );
+    }
+  }
+  return bodies;
+}
+
+/** Rank-based message for a PAX who opted into competitive nudges. Mixes weekly
+ *  and month-long standings so the same PAX sees both "chase the season leader"
+ *  and "hold your spot on this week's board" over time. Returns null when
+ *  there's no one to chase or defend against in either scope (caller falls back
+ *  to the normal template). */
 function generateCompetitiveNotification(ctx: {
   fn: string;
   notificationType: "morning" | "afternoon" | "evening";
   userCompleted: boolean;
   workLeft: string;
   seed: number;
-} & CompetitiveContext): { title: string; body: string } | null {
-  const {
-    fn, notificationType, userCompleted, workLeft, seed,
-    rank, totalParticipants, aheadName, aheadGap, behindName, behindGap,
-  } = ctx;
+  week?: CompetitiveContext;
+  month?: CompetitiveContext;
+}): { title: string; body: string } | null {
+  const { fn, notificationType, userCompleted, workLeft, seed, week, month } = ctx;
 
-  const chase  = aheadName != null && aheadGap != null && aheadGap > 0;
-  const defend = behindName != null && behindGap != null && behindGap > 0;
-  if (!chase && !defend) return null;
-
-  const repWord = (n: number) => `${n} rep${n === 1 ? "" : "s"}`;
   const todayTail = userCompleted
     ? "You're locked in for today — keep stacking."
     : (workLeft ? `${workLeft} left today — go get it.` : "Get after it.");
 
-  const titlesByType: Record<typeof notificationType, string[]> = {
+  // Pool candidates from both scopes; the seeded pick naturally alternates the
+  // same PAX between weekly and monthly framing across days and time slots.
+  const candidates: Array<{ scope: CompScope; body: string }> = [];
+  if (week)  for (const body of competitiveBodies("week",  week,  fn, todayTail)) candidates.push({ scope: "week",  body });
+  if (month) for (const body of competitiveBodies("month", month, fn, todayTail)) candidates.push({ scope: "month", body });
+  if (candidates.length === 0) return null;
+
+  const chosen = pick(candidates, seed + 1);
+
+  const monthTitlesByType: Record<typeof notificationType, string[]> = {
     morning:   [`Rise & Climb, ${fn} 🏁`, `Morning Standings, ${fn}`, `Chase It Down, ${fn}`, `Move Up Today, ${fn}`],
     afternoon: [`Midday Standings, ${fn}`, `Close the Gap, ${fn} 🏁`, `Move Up, ${fn}`, `Check the Board, ${fn}`],
     evening:   [`Hold Your Spot, ${fn} 🏁`, `Night Standings, ${fn}`, `Last Call on the Board`, `Lock In Your Rank, ${fn}`],
   };
+  const weekTitlesByType: Record<typeof notificationType, string[]> = {
+    morning:   [`This Week's Board, ${fn} 🏁`, `Weekly Standings, ${fn}`, `Climb the Weekly Board, ${fn}`, `Own This Week, ${fn}`],
+    afternoon: [`Weekly Board Check, ${fn}`, `Move Up This Week, ${fn} 🏁`, `This Week's Race, ${fn}`, `Close the Weekly Gap, ${fn}`],
+    evening:   [`Lock In Your Week, ${fn} 🏁`, `Hold the Weekly Board`, `This Week's Standings, ${fn}`, `Last Call This Week, ${fn}`],
+  };
+  const titles = chosen.scope === "week" ? weekTitlesByType[notificationType] : monthTitlesByType[notificationType];
 
-  const bodies: string[] = [];
-
-  if (chase) {
-    bodies.push(
-      `Only ${repWord(aheadGap!)} until you pass ${aheadName} for #${rank - 1}. ${todayTail}`,
-      `You're #${rank} of ${totalParticipants}. ${repWord(aheadGap!)} behind ${aheadName} — take the spot today.`,
-      `${aheadName} is right ahead of you — ${repWord(aheadGap!)} and #${rank - 1} is yours, ${fn}.`,
-    );
-  }
-
-  if (defend) {
-    if (rank === 1) {
-      bodies.push(
-        `You're #1 on the board, ${fn}. ${behindName} is ${repWord(behindGap!)} back — bury the lead deeper. ${todayTail}`,
-        `Top of the board and ${behindName} is closing — ${repWord(behindGap!)} back. Don't blink.`,
-      );
-    } else {
-      bodies.push(
-        `${behindName} is only ${repWord(behindGap!)} behind you. Defend #${rank}, ${fn}. ${todayTail}`,
-        `You're holding #${rank} — ${behindName} is ${repWord(behindGap!)} back. Keep the gap.`,
-      );
-    }
-  }
-
-  if (chase && defend) {
-    bodies.push(
-      `Sandwiched at #${rank}: ${repWord(aheadGap!)} to pass ${aheadName}, ${behindName} just ${repWord(behindGap!)} behind. ${todayTail}`,
-    );
-  }
-
-  return { title: pick(titlesByType[notificationType], seed), body: pick(bodies, seed + 1) };
+  return { title: pick(titles, seed), body: chosen.body };
 }
 
 // ---------------------------------------------------------------------------
@@ -897,38 +980,24 @@ export const sendScheduledNotifications = onSchedule(
     const allLogsSnap = await admin.firestore().collection("dailyLogs")
       .where("challengeId", "==", challenge.id)
       .get();
+    // Month-long reps + this-week reps per active PAX. Weekly totals reset each
+    // Sunday, giving PAX who joined mid-month a board they can top today.
+    const weekStart = getWeekStartPT(today);
     const repsByUser = new Map<string, number>();
+    const weeklyRepsByUser = new Map<string, number>();
     for (const doc of allLogsSnap.docs) {
       const log = doc.data() as DailyLog;
       if (optedOutIds.has(log.userId)) continue;
       const reps = (log.exerciseLogs ?? []).reduce((s, el) => s + el.completedReps, 0);
       repsByUser.set(log.userId, (repsByUser.get(log.userId) ?? 0) + reps);
+      if (log.date >= weekStart) {
+        weeklyRepsByUser.set(log.userId, (weeklyRepsByUser.get(log.userId) ?? 0) + reps);
+      }
     }
-    // Ranked descending by reps; ties broken by name for stable ordering.
-    const ranked = activeUsers
-      .map(u => ({ id: u.id, name: u.displayName, reps: repsByUser.get(u.id) ?? 0 }))
-      .sort((a, b) => (b.reps - a.reps) || a.name.localeCompare(b.name));
-    const rankByUser = new Map<string, CompetitiveContext>();
-    ranked.forEach((entry, i) => {
-      // Nearest PAX strictly ahead / behind (skip ties so the gap is real).
-      let ahead: { name: string; reps: number } | undefined;
-      for (let j = i - 1; j >= 0; j--) {
-        if (ranked[j].reps > entry.reps) { ahead = ranked[j]; break; }
-      }
-      let behind: { name: string; reps: number } | undefined;
-      for (let j = i + 1; j < ranked.length; j++) {
-        if (ranked[j].reps < entry.reps) { behind = ranked[j]; break; }
-      }
-      rankByUser.set(entry.id, {
-        rank: i + 1,
-        totalParticipants: ranked.length,
-        userReps: entry.reps,
-        aheadName: ahead?.name,
-        aheadGap: ahead ? ahead.reps - entry.reps : undefined,
-        behindName: behind?.name,
-        behindGap: behind ? entry.reps - behind.reps : undefined,
-      });
-    });
+    const activeRoster = activeUsers.map(u => ({ id: u.id, displayName: u.displayName }));
+    const rankByUser     = buildStandings(activeRoster, repsByUser);
+    const weeklyRankByUser = buildStandings(activeRoster, weeklyRepsByUser);
+    console.log(`[notify] competitive standings built (week start ${weekStart})`);
 
     for (const user of activeUsers) {
       if (!user.fcmTokens?.length) {
@@ -1041,19 +1110,21 @@ export const sendScheduledNotifications = onSchedule(
             prefs.competitive &&
             (w.type === "morning" || w.type === "afternoon" || w.type === "evening")
           ) {
-            const rc = rankByUser.get(user.id);
-            if (rc) {
+            const monthRc = rankByUser.get(user.id);
+            const weekRc  = weeklyRankByUser.get(user.id);
+            if (monthRc || weekRc) {
               const comp = generateCompetitiveNotification({
                 fn: firstName(user.displayName),
                 notificationType: w.type,
                 userCompleted,
                 workLeft: userCompleted ? "" : `${repsRemaining} reps`,
                 seed: notifSeed(dayNumber, `${w.type}_competitive`),
-                ...rc,
+                week: weekRc,
+                month: monthRc,
               });
               if (comp) {
                 ({ title, body } = comp);
-                console.log(`[notify]   → competitive override applied (rank ${rc.rank}/${rc.totalParticipants})`);
+                console.log(`[notify]   → competitive override applied (month #${monthRc?.rank ?? "-"}, week #${weekRc?.rank ?? "-"})`);
               }
             }
           }

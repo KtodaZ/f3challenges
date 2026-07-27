@@ -13,6 +13,9 @@ interface GroupChartsProps {
   dayCompletionCounts: Record<string, number>
   dayRepCounts: Record<string, number>
   participantCount: number
+  /** X-axis dates to plot. Defaults to the full challenge-to-date range; the
+   *  weekly board passes just this week's dates to scope the charts. */
+  dates?: string[]
 }
 
 /** Compact rep counts: 1240 → "1.2k", 12400 → "12k". */
@@ -29,15 +32,18 @@ export function GroupCharts({
   dayCompletionCounts,
   dayRepCounts,
   participantCount,
+  dates,
 }: GroupChartsProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
 
   const today = getTodayPT()
+  const isScoped = dates != null
   const pastDates = useMemo(
-    () => getChallengeDates(challenge).filter(d => d <= today),
-    [challenge, today]
+    () => dates ?? getChallengeDates(challenge).filter(d => d <= today),
+    [dates, challenge, today]
   )
+  const rangeLabel = isScoped ? 'this week' : 'month to date'
 
   const repPoints: LinePoint[] = useMemo(
     () =>
@@ -90,7 +96,7 @@ export function GroupCharts({
         <div className="snap-center shrink-0 w-full px-4 pb-3">
           <div className="flex items-baseline justify-between mb-1">
             <p className="text-xs font-medium text-zinc-300">Total reps per day</p>
-            <span className="text-[11px] text-zinc-500">month to date</span>
+            <span className="text-[11px] text-zinc-500">{rangeLabel}</span>
           </div>
           <LineChart points={repPoints} color="#f97316" formatValue={compact} unit="reps" />
         </div>

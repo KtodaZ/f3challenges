@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useUser } from '@/contexts/UserContext'
-import { getCurrentChallenge, getTodayPT, getChallengeDates, getDayNumber, getTotalDays } from '@/lib/challenges'
+import { getCurrentChallenge, getTodayPT, getChallengeDates, getCurrentWeekDates, getDayNumber, getTotalDays } from '@/lib/challenges'
 import { getUserChallengeLogs, getChallengeParticipants, getDailyLog, getLatestShoutoutsByUser, updateUser } from '@/lib/firestore'
 import { monthProgress, cn, isChallengeParticipant } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
@@ -15,16 +15,63 @@ import { CalloutModal, type CalloutUserStatus } from '@/components/daily/Callout
 import { PastFinishers } from '@/components/leaderboard/PastFinishers'
 import { CompetitiveOptInModal } from '@/components/notifications/CompetitiveOptIn'
 import { ProgressBar } from '@/components/ui/ProgressBar'
-import type { LeaderboardEntry, ChallengeParticipation, User, ChallengeTemplate } from '@/types'
+import type { LeaderboardEntry, ChallengeParticipation, User, ChallengeTemplate, DailyLog } from '@/types'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 
-type Tab = 'current' | 'past'
+type Tab = 'week' | 'month' | 'past'
+type Scope = 'week' | 'month'
 
-// ─── Current-month leaderboard ────────────────────────────────────────────────
+// Per-user aggregate before it's projected into a scope-specific LeaderboardEntry.
+// We compute month + week numbers from the same log fetch so switching tabs is
+// instant and both boards rank off identical data.
+interface RawEntry {
+  user: User
+  participation?: ChallengeParticipation
+  streak: number
+  todayComplete: boolean
+  todayLog?: DailyLog
+  lastActiveDate?: string
+  lastShoutoutAt?: string
+  hasMonthActivity: boolean
+  month: { reps: number; completedDays: number }
+  week:  { reps: number; completedDays: number }
+}
+
+/** Projects a raw aggregate into a scope-specific leaderboard entry. */
+function toEntry(raw: RawEntry, scope: Scope, elapsedDays: number): LeaderboardEntry {
+  const s = raw[scope]
+  return {
+    user: raw.user,
+    participation: raw.participation,
+    completedDays: s.completedDays,
+    totalDays: elapsedDays,
+    completionPct: elapsedDays > 0 ? Math.round((s.completedDays / elapsedDays) * 100) : 0,
+    totalReps: s.reps,
+    currentStreak: raw.streak,
+    todayComplete: raw.todayComplete,
+    todayLog: raw.todayLog,
+    lastActiveDate: raw.lastActiveDate,
+    lastShoutoutAt: raw.lastShoutoutAt,
+  }
+}
+
+/** Opted-out last, then reps desc, days desc, streak as tiebreaker. */
+function sortEntries(a: LeaderboardEntry, b: LeaderboardEntry): number {
+  const aOut = a.participation?.status === 'opted-out'
+  const bOut = b.participation?.status === 'opted-out'
+  if (aOut !== bOut) return aOut ? 1 : -1
+  if (b.totalReps !== a.totalReps) return b.totalReps - a.totalReps
+  if (b.completedDays !== a.completedDays) return b.completedDays - a.completedDays
+  return b.currentStreak - a.currentStreak
+}
+
+// ─── Current-challenge leaderboard (week or month scope) ──────────────────────
 
 interface CurrentLeaderboardProps {
+  scope: Scope
   challenge: ChallengeTemplate
   participantEntries: LeaderboardEntry[]
+  chartDates: string[]
   dayCompletionCounts: Record<string, number>
   dayRepCounts: Record<string, number>
   participantCount: number
@@ -35,8 +82,10 @@ interface CurrentLeaderboardProps {
 }
 
 function CurrentLeaderboard({
+  scope,
   challenge,
   participantEntries,
+  chartDates,
   dayCompletionCounts,
   dayRepCounts,
   participantCount,
@@ -51,13 +100,14 @@ function CurrentLeaderboard({
     <div className="px-4 py-4 space-y-4">
       {/* Group stats */}
       {!loading && participantEntries.length > 0 && (
-        <GroupStats entries={participantEntries} />
+        <GroupStats entries={participantEntries} scope={scope} />
       )}
 
       {/* Group charts — swipeable: reps, % completion, heatmap */}
       {!loading && participantEntries.length > 0 && (
         <GroupCharts
           challenge={challenge}
+          dates={chartDates}
           dayCompletionCounts={dayCompletionCounts}
           dayRepCounts={dayRepCounts}
           participantCount={participantCount}
@@ -115,10 +165,12 @@ export default function LeaderboardPage() {
   const { currentUser, allUsers, refreshCurrentUser } = useUser()
   const challenge = getCurrentChallenge()
 
-  const [tab, setTab] = useState<Tab>('current')
+  // Default to the weekly board so mid-month joiners land on the race they can win.
+  const [tab, setTab] = useState<Tab>('week')
   const [competitiveModalOpen, setCompetitiveModalOpen] = useState(false)
   const competitivePromptShown = useRef(false)
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([])
+  const [monthEntries, setMonthEntries] = useState<LeaderboardEntry[]>([])
+  const [weekEntries, setWeekEntries] = useState<LeaderboardEntry[]>([])
   const [dayCompletionCounts, setDayCompletionCounts] = useState<Record<string, number>>({})
   const [dayRepCounts, setDayRepCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
@@ -140,22 +192,41 @@ export default function LeaderboardPage() {
       participations.map(p => [p.userId, p])
     )
     const challengeDates = getChallengeDates(challenge)
-    const pastDates = challengeDates.filter(d => d <= today)
+    const monthElapsed = challengeDates.filter(d => d <= today).length
+    const weekDates = getCurrentWeekDates(challenge, today)
+    const weekStart = weekDates[0] ?? today
+    const weekElapsed = weekDates.length
     const dayNum = getDayNumber(challenge, today) ?? 1
 
-    // Per-day group aggregates — restricted to actual participants so a stray
-    // one-rep log or an opted-out PAX doesn't skew the charts.
+    // Per-day group aggregates (keyed by date) — restricted to actual
+    // participants so a stray one-rep log or an opted-out PAX doesn't skew the
+    // charts. The same maps power both the month and week charts; the week view
+    // just narrows the x-axis to this week's dates.
     const dayCounts: Record<string, number> = {}
     const repCounts: Record<string, number> = {}
 
-    const entriesData = await Promise.all(
+    const rawEntries = await Promise.all(
       allUsers.map(async (user, idx) => {
         const logs     = await getUserChallengeLogs(user.id, challenge.id)
         const todayLog = allTodayLogs[idx]
         const part     = participationMap.get(user.id)
 
         const completedLogs = logs.filter(l => l.completionFraction >= 0.25)
-        const completedDays = completedLogs.length
+
+        // Month aggregates
+        const monthCompletedDays = completedLogs.length
+        const monthReps = logs.reduce(
+          (sum, l) => sum + l.exerciseLogs.reduce((s, e) => s + e.completedReps, 0),
+          0
+        )
+
+        // Week aggregates — same math, restricted to this calendar week
+        const weekLogs = logs.filter(l => l.date >= weekStart && l.date <= today)
+        const weekCompletedDays = weekLogs.filter(l => l.completionFraction >= 0.25).length
+        const weekReps = weekLogs.reduce(
+          (sum, l) => sum + l.exerciseLogs.reduce((s, e) => s + e.completedReps, 0),
+          0
+        )
 
         // Most recent day this PAX actually put up reps — powers the
         // "hasn't done a rep in N days" push-priority signal.
@@ -165,20 +236,10 @@ export default function LeaderboardPage() {
         const lastActiveDate = activeDates.length
           ? activeDates.reduce((a, b) => (a > b ? a : b))
           : undefined
-        const completionPct = pastDates.length > 0
-          ? Math.round((completedDays / pastDates.length) * 100)
-          : 0
-        const totalReps = logs.reduce(
-          (sum, l) => sum + l.exerciseLogs.reduce((s, e) => s + e.completedReps, 0),
-          0
-        )
 
         // Only real participants feed the group charts/stats
-        const isParticipant = isChallengeParticipant(
-          part?.status,
-          completedDays > 0 || totalReps > 0,
-          dayNum,
-        )
+        const hasMonthActivity = monthCompletedDays > 0 || monthReps > 0
+        const isParticipant = isChallengeParticipant(part?.status, hasMonthActivity, dayNum)
         if (isParticipant) {
           // Per-day completion counts (heatmap + % completion chart)
           for (const log of completedLogs) {
@@ -212,30 +273,23 @@ export default function LeaderboardPage() {
         return {
           user,
           participation: part,
-          completedDays,
-          totalDays: pastDates.length,
-          completionPct,
-          totalReps,
-          currentStreak: streak,
+          streak,
           todayComplete: (todayLog?.completionFraction ?? 0) >= 1,
           todayLog: todayLog ?? undefined,
           lastActiveDate,
           lastShoutoutAt: shoutoutMap.get(user.id),
-        } satisfies LeaderboardEntry
+          hasMonthActivity,
+          month: { reps: monthReps, completedDays: monthCompletedDays },
+          week:  { reps: weekReps,  completedDays: weekCompletedDays },
+        } satisfies RawEntry
       })
     )
 
-    // Sort: opted-out last, then total reps desc, days desc, streak as tiebreaker
-    entriesData.sort((a, b) => {
-      const aOut = a.participation?.status === 'opted-out'
-      const bOut = b.participation?.status === 'opted-out'
-      if (aOut !== bOut) return aOut ? 1 : -1
-      if (b.totalReps !== a.totalReps) return b.totalReps - a.totalReps
-      if (b.completedDays !== a.completedDays) return b.completedDays - a.completedDays
-      return b.currentStreak - a.currentStreak
-    })
+    const monthSorted = rawEntries.map(r => toEntry(r, 'month', monthElapsed)).sort(sortEntries)
+    const weekSorted  = rawEntries.map(r => toEntry(r, 'week',  weekElapsed)).sort(sortEntries)
 
-    setEntries(entriesData)
+    setMonthEntries(monthSorted)
+    setWeekEntries(weekSorted)
     setDayCompletionCounts(dayCounts)
     setDayRepCounts(repCounts)
     setLoading(false)
@@ -279,25 +333,33 @@ export default function LeaderboardPage() {
   const dayNum         = challenge ? getDayNumber(challenge, todayStr) ?? 1 : 1
   const totalDays      = challenge ? getTotalDays(challenge) : 0
   const progress       = challenge ? monthProgress(challenge.startDate, challenge.endDate) : 0
+  const scope: Scope   = tab === 'month' ? 'month' : 'week'
+  const scopedEntries  = scope === 'month' ? monthEntries : weekEntries
+  const weekDates      = challenge ? getCurrentWeekDates(challenge, todayStr) : []
+  const monthDates     = challenge ? getChallengeDates(challenge).filter(d => d <= todayStr) : []
+  const chartDates     = scope === 'month' ? monthDates : weekDates
   // PAX actually participating in this challenge (logged something, opted in,
-  // or still in the early-month grace window) — not inactive users. Drives the
-  // group charts/stats denominators, the nudge list, and the callout roster.
-  const participantEntries = entries.filter(e =>
-    isChallengeParticipant(e.participation?.status, e.completedDays > 0 || e.totalReps > 0, dayNum)
-  )
+  // or still in the early-month grace window) — not inactive users. Filter is
+  // month-based so the weekly board still lists everyone (a PAX with 0 reps this
+  // week can jump the board with a big day), just ranked by this week's reps.
+  const participantEntries = scopedEntries.filter(e => {
+    const raw = monthEntries.find(m => m.user.id === e.user.id)
+    return isChallengeParticipant(e.participation?.status, (raw?.totalReps ?? 0) > 0 || (raw?.completedDays ?? 0) > 0, dayNum)
+  })
   const participantCount = participantEntries.length
+  // "Done today" and the call-out roster are inherently daily, so they read off
+  // whichever entries carry today's status — identical across scopes.
   const completedToday   = participantEntries.filter(e => e.todayComplete).length
   const needsPush        = participantEntries.filter(e => !e.todayComplete)
-  // Roster for the callout modal — same participant filter, so drop-off PAX
-  // don't appear in the "Who are you calling out?" list.
   const calloutUsers     = participantEntries.map(e => e.user)
-  // Today's progress per PAX — lets the callout modal group by status
   const calloutStatusById = new Map<string, CalloutUserStatus>(
-    entries.map(e => {
+    scopedEntries.map(e => {
       const frac = e.todayLog?.completionFraction ?? 0
       return [e.user.id, frac >= 1 ? 'done' : frac > 0 ? 'started' : 'notStarted']
     })
   )
+
+  const isCurrent = tab === 'week' || tab === 'month'
 
   return (
     <div className="pb-nav">
@@ -306,11 +368,11 @@ export default function LeaderboardPage() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-lg font-bold text-white">Leaderboard</h1>
-            {tab === 'current' && challenge && (
+            {isCurrent && challenge && (
               <p className="text-xs text-zinc-500">{challenge.name}</p>
             )}
           </div>
-          {tab === 'current' && (
+          {isCurrent && (
             <button
               onClick={handleRefresh}
               disabled={refreshing}
@@ -324,10 +386,19 @@ export default function LeaderboardPage() {
         {/* Tab toggle */}
         <div className="flex gap-1 bg-zinc-900 rounded-xl p-1">
           <button
-            onClick={() => setTab('current')}
+            onClick={() => setTab('week')}
             className={cn(
               'flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors',
-              tab === 'current' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+              tab === 'week' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+            )}
+          >
+            This Week
+          </button>
+          <button
+            onClick={() => setTab('month')}
+            className={cn(
+              'flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors',
+              tab === 'month' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
             )}
           >
             This Month
@@ -339,11 +410,11 @@ export default function LeaderboardPage() {
               tab === 'past' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
             )}
           >
-            Past Challenges
+            Past
           </button>
         </div>
 
-        {tab === 'current' && challenge && (
+        {isCurrent && challenge && (
           <ProgressBar
             value={progress}
             label={`Day ${dayNum} of ${totalDays}`}
@@ -356,16 +427,18 @@ export default function LeaderboardPage() {
       {/* Past finishers tab */}
       {tab === 'past' && <PastFinishers />}
 
-      {/* Current leaderboard tab */}
-      {tab === 'current' && (
+      {/* Current leaderboard tab (week or month) */}
+      {isCurrent && (
         !challenge ? (
           <div className="flex items-center justify-center py-24">
             <p className="text-zinc-500 text-sm">No active challenge right now.</p>
           </div>
         ) : (
           <CurrentLeaderboard
+            scope={scope}
             challenge={challenge}
             participantEntries={participantEntries}
+            chartDates={chartDates}
             dayCompletionCounts={dayCompletionCounts}
             dayRepCounts={dayRepCounts}
             participantCount={participantCount}
