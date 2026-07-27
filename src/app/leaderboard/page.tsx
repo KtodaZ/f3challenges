@@ -98,19 +98,6 @@ function CurrentLeaderboard({
 
   return (
     <div className="px-4 py-4 space-y-4">
-      {/* Weekly board rationale — a fresh start every Sunday so PAX who join
-          mid-month are instantly in a race they can actually win. */}
-      {scope === 'week' && (
-        <div className="rounded-2xl bg-orange-500/10 border border-orange-500/20 px-4 py-3">
-          <p className="text-sm font-semibold text-orange-300">This week&rsquo;s race 🏁</p>
-          <p className="text-xs text-zinc-400 leading-relaxed mt-0.5">
-            The weekly board resets every Sunday. Just joined? You&rsquo;re already in it —
-            rack up reps this week and you can top the board no matter what day of the
-            month it is.
-          </p>
-        </div>
-      )}
-
       {/* Group stats */}
       {!loading && participantEntries.length > 0 && (
         <GroupStats entries={participantEntries} scope={scope} />
