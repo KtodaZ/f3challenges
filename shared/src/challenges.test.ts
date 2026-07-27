@@ -12,6 +12,8 @@ import {
   conditionalRestApplies,
   repsFractionLabel,
   getChallengeDates,
+  getWeekStartPT,
+  getCurrentWeekDates,
 } from './challenges'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -418,5 +420,54 @@ describe('getMonthlyTotal — rest day handling', () => {
     // Week 3 (days 17-23): 7 × 150 = 1050
     // Week 4 (days 24-31): 8 days − May 25 (rest) = 7 × 180 = 1260
     expect(getMonthlyTotal(MAY)).toBe(720 + 960 + 1050 + 1260)
+  })
+})
+
+// ─── Weekly scoping ───────────────────────────────────────────────────────────
+
+describe('getWeekStartPT', () => {
+  it('returns the same date when it is already the week-start (Sunday)', () => {
+    // 2026-07-26 is a Sunday
+    expect(getWeekStartPT('2026-07-26')).toBe('2026-07-26')
+  })
+
+  it('snaps back to the preceding Sunday', () => {
+    // 2026-07-27 (Mon) … 2026-08-01 (Sat) all belong to the week starting 07-26
+    expect(getWeekStartPT('2026-07-27')).toBe('2026-07-26')
+    expect(getWeekStartPT('2026-07-30')).toBe('2026-07-26')
+    expect(getWeekStartPT('2026-08-01')).toBe('2026-07-26')
+  })
+
+  it('honors a Monday week start', () => {
+    // With weekStartsOn=1, Monday 07-27 is itself the start
+    expect(getWeekStartPT('2026-07-27', 1)).toBe('2026-07-27')
+    expect(getWeekStartPT('2026-07-26', 1)).toBe('2026-07-20')
+  })
+})
+
+const JUL: ChallengeTemplate = {
+  id: 'jul-test',
+  name: 'July Test',
+  hashtag: '#JulyTest',
+  tagline: 'Test',
+  month: 7,
+  year: 2026,
+  startDate: '2026-07-01',
+  endDate: '2026-07-31',
+  exercises: [{ id: 'merkin', name: 'Merkin', shortName: 'Merkin' }],
+}
+
+describe('getCurrentWeekDates', () => {
+  it('returns only the in-challenge, on-or-before-today dates of the current week', () => {
+    // Week of 2026-07-26 (Sun) through today 2026-07-29 (Wed), all inside July FFC
+    const dates = getCurrentWeekDates(JUL, '2026-07-29')
+    expect(dates).toEqual(['2026-07-26', '2026-07-27', '2026-07-28', '2026-07-29'])
+  })
+
+  it('clips to the challenge window at the start of a challenge', () => {
+    // Challenge starts 2026-07-01 (Wed); the week began 2026-06-28 (Sun) but
+    // only in-challenge dates count.
+    const dates = getCurrentWeekDates(JUL, '2026-07-02')
+    expect(dates).toEqual(['2026-07-01', '2026-07-02'])
   })
 })

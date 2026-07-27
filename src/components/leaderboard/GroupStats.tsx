@@ -7,9 +7,11 @@ import type { LeaderboardEntry } from '@/types'
 interface GroupStatsProps {
   /** Actual participants only (opted-out / inactive PAX already filtered out). */
   entries: LeaderboardEntry[]
+  /** 'week' scopes the headline copy to the weekly board; 'month' is the default. */
+  scope?: 'week' | 'month'
 }
 
-export function GroupStats({ entries }: GroupStatsProps) {
+export function GroupStats({ entries, scope = 'month' }: GroupStatsProps) {
   const totalGroupReps = entries.reduce((sum, e) => sum + e.totalReps, 0)
 
   // Percent-based headline instead of "perfect / no missed days" — 20+ days in,
@@ -25,7 +27,7 @@ export function GroupStats({ entries }: GroupStatsProps) {
     {
       label: 'Group reps',
       value: totalGroupReps > 0 ? totalGroupReps.toLocaleString() : '0',
-      sub: 'total this challenge',
+      sub: scope === 'week' ? 'total this week' : 'total this challenge',
       icon: '💪',
       href: undefined,
     },
