@@ -142,10 +142,10 @@ export const CHALLENGES: ChallengeTemplate[] = [
           "@{name} put in the work across all four PPSD movements. Day {day}/{totalDays}, {totalReps} reps. Who else is posting? {hashtag}",
         ],
         regularLate: [
-          "Week {weekNumber} of PPSD hits harder — {totalReps} reps and @{name} didn't even flinch. Day {day}. 😏 {hashtag}",
-          "@{name} on Day {day}: {totalReps} reps across four movements, and still has energy to trash-talk. 😂 {hashtag}",
-          "Dead hangs getting long, reps getting heavy — @{name} still doesn't care. Day {day}, {totalReps} done. 😏 {hashtag}",
-          "Week {weekNumber} asked for more. @{name} delivered {totalReps} reps on Day {day} without a complaint. 😏 {hashtag}",
+          "Week {weekNumber} of PPSD, Day {day} — {totalReps} reps, @{name} still on it. {hashtag}",
+          "@{name} on Day {day}: {totalReps} reps across four movements. Late-month consistency. {hashtag}",
+          "Dead hangs long, reps piling up — @{name} kept at it. Day {day}, {totalReps} done. {hashtag}",
+          "Week {weekNumber} asked for more. @{name} put in {totalReps} reps on Day {day}. {hashtag}",
         ],
         makeUp: [
           "@{name} came back for Day {day} — {totalReps} reps of pull-ups, push-ups, squats, and dead hangs. No skips. {hashtag} ✅",
@@ -379,9 +379,9 @@ export const CHALLENGES: ChallengeTemplate[] = [
           "Hang. Merkin. LBC. Lunge. @{name} ran the whole list on Day {day}. {hashtag} 💪",
         ],
         regularLate: [
-          "@{name} is still showing up — Day {day} of {hashtag} logged. 😏",
-          "@{name} on Day {day}: hang, merkins, LBCs, lunges — all of it. Consistency is the challenge. {hashtag} 💪",
-          "Late in the month and @{name} is still showing up. Day {day}/{totalDays}. {hashtag} 🔥",
+          "@{name} is still showing up — Day {day} of {hashtag} logged. {hashtag}",
+          "@{name} on Day {day}: hang, merkins, LBCs, lunges — all of it. Consistency is the challenge. {hashtag}",
+          "Late in the month and @{name} is still at it. Day {day}/{totalDays}. {hashtag}",
         ],
         makeUp: [
           "@{name} came back for Day {day} — hang, merkins, LBCs, and lunges. Nothing left behind. {hashtag} ✅",

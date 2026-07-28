@@ -463,23 +463,23 @@ function generateNotification(ctx: {
   // --- Endgame (last 3 days) — heavy urgency with countdown ---
   if (isEndgame) {
     const titles = [
-      `${daysRemaining} ${daysWord} Left — Don't Fold`,
-      `Almost There, ${fn}!`,
-      `Final Push, ${fn}!`,
-      `${daysRemaining} ${daysWord} Remaining — Go!`,
-      `Finish What You Started`,
-      `So Close, ${fn} — Don't Stop`,
-      `The End Is in Sight`,
+      `${daysRemaining} ${daysWord} Left, ${fn}`,
+      `Almost There, ${fn}`,
+      `Final Stretch, ${fn}`,
+      `${daysRemaining} ${daysWord} to Go`,
+      `Close It Out, ${fn}`,
+      `Home Stretch, ${fn}`,
+      `Day ${dayNumber} of ${totalDays}`,
     ];
-    const peerLine = hasPeers ? `${peerStr} ${peerVerb} completed today's challenge. ` : "";
+    const peerLine = hasPeers ? `${peerStr} ${peerVerb} finished today. ` : "";
     const bodies = [
-      `${peerLine}${daysRemaining} ${daysWord} left — ${workLeft} between you and the finish line.`,
-      `${modNote}${progressNote}. ${daysRemaining} ${daysWord} in ${challengeName}. Don't quit this close to done.`,
-      `${fn}, ${daysRemaining} ${daysWord} left — ${workLeft} now. The crew is watching.`,
-      `You've come too far to stop. ${workLeft} today, ${daysRemaining} ${daysWord} to go — finish strong.`,
-      `${peerLine}${progressNote}. ${daysRemaining} ${daysWord} left — make it count.`,
-      `${daysRemaining} ${daysWord} left in ${challengeName}. ${workLeft} today — this is what you trained for.`,
-      `${modNote}${workLeft} left. ${daysRemaining} ${daysWord} remaining — leave nothing on the table, ${fn}.`,
+      `${peerLine}${daysRemaining} ${daysWord} left — ${workLeft} to finish today.`,
+      `${modNote}${progressNote}. ${daysRemaining} ${daysWord} left in ${challengeName}.`,
+      `${fn}, ${daysRemaining} ${daysWord} left — ${workLeft} today.`,
+      `${workLeft} today, ${daysRemaining} ${daysWord} to go. Finish it out.`,
+      `${peerLine}${progressNote}. ${daysRemaining} ${daysWord} left.`,
+      `${daysRemaining} ${daysWord} left in ${challengeName}. ${workLeft} today.`,
+      `${modNote}${workLeft} left. ${daysRemaining} ${daysWord} remaining, ${fn}.`,
     ];
     if (nudge) bodies.push(nudge, `${peerLine}${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -487,24 +487,24 @@ function generateNotification(ctx: {
 
   // --- Late challenge (last 4–10 days) — elevated urgency with countdown ---
   if (isLate) {
-    const peerLine = hasPeers ? `${peerStr} ${peerVerb} completed today's challenge. ` : "";
+    const peerLine = hasPeers ? `${peerStr} ${peerVerb} finished today. ` : "";
     const titles = [
       `${daysRemaining} ${daysWord} Left, ${fn}`,
-      `Don't Slip Now, ${fn}`,
-      `Stay Locked In, ${fn}`,
-      `Late-Month Push`,
-      `Grind Don't Stop`,
-      `${daysRemaining} ${daysWord} to Finish Strong`,
+      `Keep It Going, ${fn}`,
+      `Stay With It, ${fn}`,
+      `Late-Month Check-In`,
+      `Day ${dayNumber} of ${totalDays}`,
+      `${daysRemaining} ${daysWord} to the Finish`,
       `Almost Home, ${fn}`,
     ];
     const bodies = [
-      `${peerLine}${workLeft} left on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — hold the line.`,
-      `${modNote}${progressNote}. ${daysRemaining} ${daysWord} remaining in ${challengeName} — finish what you started.`,
+      `${peerLine}${workLeft} left on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go.`,
+      `${modNote}${progressNote}. ${daysRemaining} ${daysWord} remaining in ${challengeName}.`,
       `${fn}, ${daysRemaining} ${daysWord} left. ${workLeft} today, then you're one day closer.`,
-      `${peerLine}Day ${dayNumber} of ${totalDays}: ${workLeft}. ${daysRemaining} ${daysWord} remaining — let's close strong.`,
-      `You've put in the work. ${daysRemaining} ${daysWord} left — finishing today keeps the streak alive. ${workLeft}.`,
-      `${daysRemaining} ${daysWord} left in ${challengeName}. ${fn}: ${progressNote}. Stay locked in.`,
-      `${peerLine}${workLeft} on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — don't let up now.`,
+      `${peerLine}Day ${dayNumber} of ${totalDays}: ${workLeft}. ${daysRemaining} ${daysWord} remaining.`,
+      `${daysRemaining} ${daysWord} left — finishing today keeps the streak going. ${workLeft}.`,
+      `${daysRemaining} ${daysWord} left in ${challengeName}. ${fn}: ${progressNote}.`,
+      `${peerLine}${workLeft} on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go.`,
     ];
     if (nudge) bodies.push(nudge, `${peerLine}${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -788,7 +788,7 @@ function competitiveBodies(scope: CompScope, c: CompetitiveContext, fn: string, 
     if (defend) {
       if (c.rank === 1) {
         bodies.push(
-          `You're #1 for the month, ${fn}. ${c.behindName} is ${repWord(c.behindGap!)} back — bury the lead deeper. ${todayTail}`,
+          `You're #1 for the month, ${fn}. ${c.behindName} is ${repWord(c.behindGap!)} back — keep the gap. ${todayTail}`,
           `Top of the month and ${c.behindName} is closing — ${repWord(c.behindGap!)} back. Don't blink.`,
         );
       } else {

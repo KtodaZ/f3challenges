@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-28',
+    changes: [
+      'Toned down the reminders and feed posts, especially late in the month. The over-the-top hype and trash-talk are gone — the messages you get in the back half of a challenge are shorter, calmer, and just there to keep you on track.',
+    ],
+  },
+  {
     date: '2026-07-27',
     changes: [
       'The leaderboard now opens on a “This Week” board that resets every Sunday. Just joined mid-month? You’re instantly in the running — stack up reps this week and you can top the board no matter how far into the challenge it is. Your season-long standings are still one tap away under “This Month.”',
