@@ -9,6 +9,7 @@ export type {
   AchievementLogInput, AchievementContext, EarnedAchievement,
   AchievementCategory, CelebrationTheme, AchievementProgress,
   AchievementDefinition, AchievementEvaluation,
+  TrophyTier, TrophyTierDef, TrophyProgress, TrophyNudge,
 } from '@f3-bedrock/shared'
 
 // ─── Bonus Logs ───────────────────────────────────────────────────────────────
@@ -56,7 +57,12 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
 
 export interface AchievementBadge {
   challengeId: string
+  /** Legacy shape, still written so older clients keep rendering something
+   *  sensible. `tier` is the real value — see shared/src/trophies.ts. */
   type: 'completed' | 'participant'
+  /** 🎖️ / 🥉 / 🥈 / 🥇. Absent on badges awarded before tiers existed;
+   *  resolveBadgeTier() maps those (completed → gold, participant → silver). */
+  tier?: import('@f3-bedrock/shared').TrophyTier
   awardedAt: string // ISO
 }
 
@@ -71,7 +77,11 @@ export interface User {
   achievements?: import('@f3-bedrock/shared').EarnedAchievement[]
   currentStreak: number
   longestStreak: number
-  pendingCelebration?: { challengeId: string; badgeType?: 'completed' | 'participant' }
+  pendingCelebration?: {
+    challengeId: string
+    badgeType?: 'completed' | 'participant'
+    tier?: import('@f3-bedrock/shared').TrophyTier
+  }
 }
 
 // ─── Daily Logs ───────────────────────────────────────────────────────────────

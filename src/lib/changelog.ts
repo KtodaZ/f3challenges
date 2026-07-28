@@ -20,6 +20,12 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-28',
     changes: [
+      'Monthly trophies now come in tiers. Finish half the challenge and you take home 🥉 Bronze, 80% earns 🥈 Silver, and every required day is 🥇 Gold. Log at least one day and you’re on the board with a 🎖️ Participant trophy.',
+      'A new card on the home screen, right under Quick Tap, tells you where your trophy stands and exactly what the next one costs — “🥉 Bronze earned — Silver next. 6 more days upgrades you.”',
+      'You claim each tier the moment you cross it, not at the end of the month — full-screen moment, and the crew sees it in the feed.',
+      'Trophies only ever go up, and a challenge is never closed. Make up days from a challenge that ended months ago and that month’s trophy climbs with you, all the way to Gold.',
+      'Your profile now shows this month’s trophy under the days count, with the Bronze/Silver/Gold marks laid out so you can see the gap you’re closing.',
+      'Trophies you already earned are untouched — every past finish reads as Gold, and every past participation trophy reads as Silver.',
       'Dropped the sarcastic feed posts that kicked in past the halfway mark of a challenge — no more “somebody check on @PAX, that’s not normal behavior” when you log a day. Posts for a finished day now read the same all month.',
       'Knock out more than one day in a single day — today plus a makeup or three — and your next reminder actually says so: “Triple Threat: 3 full days in one day.”',
       'Been away for a few days? Your reminders now know it. Miss 3+ days and you’ll get a come-back-in nudge instead of the usual one, and the day you return the app says welcome back instead of pretending nothing happened.',

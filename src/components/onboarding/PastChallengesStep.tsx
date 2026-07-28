@@ -82,7 +82,7 @@ export function PastChallengesStep({ onNext, existingBadges }: Props) {
                         : 'bg-transparent border-zinc-800 text-zinc-500 hover:border-zinc-700'
                     )}
                   >
-                    {opt === 'completed' ? '🏆 Completed'
+                    {opt === 'completed' ? '🥇 Completed'
                       : opt === 'participant' ? '🥈 Participated'
                       : 'Skipped'}
                   </button>

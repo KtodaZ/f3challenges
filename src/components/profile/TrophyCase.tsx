@@ -12,7 +12,7 @@ import type {
 } from '@/types'
 
 interface TrophyCaseProps {
-  /** Per-challenge badges (🏆 completed / 🥈 participant). */
+  /** Per-challenge trophies (🎖️ / 🥉 / 🥈 / 🥇 by completion). */
   badges: AchievementBadge[]
   /** Persisted achievement awards. */
   earned: EarnedAchievement[]
@@ -21,7 +21,7 @@ interface TrophyCaseProps {
 }
 
 /**
- * The full trophy case: challenge badges up top, then the achievement
+ * The full trophy case: challenge trophies up top, then the achievement
  * catalog — earned badges in color, locked ones dimmed with a progress bar,
  * secret ones hidden behind "???" until unlocked. Tap any badge for what
  * it is and how to earn it.
@@ -44,7 +44,7 @@ export function TrophyCase({ badges, earned, evaluations }: TrophyCaseProps) {
       {/* ── Challenge badges ── */}
       <div>
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
-          Challenge Badges
+          Challenge Trophies
         </p>
         <BadgeGrid badges={badges} onSelect={badge => setDetail({ kind: 'challenge', badge })} />
       </div>

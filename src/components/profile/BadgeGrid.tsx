@@ -1,6 +1,8 @@
 'use client'
 
-import { getChallengeById } from '@/lib/challenges'
+import { getChallengeById, getTrophyTier, resolveBadgeTier } from '@/lib/challenges'
+import { TROPHY_TIER_STYLES } from '@/lib/trophyStyles'
+import { cn } from '@/lib/utils'
 import type { AchievementBadge } from '@/types'
 
 interface BadgeGridProps {
@@ -14,8 +16,8 @@ function badgeLabel(badge: AchievementBadge): string {
   if (!challenge) return badge.challengeId
   const date = new Date(badge.awardedAt)
   const monthYear = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-  const typeLabel = badge.type === 'completed' ? 'Completed' : 'Participated'
-  return `${monthYear} — ${challenge.name} — ${typeLabel}`
+  const tier = getTrophyTier(resolveBadgeTier(badge))
+  return `${monthYear} — ${challenge.name} — ${tier.label}`
 }
 
 function challengeMonthYear(badge: AchievementBadge): string {
@@ -40,32 +42,32 @@ export function BadgeGrid({ badges, onSelect }: BadgeGridProps) {
     <div className="grid grid-cols-3 gap-3">
       {badges.map((badge) => {
         const challenge = getChallengeById(badge.challengeId)
-        const isCompleted = badge.type === 'completed'
+        const tier = getTrophyTier(resolveBadgeTier(badge))
         const label = badgeLabel(badge)
         const monthYear = challengeMonthYear(badge)
 
         return (
           <button
-            key={`${badge.challengeId}-${badge.type}`}
+            key={badge.challengeId}
             type="button"
             onClick={onSelect ? () => onSelect(badge) : undefined}
             className={`flex flex-col items-center gap-1.5 group relative ${onSelect ? 'cursor-pointer active:scale-95 transition-transform' : 'cursor-default'}`}
             title={label}
           >
             <div
-              className={`
-                w-16 h-16 rounded-2xl flex items-center justify-center text-3xl
-                border transition-transform group-hover:scale-105
-                ${isCompleted
-                  ? 'bg-amber-900/40 border-amber-700/60'
-                  : 'bg-zinc-800 border-zinc-700'
-                }
-              `}
+              className={cn(
+                'w-16 h-16 rounded-2xl flex items-center justify-center text-3xl',
+                'border transition-transform group-hover:scale-105',
+                TROPHY_TIER_STYLES[tier.tier].tile
+              )}
             >
-              {isCompleted ? '🏆' : '🥈'}
+              {tier.emoji}
             </div>
             <div className="text-center">
-              <p className="text-[10px] font-medium text-zinc-400 leading-tight">
+              <p className={cn('text-[10px] font-semibold leading-tight', TROPHY_TIER_STYLES[tier.tier].text)}>
+                {tier.label}
+              </p>
+              <p className="text-[9px] text-zinc-500 leading-tight">
                 {monthYear}
               </p>
               <p className="text-[9px] text-zinc-600 leading-tight truncate max-w-[72px]">

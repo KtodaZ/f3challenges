@@ -4,7 +4,8 @@
  */
 
 import type { CelebrationContent } from '@/components/ui/CelebrationOverlay'
-import type { AchievementDefinition } from '@/types'
+import { getTrophyProgress, getTrophyTier } from '@/lib/challenges'
+import type { AchievementDefinition, ChallengeTemplate, TrophyTier } from '@/types'
 
 export type MilestoneKind = 'quarter' | 'half' | 'threeQuarter'
 
@@ -75,6 +76,41 @@ export function buildDebtFreeCelebration(): CelebrationContent {
     subtitle: 'Every missed day cleared. Nothing left behind.',
     detail: { emoji: '✨', title: 'Clean Slate', caption: 'You fell behind and fought all the way back' },
     buttonLabel: 'DEBT FREE 💪',
+  }
+}
+
+/**
+ * Claiming a 🥉 Bronze or 🥈 Silver trophy. Gold gets the bigger
+ * CelebrationModal instead, and 🎖️ Participant is awarded quietly.
+ *
+ * `ended` flips the copy for a challenge that's already over — that trophy was
+ * climbed with makeup days, which deserves its own nod.
+ */
+export function buildTrophyCelebration(
+  tier: TrophyTier,
+  challenge: ChallengeTemplate,
+  completedDays: number,
+  ended = false,
+): CelebrationContent {
+  const def = getTrophyTier(tier)
+  const progress = getTrophyProgress(challenge, completedDays)
+  const next = progress.next
+  return {
+    theme: tier === 'silver' ? 'gold' : 'embers',
+    emoji: def.emoji,
+    kicker: ended ? `${challenge.name} · Catch Up` : challenge.name,
+    title: `${def.label.toUpperCase()}\nTROPHY`,
+    subtitle: ended
+      ? `${completedDays} of ${progress.requiredDays} days — and you went back for them.`
+      : def.blurb,
+    detail: next
+      ? {
+          emoji: next.emoji,
+          title: `${next.label} at ${progress.nextTierDays} days`,
+          caption: `${progress.daysToNext} more ${progress.daysToNext === 1 ? 'day' : 'days'} to upgrade`,
+        }
+      : undefined,
+    buttonLabel: next ? `GOING FOR ${next.label.toUpperCase()} ${next.emoji}` : 'CLAIM IT 🏅',
   }
 }
 
