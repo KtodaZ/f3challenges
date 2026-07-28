@@ -26,7 +26,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Competitive nudges (if you have them on) now call a photo finish: when the PAX ahead of or behind you is within striking distance, you get “8 reps. That’s all that separates you” instead of a generic standings update.',
       'The feed knows about stacks and comebacks too. Knock out three days in one day and the posts build on each other instead of repeating — “@PAX has now put away 3 full days in one day.” Come back after time off and the post says so.',
       'New leaderboard posts: when your reps actually move you past someone on the board, the feed calls it — “@PAX just passed @OtherPAX on the board — by a single rep.” Once per PAX per day, so nobody can spam it.',
-      'A pile of new reminder and feed-post variations, so the same message stops showing up twice in a week.',
+      'A pile of new reminder and feed-post variations, so the same message stops showing up twice in a week — including a bunch of dumb movie and song references. Hit the halfway mark and the feed is contractually obligated to tell you you’re livin’ on a prayer.',
       'Fixed reminders that started mid-sentence in lowercase — “the dead hang, standard merkins, and LBCs on Day 2 — don’t let it pile up” now reads like a sentence.',
     ],
   },

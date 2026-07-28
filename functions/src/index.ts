@@ -328,6 +328,9 @@ function overtakePost(name: string, passedNames: string[], gap: number, hashtag:
     `Board update — @${name} is now ahead of ${passed}. Your move. 💪 ${hashtag}`,
     `${passed} just got passed by @${name}. The board doesn't lie. 🏁 ${hashtag}`,
     `@${name} just took a spot off ${passed}. That's what showing up does. 🔥 ${hashtag}`,
+    `Another one bites the dust. @${name} just went by ${passed}. 🎸 ${hashtag}`,
+    `Shake and bake — @${name} slid past ${passed} on the board. 🏎️ ${hashtag}`,
+    `@${name} hit the gas and left ${passed} behind. 🏁 ${hashtag}`,
   ];
   return templates[Math.floor(Math.random() * templates.length)];
 }
@@ -588,6 +591,8 @@ function buildNotification(ctx: NotificationCtx): { title: string; body: string 
       `${stackedDays} days logged today, ${fn}. Absolutely relentless. 💪`,
       `Most PAX check one box today. You checked ${stackedDays}. Respect.`,
       `${stackedDays} full days in a single day. ${fn} is not playing around. 🔥`,
+      `We're gonna need a bigger log — ${stackedDays} days done today, ${fn}. 🦈`,
+      `${stackedDays} days in one day. Somewhere a couch is very disappointed in you. 🛋️🔥`,
     ];
     if (notDoneNames.length > 0) {
       bodies.push(
@@ -614,6 +619,8 @@ function buildNotification(ctx: NotificationCtx): { title: string; body: string 
       `The comeback starts with one day, and you just logged it, ${fn}. 💪`,
       `${daysAway} days off didn't finish you. Day ${dayNumber} is in the books — the missed days are still waiting in Catch Up whenever you want them.`,
       `Welcome back, ${fn}. Day ${dayNumber} done. Two in a row and nobody will even remember the gap. 🔥`,
+      `Back in black. ${daysAway} days out, and Day ${dayNumber} is on the board. 🖤`,
+      `Cue the Rocky music — ${fn} is back. Day ${dayNumber} logged after ${daysAway} days. 🥊`,
     ];
     if (hasPeers) {
       bodies.push(`${peerStr} ${peerVerb} been holding it down. You're back on the board with them today, ${fn}. 🔥`);
@@ -638,6 +645,7 @@ function buildNotification(ctx: NotificationCtx): { title: string; body: string 
       `Nobody's counting the ${daysAway} days you missed, ${fn}. ${modNote}they'll count the one you come back on. ${workLeft}.`,
       `Restart today: ${workLeft} on Day ${dayNumber}. That's all it takes to be back in this thing. 💪`,
       `${daysAway} days is a gap, not a wall. Take ${workLeft} today, ${fn} — climb back in. 🔥`,
+      `Everybody gets knocked down, ${fn}. Getting up is ${workLeft}. 🎶`,
     ];
     if (hasPeers) {
       bodies.push(
