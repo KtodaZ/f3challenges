@@ -109,6 +109,29 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "Debt paid. @{name} cleared Day {day} — {totalReps} reps, books balanced. 🔥 {hashtag}",
     "@{name} doesn't leave holes in the log. Day {day} filled — {totalReps} reps. ✅ {hashtag}",
   ],
+  // 2nd+ full day finished in one calendar day. {stackedDays} is the running
+  // count including this one, so these read as an escalating story in the feed.
+  stacked: [
+    "@{name} has now put away {stackedDays} full days in one day. Day {day} — {totalReps} reps. 🧱 {hashtag}",
+    "That's {stackedDays} days today for @{name}. Most PAX are working on one. 🔥 {hashtag}",
+    "@{name} isn't stopping — {stackedDays} days knocked out in a single day. Day {day}, {totalReps} reps. 💪 {hashtag}",
+    "{stackedDays} days. One day. @{name} just cleared Day {day} too. 🧱 {hashtag}",
+    "Somebody check the log — @{name} is {stackedDays} days deep TODAY. Day {day}, {totalReps} reps. 🔥 {hashtag}",
+    "@{name} said one day wasn't enough. {stackedDays} in the books today. Day {day} ✅ {hashtag}",
+    "Day {day} joins the pile — that's {stackedDays} full days @{name} has finished today. 💪 {hashtag}",
+    "@{name} is erasing the whole gap in one sitting. {stackedDays} days done today. 🔥 {hashtag}",
+  ],
+  // First day back after 3+ required days missed. {daysAway} is that gap.
+  comeback: [
+    "@{name} is back. {daysAway} days out, and Day {day} is on the board — {totalReps} reps. 🔥 {hashtag}",
+    "Look who's back. @{name} logged Day {day} after {daysAway} days away. {totalReps} reps. 💪 {hashtag}",
+    "@{name} came back for it. {daysAway} days out didn't finish them — Day {day}, {totalReps} reps. 🔥 {hashtag}",
+    "That's a comeback. @{name} — Day {day}, {totalReps} reps, first one back after {daysAway} days. 💪 {hashtag}",
+    "Welcome back @{name}. {totalReps} reps on Day {day}. The hard part was starting again. 🔥 {hashtag}",
+    "@{name} could've stayed gone. Instead: Day {day}, {totalReps} reps. That's the whole point. 💪 {hashtag}",
+    "{daysAway} days is a gap, not an ending. @{name} proved it — Day {day} done. 🔥 {hashtag}",
+    "@{name} is back on the board after {daysAway} days. {totalReps} reps, Day {day}. Give the man a shoutout. 💪 {hashtag}",
+  ],
   regular: [
     "@{name} just put in the work — Day {day}/{totalDays}, {totalReps} reps done. 💪 {hashtag}",
     "@{name} is accelerating — Day {day}/{totalDays}, {totalReps} reps down. 🔥 {hashtag}",

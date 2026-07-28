@@ -112,6 +112,11 @@ export interface FeedPostVars {
   daysLeft: number
   percent: number
   weekNumber?: number
+  // Set only for the `stacked` section — full days finished today, including
+  // this one.
+  stackedDays?: number
+  // Set only for the `comeback` section — required days missed before today.
+  daysAway?: number
 }
 
 export interface NotificationVars {
@@ -141,6 +146,10 @@ export interface ChallengeTemplateCopy {
     threeQuarter?: string[]
     makeUp?: string[]
     regular?: string[]
+    // 2nd+ full day finished in the same calendar day
+    stacked?: string[]
+    // first day back after 3+ required days missed
+    comeback?: string[]
   }
 
   notification?: {

@@ -586,6 +586,112 @@ export function getTodayPT(): string {
     .toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 }
 
+/** PT calendar date (YYYY-MM-DD) of an ISO timestamp; null if missing/invalid. */
+export function ptDateOf(iso?: string): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+}
+
+/**
+ * Required challenge days a PAX skipped between their last completed day and
+ * `until`, both exclusive. Rest days never count against anyone, so a holiday
+ * can't make someone look like they went missing. Used by the "comeback" copy
+ * on both the feed and the push notifications — keep it in one place so the
+ * two never disagree about who's been away.
+ */
+export function daysMissedBetween(
+  challenge: ChallengeTemplate,
+  lastDone: string,
+  until: string,
+): number {
+  return getChallengeDates(challenge)
+    .filter(d => d > lastDone && d < until && !isRestDay(challenge, d))
+    .length
+}
+
+/** A PAX's standing on the rep board. */
+export interface Standing {
+  id: string
+  name: string
+  reps: number
+}
+
+/**
+ * Who a PAX overtook when their rep total went from `repsBefore` to
+ * `repsAfter`, nearest first.
+ *
+ * Anyone level with them beforehand counts as passed — breaking a tie by
+ * pulling ahead is an overtake. Returns nothing when the total didn't move,
+ * so re-saving a finished day can't manufacture a pass.
+ */
+export function paxPassed(
+  standings: Standing[],
+  moverId: string,
+  repsBefore: number,
+  repsAfter: number,
+): Standing[] {
+  if (repsAfter <= repsBefore) return []
+  return standings
+    .filter(s => s.id !== moverId && s.reps >= repsBefore && s.reps < repsAfter)
+    .sort((a, b) => b.reps - a.reps)
+}
+
+/**
+ * A PAX counts as "away" once they've skipped this many required days in a
+ * row. Shared by the comeback feed post and the comeback push notification —
+ * if these ever drifted apart, the feed would welcome someone back on a day
+ * the reminder still treated as business as usual.
+ */
+export const AWAY_THRESHOLD = 3
+
+/** The parts of a daily log that say when it was finished. Every timestamp is
+ *  optional — logs written by older builds may carry none of them, and those
+ *  simply don't count toward either signal. */
+export interface CompletionLogInput {
+  completionFraction: number
+  loggedAt?: string
+  updatedAt?: string
+  completedAt?: string
+}
+
+/** When a day was actually finished — matches the same-day stack badges. */
+export function logFinishedAt(log: CompletionLogInput): string | undefined {
+  return log.completedAt ?? log.updatedAt ?? log.loggedAt
+}
+
+/**
+ * Personal context behind the "stacked" and "comeback" copy: how many full
+ * days this PAX finished during `today`, and how many required days they'd
+ * been away before it.
+ *
+ * Both are measured by when a day was *finished*, not which challenge day it
+ * was. Someone who spent yesterday backfilling Day 3 was active yesterday —
+ * measuring by the log's own date would call them a week absent.
+ *
+ * Shared by the completion feed post and the push notifications so the two can
+ * never disagree about who stacked or who's been gone.
+ */
+export function completionContext(
+  challenge: ChallengeTemplate,
+  logs: CompletionLogInput[],
+  today: string,
+): { stackedDays: number; daysAway: number } {
+  let stackedDays = 0
+  let lastActive: string | null = null
+  for (const log of logs) {
+    if (log.completionFraction < 1) continue
+    const doneOn = ptDateOf(logFinishedAt(log))
+    if (doneOn === today) stackedDays++
+    else if (doneOn && (!lastActive || doneOn > lastActive)) lastActive = doneOn
+  }
+  return {
+    stackedDays,
+    daysAway: lastActive ? daysMissedBetween(challenge, lastActive, today) : 0,
+  }
+}
+
 // ─── Weekly scoping ─────────────────────────────────────────────────────────
 // The leaderboard's "This Week" view and the weekly competitive notifications
 // both slice the challenge by calendar week. A fresh weekly board every Sunday

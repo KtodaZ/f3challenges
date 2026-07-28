@@ -24,6 +24,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Knock out more than one day in a single day — today plus a makeup or three — and your next reminder actually says so: “Triple Threat: 3 full days in one day.”',
       'Been away for a few days? Your reminders now know it. Miss 3+ days and you’ll get a come-back-in nudge instead of the usual one, and the day you return the app says welcome back instead of pretending nothing happened.',
       'Competitive nudges (if you have them on) now call a photo finish: when the PAX ahead of or behind you is within striking distance, you get “8 reps. That’s all that separates you” instead of a generic standings update.',
+      'The feed knows about stacks and comebacks too. Knock out three days in one day and the posts build on each other instead of repeating — “@PAX has now put away 3 full days in one day.” Come back after time off and the post says so.',
+      'New leaderboard posts: when your reps actually move you past someone on the board, the feed calls it — “@PAX just passed @OtherPAX on the board — by a single rep.” Once per PAX per day, so nobody can spam it.',
       'A pile of new reminder and feed-post variations, so the same message stops showing up twice in a week.',
       'Fixed reminders that started mid-sentence in lowercase — “the dead hang, standard merkins, and LBCs on Day 2 — don’t let it pile up” now reads like a sentence.',
     ],

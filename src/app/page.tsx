@@ -34,6 +34,8 @@ import {
   isRestDay,
   conditionalRestApplies,
   getChallengeDates,
+  completionContext,
+  AWAY_THRESHOLD,
   getCurrentBonusWeek,
   getBonusWeekFeedPost,
   CHALLENGES,
@@ -86,6 +88,11 @@ function buildDailyCompleteMessage(
   totalReps: number,
   exerciseCount: number,
   isMakeUp: boolean,
+  // Full days finished today including this one — 2+ tells the stacked story
+  // instead of posting the same "made up a day" line three times in a row.
+  stackedDays: number,
+  // Required days missed before today; 3+ makes this a comeback post.
+  daysAway: number,
 ): string {
   const totalDays = getTotalDays(challenge)
   const { quarter: quarterDay, half: halfDay, threeQuarter: threeQuarterDay } = getMilestoneDays(challenge)
@@ -96,6 +103,8 @@ function buildDailyCompleteMessage(
   else if (!isMakeUp && day === quarterDay) section = 'quarter'
   else if (!isMakeUp && day === halfDay) section = 'half'
   else if (!isMakeUp && day === threeQuarterDay) section = 'threeQuarter'
+  else if (stackedDays >= 2) section = 'stacked'
+  else if (daysAway >= AWAY_THRESHOLD) section = 'comeback'
   else if (isMakeUp) section = 'makeUp'
   else section = 'regular'
 
@@ -115,6 +124,8 @@ function buildDailyCompleteMessage(
     daysLeft: totalDays - day,
     percent: Math.round((day / totalDays) * 100),
     weekNumber,
+    stackedDays,
+    daysAway,
   }
 
   return buildFeedPost(challenge, section, vars)
@@ -483,6 +494,7 @@ export default function HomePage() {
       const wasComplete = !!(existingLog && existingLog.completionFraction >= 1)
       if (overallFraction >= 1 && !wasComplete) {
         const dayNum = getDayNumber(challenge, date) ?? 1
+        const { stackedDays, daysAway } = completionContext(challenge, updatedLogs, today)
         const content = buildDailyCompleteMessage(
           challenge,
           currentUser.displayName,
@@ -490,6 +502,8 @@ export default function HomePage() {
           target.totalReps,
           challenge.exercises.length,
           isMakeUp,
+          stackedDays,
+          daysAway,
         )
         await createFeedPostOnce(stripUndefined({
           id: `daily_complete_${currentUser.id}_${date}`,
