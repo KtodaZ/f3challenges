@@ -61,6 +61,8 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "Day 1 of {totalDays}. @{name} didn't negotiate — {totalReps} reps, straight to work. 💪 {hashtag}",
     "@{name} is on the board for {challengeName}. Day 1, {totalReps} reps. {totalDays} to go. 🔥 {hashtag}",
     "It starts. @{name} put {totalReps} reps on Day 1 of {hashtag}. 💪",
+    "A new hope. @{name} opened {challengeName} with {totalReps} reps on Day 1. ⭐ {hashtag}",
+    "And so it begins. @{name} — Day 1 of {totalDays}, {totalReps} reps. 🧙 {hashtag}",
   ],
   quarter: [
     "One quarter down. @{name} has cleared {day} of {totalDays} days — {totalReps} reps today and no signs of stopping. 💪 {hashtag}",
@@ -81,6 +83,8 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "The halfway point belongs to @{name}. Day {day} of {totalDays} done — {totalReps} reps, no quit in sight. {hashtag} 💪",
     "Halfway is where most guys fold. @{name} logged {totalReps} reps instead. Day {day}. 🔥 {hashtag}",
     "@{name} is 50% through {challengeName} and picking up speed. Day {day}, {totalReps} reps. 💪 {hashtag}",
+    "Whoa, @{name} is halfway there. Livin' on a prayer and {totalReps} reps. Day {day}/{totalDays}. 🎸 {hashtag}",
+    "Day {day}: the summit. @{name} looked at the other half of {challengeName} and shrugged. {totalReps} reps. 🏔️ {hashtag}",
   ],
   threeQuarter: [
     "@{name} is in the home stretch — Day {day}/{totalDays}, {totalReps} reps. 75% through {challengeName}. Finish what you started. 🔥 {hashtag}",
@@ -91,6 +95,7 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "Day {day} of {totalDays} — @{name} has {daysLeft} days left to finish what they started. {totalReps} reps logged. 💪 {hashtag}",
     "75% down, {daysLeft} days standing. @{name} — Day {day}, {totalReps} reps. 🔥 {hashtag}",
     "@{name} can see the finish line from here. Day {day}/{totalDays}, {totalReps} reps. Close it out. 💪 {hashtag}",
+    "@{name} can taste it. Day {day}, {totalReps} reps, {daysLeft} days between them and done. 🔥 {hashtag}",
   ],
   makeUp: [
     "@{name} went back and made up Day {day} — {totalReps} reps. No unfinished business. 💪 {hashtag}",
@@ -108,6 +113,10 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "@{name} went back for Day {day} instead of letting it rot. {totalReps} reps. That's the whole game. 💪 {hashtag}",
     "Debt paid. @{name} cleared Day {day} — {totalReps} reps, books balanced. 🔥 {hashtag}",
     "@{name} doesn't leave holes in the log. Day {day} filled — {totalReps} reps. ✅ {hashtag}",
+    "\"I'll be back,\" said @{name} about Day {day}. And they were. {totalReps} reps. 🤖 {hashtag}",
+    "Life finds a way. So did @{name} — Day {day} backfilled, {totalReps} reps. 🦖 {hashtag}",
+    "@{name} got knocked down, but they got up again. Day {day} made up — {totalReps} reps. 🎶 {hashtag}",
+    "Day {day} thought it got away. @{name} had other plans — {totalReps} reps. 🎯 {hashtag}",
   ],
   // 2nd+ full day finished in one calendar day. {stackedDays} is the running
   // count including this one, so these read as an escalating story in the feed.
@@ -120,6 +129,9 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "@{name} said one day wasn't enough. {stackedDays} in the books today. Day {day} ✅ {hashtag}",
     "Day {day} joins the pile — that's {stackedDays} full days @{name} has finished today. 💪 {hashtag}",
     "@{name} is erasing the whole gap in one sitting. {stackedDays} days done today. 🔥 {hashtag}",
+    "We're gonna need a bigger log. @{name} finished {stackedDays} days today. 🦈 {hashtag}",
+    "THIS. IS. BEDROCK. @{name} — {stackedDays} full days in a single day. ⚔️ {hashtag}",
+    "@{name} is kind of a big deal. {stackedDays} days knocked out today. 📺 {hashtag}",
   ],
   // First day back after 3+ required days missed. {daysAway} is that gap.
   comeback: [
@@ -131,6 +143,10 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "@{name} could've stayed gone. Instead: Day {day}, {totalReps} reps. That's the whole point. 💪 {hashtag}",
     "{daysAway} days is a gap, not an ending. @{name} proved it — Day {day} done. 🔥 {hashtag}",
     "@{name} is back on the board after {daysAway} days. {totalReps} reps, Day {day}. Give the man a shoutout. 💪 {hashtag}",
+    "Back in black. @{name} returned after {daysAway} days — Day {day}, {totalReps} reps. 🖤 {hashtag}",
+    "Cue the Rocky music. @{name} is back after {daysAway} days — Day {day}, {totalReps} reps. 🥊 {hashtag}",
+    "@{name} got knocked down and got right back up. {daysAway} days out, Day {day} logged. 🎶 {hashtag}",
+    "The prodigal PAX returns. @{name} — {daysAway} days away, {totalReps} reps back on the board. 🔥 {hashtag}",
   ],
   regular: [
     "@{name} just put in the work — Day {day}/{totalDays}, {totalReps} reps done. 💪 {hashtag}",
@@ -180,6 +196,22 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "{totalReps} reps across {exerciseCount} movements. @{name} on Day {day}. That's the standard. 💪 {hashtag}",
     "@{name} clocked in for Day {day}. {totalReps} reps, no negotiation. 🔥 {hashtag}",
     "Day {day}: handled. @{name}, {totalReps} reps. Who's joining? 💪 {hashtag}",
+    "Knees weak, arms heavy — @{name} came through on Day {day} anyway. {totalReps} reps. 🍝 {hashtag}",
+    "This is the way. @{name} — Day {day}, {totalReps} reps. 🪖 {hashtag}",
+    "One does not simply skip Day {day}. @{name} — {totalReps} reps. 💍 {hashtag}",
+    "Are you not entertained? @{name} — Day {day}, {totalReps} reps. ⚔️ {hashtag}",
+    "@{name} felt the need. The need for reps. Day {day}: {totalReps} of them. ✈️ {hashtag}",
+    "Clear eyes, full hearts, {totalReps} reps. @{name} on Day {day}. 🏈 {hashtag}",
+    "The Dude abides. So does @{name} — Day {day}, {totalReps} reps. 🎳 {hashtag}",
+    "Eye of the tiger, {totalReps} reps in the log. @{name}, Day {day}. 🐅 {hashtag}",
+    "Wax on, wax off, {totalReps} reps. @{name} — Day {day}. 🥋 {hashtag}",
+    "@{name} don't stop believin'. Day {day}, {totalReps} reps. 🎤 {hashtag}",
+    "Shake and bake. @{name} — Day {day}, {totalReps} reps. 🏎️ {hashtag}",
+    "You're killin' me, Smalls. @{name} logged Day {day} before most of us were up. {totalReps} reps. ⚾ {hashtag}",
+    "@{name} came, saw, and did {totalReps} reps. Day {day}. 🏛️ {hashtag}",
+    "Herb Brooks said \"again.\" @{name} said fine. Day {day}, {totalReps} reps. 🏒 {hashtag}",
+    "@{name} just did {totalReps} reps and still has to go to work tomorrow. Legend. Day {day}. 💼 {hashtag}",
+    "{totalReps} reps for @{name} on Day {day}. Somewhere, a couch sits empty. 🛋️ {hashtag}",
   ],
 }
 
@@ -271,6 +303,7 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "You're halfway through {challengeName}, {fn}. Day {dayNumber} done. The back half is where it gets decided.",
       "Day {dayNumber} of {totalDays} — half of {challengeName} behind you. Stay locked in for the finish.",
       "Halfway is where most guys fold. You logged Day {dayNumber} instead. 🔥 {daysRemaining} to go.",
+      "Whoa, you're halfway there. Day {dayNumber} done, {daysRemaining} to go. 🎸",
     ],
   },
   halfPending: {
