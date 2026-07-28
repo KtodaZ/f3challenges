@@ -14,6 +14,10 @@ import {
   getChallengeDates,
   getWeekStartPT,
   getCurrentWeekDates,
+  ptDateOf,
+  daysMissedBetween,
+  completionContext,
+  paxPassed,
 } from './challenges'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -469,5 +473,161 @@ describe('getCurrentWeekDates', () => {
     // only in-challenge dates count.
     const dates = getCurrentWeekDates(JUL, '2026-07-02')
     expect(dates).toEqual(['2026-07-01', '2026-07-02'])
+  })
+})
+
+// ─── ptDateOf ─────────────────────────────────────────────────────────────────
+
+describe('ptDateOf', () => {
+  it('returns the PT calendar date of an ISO timestamp', () => {
+    expect(ptDateOf('2026-07-15T18:00:00.000Z')).toBe('2026-07-15')
+  })
+
+  it('rolls back a day for UTC timestamps that are still "yesterday" in PT', () => {
+    // 01:30 UTC on the 16th is 18:30 PT on the 15th
+    expect(ptDateOf('2026-07-16T01:30:00.000Z')).toBe('2026-07-15')
+  })
+
+  it('returns null for missing or unparseable input', () => {
+    expect(ptDateOf(undefined)).toBeNull()
+    expect(ptDateOf('')).toBeNull()
+    expect(ptDateOf('not a date')).toBeNull()
+  })
+})
+
+// ─── daysMissedBetween ────────────────────────────────────────────────────────
+
+describe('daysMissedBetween', () => {
+  it('counts nothing when the days are adjacent', () => {
+    expect(daysMissedBetween(APR, '2026-04-10', '2026-04-11')).toBe(0)
+  })
+
+  it('counts the days strictly between, excluding both ends', () => {
+    // 11th–14th missed
+    expect(daysMissedBetween(APR, '2026-04-10', '2026-04-15')).toBe(4)
+  })
+
+  it('does not count rest days against a PAX', () => {
+    // 24th, 26th missed — the 25th is a rest day
+    expect(daysMissedBetween(MAY, '2026-05-23', '2026-05-27')).toBe(2)
+  })
+
+  it('ignores dates outside the challenge window', () => {
+    expect(daysMissedBetween(APR, '2026-03-20', '2026-04-03')).toBe(2)
+  })
+
+  it('returns 0 when the dates are equal or reversed', () => {
+    expect(daysMissedBetween(APR, '2026-04-10', '2026-04-10')).toBe(0)
+    expect(daysMissedBetween(APR, '2026-04-15', '2026-04-10')).toBe(0)
+  })
+})
+
+// ─── completionContext ────────────────────────────────────────────────────────
+
+describe('completionContext', () => {
+  // Noon PT on the given date, expressed as the UTC instant Firestore stores.
+  const noonPT = (date: string) => `${date}T19:00:00.000Z`
+  const log = (date: string, finishedOn: string, fraction = 1) => ({
+    completionFraction: fraction,
+    loggedAt: noonPT(finishedOn),
+    date,
+  })
+
+  it('counts every day finished today, however old the day itself is', () => {
+    // Today they did Day 28 plus makeups of Days 20 and 21
+    const logs = [
+      log('2026-04-28', '2026-04-28'),
+      log('2026-04-20', '2026-04-28'),
+      log('2026-04-21', '2026-04-28'),
+      log('2026-04-27', '2026-04-27'),
+    ]
+    expect(completionContext(APR, logs, '2026-04-28').stackedDays).toBe(3)
+  })
+
+  it('ignores partial days', () => {
+    const logs = [log('2026-04-28', '2026-04-28'), log('2026-04-27', '2026-04-28', 0.5)]
+    expect(completionContext(APR, logs, '2026-04-28').stackedDays).toBe(1)
+  })
+
+  it('prefers completedAt over the other timestamps', () => {
+    const logs = [{
+      completionFraction: 1,
+      loggedAt: noonPT('2026-04-20'),
+      updatedAt: noonPT('2026-04-25'),
+      completedAt: noonPT('2026-04-28'),
+    }]
+    expect(completionContext(APR, logs, '2026-04-28').stackedDays).toBe(1)
+  })
+
+  it('reports no gap for a PAX who logged yesterday', () => {
+    const logs = [log('2026-04-27', '2026-04-27')]
+    expect(completionContext(APR, logs, '2026-04-28').daysAway).toBe(0)
+  })
+
+  it('measures the gap from when they were last active', () => {
+    // Last finished anything on the 22nd — 23rd through 27th missed
+    const logs = [log('2026-04-22', '2026-04-22')]
+    expect(completionContext(APR, logs, '2026-04-28').daysAway).toBe(5)
+  })
+
+  it('does not call someone absent for backfilling old days recently', () => {
+    // They were away for ages but spent yesterday making up Day 3 — the log's
+    // own date is ancient, yet they were active yesterday.
+    const logs = [log('2026-04-03', '2026-04-27')]
+    expect(completionContext(APR, logs, '2026-04-28').daysAway).toBe(0)
+  })
+
+  it('reports no gap for a PAX who has never completed a day', () => {
+    expect(completionContext(APR, [], '2026-04-28').daysAway).toBe(0)
+    expect(completionContext(APR, [log('2026-04-27', '2026-04-27', 0.4)], '2026-04-28').daysAway).toBe(0)
+  })
+
+  it('skips rest days when measuring the gap', () => {
+    // Active on the 23rd, today is the 27th: 24th and 26th count, 25th rests
+    const logs = [log('2026-05-23', '2026-05-23')]
+    expect(completionContext(MAY, logs, '2026-05-27').daysAway).toBe(2)
+  })
+
+  it('tolerates logs with no timestamps at all', () => {
+    const logs = [{ completionFraction: 1 }]
+    expect(completionContext(APR, logs, '2026-04-28')).toEqual({ stackedDays: 0, daysAway: 0 })
+  })
+})
+
+// ─── paxPassed ────────────────────────────────────────────────────────────────
+
+describe('paxPassed', () => {
+  const board = [
+    { id: 'a', name: 'Airmail',   reps: 500 },
+    { id: 'b', name: 'Big Daddy', reps: 420 },
+    { id: 'c', name: 'Snuggles',  reps: 400 },
+    { id: 'm', name: 'Splice',    reps: 380 },
+    { id: 'd', name: 'Doc',       reps: 300 },
+  ]
+
+  it('returns everyone the mover jumped, nearest first', () => {
+    // 380 → 450 clears Snuggles (400) and Big Daddy (420) but not Airmail (500)
+    expect(paxPassed(board, 'm', 380, 450).map(p => p.name)).toEqual(['Big Daddy', 'Snuggles'])
+  })
+
+  it('returns nothing when the mover stayed put in the order', () => {
+    expect(paxPassed(board, 'm', 380, 395)).toEqual([])
+  })
+
+  it('counts breaking a tie as a pass', () => {
+    expect(paxPassed(board, 'm', 400, 410).map(p => p.name)).toEqual(['Snuggles'])
+  })
+
+  it('never reports the mover passing themselves', () => {
+    expect(paxPassed(board, 'm', 100, 600).map(p => p.id)).not.toContain('m')
+  })
+
+  it('returns nothing when the total did not move or went backwards', () => {
+    expect(paxPassed(board, 'm', 380, 380)).toEqual([])
+    expect(paxPassed(board, 'm', 450, 380)).toEqual([])
+  })
+
+  it('handles passing the whole board', () => {
+    expect(paxPassed(board, 'm', 0, 9999)).toHaveLength(4)
   })
 })

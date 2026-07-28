@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest } from "firebase-functions/v2/https";
 // import { defineSecret } from "firebase-functions/params"; // ← uncomment on AI recap activation
@@ -12,8 +12,9 @@ import {
   getMilestoneDays,
   getTodayPT,
   getWeekStartPT,
-  getChallengeDates,
-  isRestDay,
+  completionContext,
+  paxPassed,
+  AWAY_THRESHOLD,
   getDailyTarget,
   getNotificationTemplates,
   renderNotification,
@@ -36,6 +37,7 @@ interface FeedPost {
   content: string;
   hashtags: string[];
   mentions: string[]; // user IDs
+  challengeId?: string;
   targetUserId?: string;
   createdAt: string;
   deleted: boolean;
@@ -81,6 +83,7 @@ interface DailyLog {
   completionFraction: number;
   date: string;
   userId: string;
+  challengeId?: string;
   exerciseLogs?: ExerciseLogEntry[];
   isMakeUp?: boolean;
   loggedAt?: string;   // ISO — first write for this day
@@ -299,6 +302,123 @@ export const onUserCreated = onDocumentCreated(
 );
 
 // ---------------------------------------------------------------------------
+// onDailyLogCompleted — leaderboard overtake posts
+//
+// Fires when a daily log crosses into 100%. If those reps moved the PAX past
+// somebody on the month-long rep board, the feed gets a post about it.
+//
+// Why a Cloud Function and not the client: the pass is only knowable from
+// *everyone's* logs, and the client that writes the completion only holds its
+// own. Server-side also means one write regardless of who's got the app open.
+//
+// Spam control: the post id is `overtake_{userId}_{PT date}`, so a PAX
+// generates at most one of these a day no matter how many days they stack.
+// ---------------------------------------------------------------------------
+
+function overtakePost(name: string, passedNames: string[], gap: number, hashtag: string): string {
+  const passed = passedNames.length === 1
+    ? `@${passedNames[0]}`
+    : passedNames.length === 2
+      ? `@${passedNames[0]} and @${passedNames[1]}`
+      : `@${passedNames[0]} and ${passedNames.length - 1} others`;
+  const templates = [
+    `@${name} just passed ${passed} on the board — ${gap === 1 ? "by a single rep" : `by ${gap} reps`}. 🔥 ${hashtag}`,
+    `Movement on the leaderboard: @${name} climbed past ${passed}. 📈 ${hashtag}`,
+    `@${name} went by ${passed} like they were standing still. 🔥 ${hashtag}`,
+    `Board update — @${name} is now ahead of ${passed}. Your move. 💪 ${hashtag}`,
+    `${passed} just got passed by @${name}. The board doesn't lie. 🏁 ${hashtag}`,
+    `@${name} just took a spot off ${passed}. That's what showing up does. 🔥 ${hashtag}`,
+  ];
+  return templates[Math.floor(Math.random() * templates.length)];
+}
+
+export const onDailyLogCompleted = onDocumentWritten(
+  "dailyLogs/{logId}",
+  async (event) => {
+    const before = event.data?.before?.data() as DailyLog | undefined;
+    const after  = event.data?.after?.data() as DailyLog | undefined;
+
+    // Only the moment a day crosses into complete — every other write (partial
+    // quick-taps, edits to an already-finished day) exits before any read.
+    if (!after || after.completionFraction < 1) return;
+    if (before && before.completionFraction >= 1) return;
+
+    const challenge = after.challengeId ? getChallengeById(after.challengeId) : undefined;
+    if (!challenge) return;
+
+    const db = admin.firestore();
+    const today = getTodayPT();
+    // Only for the challenge that's actually running — backfilling a finished
+    // month shouldn't announce movement on a board nobody is watching.
+    if (getChallengeForDate(today)?.id !== challenge.id) return;
+    const postId = `overtake_${after.userId}_${today}`;
+    // Cheap bail-out before the expensive reads: one overtake post per PAX per day.
+    if ((await db.doc(`feed/${postId}`).get()).exists) return;
+
+    const [logsSnap, usersSnap, partSnap] = await Promise.all([
+      db.collection("dailyLogs").where("challengeId", "==", challenge.id).get(),
+      db.collection("users").get(),
+      db.collection("participation").where("challengeId", "==", challenge.id).get(),
+    ]);
+
+    const optedOut = new Set(
+      partSnap.docs
+        .filter(d => (d.data() as ChallengeParticipation).status === "opted-out")
+        .map(d => (d.data() as ChallengeParticipation).userId)
+    );
+    if (optedOut.has(after.userId)) return;
+
+    const repsOf = (log: DailyLog) => (log.exerciseLogs ?? []).reduce((s, el) => s + el.completedReps, 0);
+    const repsByUser = new Map<string, number>();
+    for (const doc of logsSnap.docs) {
+      const log = doc.data() as DailyLog;
+      if (optedOut.has(log.userId)) continue;
+      repsByUser.set(log.userId, (repsByUser.get(log.userId) ?? 0) + repsOf(log));
+    }
+
+    // What this write actually added, so we know where they stood a moment ago.
+    const gained = repsOf(after) - (before ? repsOf(before) : 0);
+    if (gained <= 0) return;
+    const repsAfter  = repsByUser.get(after.userId) ?? 0;
+    const repsBefore = repsAfter - gained;
+
+    // Only PAX who are actually on the board. Without this, the first PAX to
+    // log on Day 1 "passes" every single person sitting on zero.
+    const standings = usersSnap.docs
+      .filter(d => !optedOut.has(d.id))
+      .map(d => ({ id: d.id, name: (d.data() as User).displayName, reps: repsByUser.get(d.id) ?? 0 }))
+      .filter(s => s.reps > 0);
+    const passed = paxPassed(standings, after.userId, repsBefore, repsAfter);
+    if (passed.length === 0) return;
+
+    const author = await getUser(after.userId);
+    if (!author) return;
+
+    const content = overtakePost(
+      author.displayName,
+      passed.map(p => p.name),
+      repsAfter - passed[0].reps,
+      challenge.hashtag,
+    );
+    const post: FeedPost = {
+      id: postId,
+      type: "system",
+      authorId: "system",
+      content,
+      hashtags: [challenge.hashtag.replace(/^#/, "")],
+      mentions: [after.userId, ...passed.map(p => p.id)],
+      challengeId: challenge.id,
+      createdAt: new Date().toISOString(),
+      deleted: false,
+    };
+    await db.doc(`feed/${postId}`).create(post).catch(() => {
+      // create() fails if a concurrent write already posted it — that's the point.
+    });
+    console.log(`[overtake] ${author.displayName} passed ${passed.map(p => p.name).join(", ")}`);
+  }
+);
+
+// ---------------------------------------------------------------------------
 // sendScheduledNotifications — runs every 10 min, PT timezone
 // Checks each user's preferred notification times and sends algorithmic
 // push notifications to those due within the current window.
@@ -323,31 +443,6 @@ function pick<T>(arr: T[], seed: number): T {
 function firstName(name: string): string {
   return name.split(" ")[0];
 }
-
-/** PT calendar date (YYYY-MM-DD) of an ISO timestamp; null if missing/invalid. */
-function ptDateOf(iso?: string): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-}
-
-/** When a day was actually finished — matches how the stack badges count. */
-function finishedAt(log: DailyLog): string | undefined {
-  return log.completedAt ?? log.updatedAt ?? log.loggedAt;
-}
-
-// Challenge days a PAX skipped between their last completed day and today.
-// Rest days don't count against anyone, so they never inflate a "you've been
-// away" nudge.
-function daysMissedBetween(challenge: ChallengeTemplate, lastDone: string, today: string): number {
-  return getChallengeDates(challenge)
-    .filter(d => d > lastDone && d < today && !isRestDay(challenge, d))
-    .length;
-}
-
-// A PAX is "away" once they've skipped this many required days in a row.
-const AWAY_THRESHOLD = 3;
 
 // The "what's left today" phrases are lowercase fragments ("the dead hang,
 // standard merkins, and LBCs") and plenty of templates drop them at the start
@@ -1204,11 +1299,9 @@ export const sendScheduledNotifications = onSchedule(
     const weekStart = getWeekStartPT(today);
     const repsByUser = new Map<string, number>();
     const weeklyRepsByUser = new Map<string, number>();
-    // Same pass also builds the personal history the smart notifications need:
-    // when each PAX last finished a day, and how many days they've knocked out
-    // during today (today + makeups).
-    const lastDoneBefore = new Map<string, string>();
-    const stackedTodayByUser = new Map<string, number>();
+    // Same pass also collects each PAX's logs so the smart notifications can
+    // ask the shared helper who stacked days and who's been away.
+    const logsByUser = new Map<string, DailyLog[]>();
     for (const doc of allLogsSnap.docs) {
       const log = doc.data() as DailyLog;
       if (optedOutIds.has(log.userId)) continue;
@@ -1217,16 +1310,8 @@ export const sendScheduledNotifications = onSchedule(
       if (log.date >= weekStart) {
         weeklyRepsByUser.set(log.userId, (weeklyRepsByUser.get(log.userId) ?? 0) + reps);
       }
-      if (log.completionFraction < 1) continue;
-      if (log.date < today) {
-        const prev = lastDoneBefore.get(log.userId);
-        if (!prev || log.date > prev) lastDoneBefore.set(log.userId, log.date);
-      }
-      // Counted by when the day was finished, not which day it was — same rule
-      // the Double Duty / Triple Threat badges use.
-      if (ptDateOf(finishedAt(log)) === today) {
-        stackedTodayByUser.set(log.userId, (stackedTodayByUser.get(log.userId) ?? 0) + 1);
-      }
+      const forUser = logsByUser.get(log.userId);
+      if (forUser) forUser.push(log); else logsByUser.set(log.userId, [log]);
     }
     const activeRoster = activeUsers.map(u => ({ id: u.id, displayName: u.displayName }));
     const rankByUser     = buildStandings(activeRoster, repsByUser);
@@ -1314,10 +1399,10 @@ export const sendScheduledNotifications = onSchedule(
           const repsPerExercise = todayTarget.repsPerExercise;
 
           // Smart-notification context: how long they've been gone, and how
-          // many days they've stacked today.
-          const lastDone    = lastDoneBefore.get(user.id);
-          const daysAway    = lastDone ? daysMissedBetween(challenge, lastDone, today) : 0;
-          const stackedDays = stackedTodayByUser.get(user.id) ?? 0;
+          // many days they've stacked today. Same helper the feed post uses.
+          const { stackedDays, daysAway } = completionContext(
+            challenge, logsByUser.get(user.id) ?? [], today,
+          );
           if (daysAway >= AWAY_THRESHOLD || stackedDays >= 2) {
             console.log(`[notify]   → smart context: daysAway=${daysAway} stackedDays=${stackedDays}`);
           }
@@ -1481,20 +1566,13 @@ export const sendTestPush = onRequest(
 
       // Real comeback / stacked-day context, unless the request overrides it
       // so the copy can be previewed on demand.
-      let lastDone: string | undefined;
-      let realStacked = 0;
-      for (const doc of userLogsSnap.docs) {
-        const log = doc.data() as DailyLog;
-        if (log.completionFraction < 1) continue;
-        if (log.date < today && (!lastDone || log.date > lastDone)) lastDone = log.date;
-        if (ptDateOf(finishedAt(log)) === today) realStacked++;
-      }
-      const stackedDays = typeof stackedOverride === "number"
-        ? stackedOverride
-        : realStacked;
-      const daysAway = typeof awayOverride === "number"
-        ? awayOverride
-        : (lastDone ? daysMissedBetween(challenge, lastDone, today) : 0);
+      const real = completionContext(
+        challenge,
+        userLogsSnap.docs.map(d => d.data() as DailyLog),
+        today,
+      );
+      const stackedDays = typeof stackedOverride === "number" ? stackedOverride : real.stackedDays;
+      const daysAway    = typeof awayOverride    === "number" ? awayOverride    : real.daysAway;
 
       const result = generateNotification({
         challenge,
