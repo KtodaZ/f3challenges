@@ -58,6 +58,9 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "The first rep is always the hardest. @{name} knocked out {totalReps} of them on Day 1. 🔥 {hashtag}",
     "Day 1 of {totalDays} is in the books for @{name}. {totalReps} reps — first of many. 💪 {hashtag}",
     "@{name} is in — Day 1 starts now. {totalReps} reps on the board. Who's next? {hashtag} 🔥",
+    "Day 1 of {totalDays}. @{name} didn't negotiate — {totalReps} reps, straight to work. 💪 {hashtag}",
+    "@{name} is on the board for {challengeName}. Day 1, {totalReps} reps. {totalDays} to go. 🔥 {hashtag}",
+    "It starts. @{name} put {totalReps} reps on Day 1 of {hashtag}. 💪",
   ],
   quarter: [
     "One quarter down. @{name} has cleared {day} of {totalDays} days — {totalReps} reps today and no signs of stopping. 💪 {hashtag}",
@@ -66,6 +69,8 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "Through the first quarter and @{name} hasn't blinked. Day {day}, {totalReps} reps. {daysLeft} days remain. 🔥 {hashtag}",
     "@{name} — Day {day} of {totalDays} means 25% of {challengeName} is behind them. {totalReps} reps down. Who's keeping up? {hashtag}",
     "First quarter logged. @{name} with {totalReps} reps on Day {day} — looking like this might go all the way. 💪 {hashtag}",
+    "@{name} cleared 25% of {challengeName} without flinching. Day {day}, {totalReps} reps. 🔥 {hashtag}",
+    "Quarter mark, and @{name} is still standing. {totalReps} reps on Day {day}. {daysLeft} to go. 💪 {hashtag}",
   ],
   half: [
     "Halfway. @{name} has reached the midpoint of {challengeName} — Day {day}/{totalDays}, {totalReps} reps. The second half starts now. 🔥 {hashtag}",
@@ -74,6 +79,8 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "50% complete. @{name} hit the halfway mark — Day {day}, {totalReps} reps. No looking back now. 💪 {hashtag}",
     "@{name} punched through the midpoint of {hashtag}. {day} down, {daysLeft} to go. {totalReps} reps today — stay hungry.",
     "The halfway point belongs to @{name}. Day {day} of {totalDays} done — {totalReps} reps, no quit in sight. {hashtag} 💪",
+    "Halfway is where most guys fold. @{name} logged {totalReps} reps instead. Day {day}. 🔥 {hashtag}",
+    "@{name} is 50% through {challengeName} and picking up speed. Day {day}, {totalReps} reps. 💪 {hashtag}",
   ],
   threeQuarter: [
     "@{name} is in the home stretch — Day {day}/{totalDays}, {totalReps} reps. 75% through {challengeName}. Finish what you started. 🔥 {hashtag}",
@@ -82,6 +89,8 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "75% done. @{name} — Day {day}, {totalReps} reps. One final push to close this out. 💪 {hashtag}",
     "@{name} with {totalReps} reps on Day {day} — three-quarters of {challengeName} in the books. Don't stop now. 🔥 {hashtag}",
     "Day {day} of {totalDays} — @{name} has {daysLeft} days left to finish what they started. {totalReps} reps logged. 💪 {hashtag}",
+    "75% down, {daysLeft} days standing. @{name} — Day {day}, {totalReps} reps. 🔥 {hashtag}",
+    "@{name} can see the finish line from here. Day {day}/{totalDays}, {totalReps} reps. Close it out. 💪 {hashtag}",
   ],
   makeUp: [
     "@{name} went back and made up Day {day} — {totalReps} reps. No unfinished business. 💪 {hashtag}",
@@ -96,6 +105,9 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "@{name} circled back for Day {day} — {totalReps} reps posted. {challengeName} doesn't have an expiration date. {hashtag}",
     "Day {day} wasn't forgotten. @{name} came back for those {totalReps} reps. No gap in the log. {hashtag}",
     "@{name} refused to leave Day {day} blank. {totalReps} reps — better late than never, and better late than most. {hashtag}",
+    "@{name} went back for Day {day} instead of letting it rot. {totalReps} reps. That's the whole game. 💪 {hashtag}",
+    "Debt paid. @{name} cleared Day {day} — {totalReps} reps, books balanced. 🔥 {hashtag}",
+    "@{name} doesn't leave holes in the log. Day {day} filled — {totalReps} reps. ✅ {hashtag}",
   ],
   regular: [
     "@{name} just put in the work — Day {day}/{totalDays}, {totalReps} reps done. 💪 {hashtag}",
@@ -132,6 +144,19 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "{challengeName} demanded {totalReps} reps today. @{name} delivered. Day {day}/{totalDays}. {hashtag}",
     "@{name} — Day {day} complete. {totalReps} reps, {exerciseCount} exercises, zero quit. Are you in or are you watching? {hashtag}",
     "Another day, another stack. @{name} posted {totalReps} reps on Day {day}. {hashtag}",
+    "@{name} showed up when it would've been easy not to. Day {day}, {totalReps} reps. 💪 {hashtag}",
+    "Day {day} of {totalDays} and @{name} hasn't blinked. {totalReps} reps on the board. 🔥 {hashtag}",
+    "{totalReps} reps, Day {day}. @{name} is building something here. 💪 {hashtag}",
+    "@{name} banked {totalReps} more reps. Day {day}/{totalDays} — the pile keeps growing. 🏋️ {hashtag}",
+    "No shortcuts. @{name} ran the full list on Day {day}. {totalReps} reps. 🔥 {hashtag}",
+    "@{name} is {percent}% deep into {challengeName} and still swinging. Day {day}, {totalReps} reps. 💪 {hashtag}",
+    "Day {day} said no. @{name} said watch this. {totalReps} reps. 🔥 {hashtag}",
+    "@{name} logged Day {day} — {totalReps} reps, {daysLeft} days left to run it back. 💪 {hashtag}",
+    "The work doesn't do itself. @{name} did it. Day {day}, {totalReps} reps. 🏋️ {hashtag}",
+    "@{name} out here quietly stacking days. Day {day}/{totalDays}, {totalReps} reps. 🔥 {hashtag}",
+    "{totalReps} reps across {exerciseCount} movements. @{name} on Day {day}. That's the standard. 💪 {hashtag}",
+    "@{name} clocked in for Day {day}. {totalReps} reps, no negotiation. 🔥 {hashtag}",
+    "Day {day}: handled. @{name}, {totalReps} reps. Who's joining? 💪 {hashtag}",
   ],
 }
 
@@ -152,6 +177,8 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "Day 1 done. The hardest part was starting — you already did that. {daysRemaining} days left.",
       "{fn} opened {challengeName} right. Day 1 complete. Keep this up and the finish line takes care of itself.",
       "The challenge is on. Day 1 is yours, {fn} — {daysRemaining} more to close it out clean.",
+      "One down. {fn} is on the board for {challengeName} — {daysRemaining} days of this left. 🔥",
+      "Day 1 ✅. Everybody starts; you're the one who has to keep going. {daysRemaining} to go, {fn}.",
     ],
   },
   day1Pending: {
@@ -168,6 +195,8 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "First day of {challengeName}. {workRemaining} standing between you and Day 1. Go.",
       "{fn}, Day 1 is now: {workRemaining}. First PAX to finish sets the standard.",
       "It starts today. {workRemaining}, Day 1 of {totalDays}. Lock in, {fn}.",
+      "Day 1 of {challengeName} is live: {workRemaining}. No warm-up month, {fn} — go. 🔥",
+      "{fn}, everybody's Day 1 starts at zero. {workRemaining} to get off it.",
     ],
   },
   quarterCompleted: {
@@ -184,6 +213,7 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "25% complete. Day {dayNumber} done. Three-quarters of {challengeName} still ahead — don't slow down now.",
       "{fn}, you cleared the first quarter. {daysRemaining} days remain. Same energy.",
       "Quarter mark reached. Day {dayNumber} of {totalDays} done — the hardest quarter is behind you.",
+      "25% of {challengeName} is done and dusted. {daysRemaining} days left, {fn} — keep swinging. 🔥",
     ],
   },
   quarterPending: {
@@ -200,6 +230,7 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "Day {dayNumber} of {totalDays}: the first quarter ends today. {workRemaining} — go earn it, {fn}.",
       "{fn}, close the first quarter right. {workRemaining} on Day {dayNumber}. Don't leave it unfinished.",
       "25% milestone. {workRemaining} between you and a clean first quarter. Go, {fn}.",
+      "First quarter closes today: {workRemaining}. Make it a clean 25%, {fn}. 💪",
     ],
   },
   halfCompleted: {
@@ -216,6 +247,7 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "50% complete. Day {dayNumber} logged. The second half of {challengeName} starts now — keep the momentum.",
       "You're halfway through {challengeName}, {fn}. Day {dayNumber} done. The back half is where it gets decided.",
       "Day {dayNumber} of {totalDays} — half of {challengeName} behind you. Stay locked in for the finish.",
+      "Halfway is where most guys fold. You logged Day {dayNumber} instead. 🔥 {daysRemaining} to go.",
     ],
   },
   halfPending: {
@@ -232,6 +264,7 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "Day {dayNumber} of {totalDays}: halfway. {workRemaining} — you either quit now or you don't. Go, {fn}.",
       "{fn}, the halfway line is right there. {workRemaining} on Day {dayNumber}. Cross it.",
       "50% milestone. {workRemaining} between you and the halfway point. Make it count, {fn}.",
+      "Halfway day. {workRemaining} left — cross the line and the back half is all downhill talk. 💪",
     ],
   },
   threeQuarterCompleted: {
@@ -248,6 +281,7 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "Three-quarters of {challengeName} behind you. Day {dayNumber} done. The finish line is real from here.",
       "Day {dayNumber} of {totalDays} — {fn}, you're in the home stretch. {daysRemaining} days. Don't let up.",
       "75% done. Day {dayNumber} checked. {daysRemaining} days between you and a complete {challengeName} — go get it.",
+      "Three-quarters banked. {daysRemaining} days between {fn} and a finished {challengeName}. 🔥",
     ],
   },
   threeQuarterPending: {
@@ -264,6 +298,7 @@ const DEFAULT_NOTIF: Record<keyof Required<NonNullable<ChallengeTemplateCopy['no
       "You're 75% through {challengeName}. {workRemaining} left on Day {dayNumber} — close this out right.",
       "{fn}, {daysRemaining} days after today. {workRemaining} right now. Don't leave the three-quarter mark unfinished.",
       "75% milestone. {workRemaining} on Day {dayNumber}. This is where {challengeName} gets separated from the excuses. Go.",
+      "You didn't grind 75% of {challengeName} to stall here. {workRemaining} on Day {dayNumber}. 🔥",
     ],
   },
 }
