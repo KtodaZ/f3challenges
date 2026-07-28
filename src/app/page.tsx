@@ -17,7 +17,6 @@ import {
   updateUser,
   getLogsForDate,
   createFeedPostOnce,
-  setBadge,
   getBonusLog,
   upsertBonusLog,
   bonusLogId,
@@ -30,7 +29,6 @@ import {
   getDayNumber,
   getTotalDays,
   getMilestoneDays,
-  getRequiredDays,
   isRestDay,
   conditionalRestApplies,
   getChallengeDates,
@@ -39,6 +37,7 @@ import {
   CHALLENGES,
   buildFeedPost,
   getRemainingExercises,
+  trophyFeedPost,
 } from '@/lib/challenges'
 import type { FeedPostVars } from '@/lib/challenges'
 import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak, isChallengeParticipant } from '@/lib/utils'
@@ -57,6 +56,8 @@ import { CelebrationModal } from '@/components/ui/CelebrationModal'
 import { CelebrationOverlay } from '@/components/ui/CelebrationOverlay'
 import type { CelebrationContent } from '@/components/ui/CelebrationOverlay'
 import { NextBadgeCard } from '@/components/home/NextBadgeCard'
+import { TrophyTrackCard } from '@/components/home/TrophyTrackCard'
+import { syncChallengeTrophy } from '@/lib/trophies'
 import { useAchievementEngine } from '@/hooks/useAchievementEngine'
 import {
   buildMilestoneCelebration,
@@ -64,17 +65,18 @@ import {
   buildDebtFreeCelebration,
   buildUnlockCelebration,
   buildMultiUnlockCelebration,
+  buildTrophyCelebration,
 } from '@/lib/celebrations'
 import type {
   User,
   DailyLog,
   ChallengeParticipation,
   ExerciseLog,
-  AchievementBadge,
   AchievementDefinition,
   ChallengeTemplate,
   ChallengeTemplateCopy,
   BonusLog,
+  TrophyTier,
 } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -168,7 +170,7 @@ function NoChallengeView() {
 
 export default function HomePage() {
   const router = useRouter()
-  const { currentUser, allUsers, loading: userLoading } = useUser()
+  const { currentUser, allUsers, loading: userLoading, refreshCurrentUser } = useUser()
 
   const today = getTodayPT()
   const challenge = getCurrentChallenge()
@@ -238,6 +240,9 @@ export default function HomePage() {
   const [celebrationChallenge, setCelebrationChallenge] = useState<ChallengeTemplate | null>(null)
   // Prevents double-modal if saveLog is called twice rapidly on the final day
   const celebrationFiredRef = useRef(false)
+  // Trophy tiers claimed this session, per challenge — the user-doc refresh is
+  // async, so rapid quick-taps would otherwise re-fire a tier that just landed.
+  const claimedTrophyRef = useRef<Map<string, TrophyTier>>(new Map())
 
   // Queue of full-screen dopamine moments (milestones, redemptions, badge
   // unlocks) — shown one at a time, after any challenge-completion modal
@@ -547,27 +552,36 @@ export default function HomePage() {
         }
       }
 
-      // Monthly completion: award badge + celebrate (first time only) + feed post
+      // Trophy tier: 🎖️ → 🥉 50% → 🥈 80% → 🥇 100%. Awarded live and only
+      // ever upgraded, so crossing a threshold mid-month claims it right away.
       const completedDaysCount = updatedLogs.filter(l => l.completionFraction >= 1).length
-      if (completedDaysCount >= getRequiredDays(challenge)) {
-        const alreadyHasBadge = currentUser.badges?.some(
-          b => b.challengeId === challenge.id && b.type === 'completed'
-        )
-        if (!alreadyHasBadge && !celebrationFiredRef.current) {
-          celebrationFiredRef.current = true
-          const badge: AchievementBadge = {
-            challengeId: challenge.id,
-            type: 'completed',
-            awardedAt: new Date().toISOString(),
-          }
-          await setBadge(currentUser.id, badge, currentUser.badges ?? [])
-          setCelebrationChallenge(challenge)
-          setShowCelebration(true)
-        }
-
-        const content = `@${currentUser.displayName} just completed ${challenge.name} — every single day! 🏆 ${challenge.hashtag}`
+      const award = await syncChallengeTrophy(
+        currentUser, challenge, completedDaysCount, claimedTrophyRef.current.get(challenge.id)
+      )
+      if (award) claimedTrophyRef.current.set(challenge.id, award.tier)
+      if (award && award.tier === 'gold' && !celebrationFiredRef.current) {
+        celebrationFiredRef.current = true
+        setCelebrationChallenge(challenge)
+        setShowCelebration(true)
+      } else if (award && (award.tier === 'bronze' || award.tier === 'silver')) {
+        pushCelebrations([buildTrophyCelebration(award.tier, challenge, completedDaysCount)])
+      }
+      if (award) refreshCurrentUser()
+      // Every real rung gets announced, not just the finish — the crew should
+      // see Bronze and Silver land too. 🎖️ Participant stays quiet: day one
+      // already has its own completion post.
+      if (award && award.tier !== 'participant') {
+        const content = trophyFeedPost({
+          userName: currentUser.displayName,
+          challenge,
+          tier: award.tier,
+          completedDays: completedDaysCount,
+        })
         await createFeedPostOnce(stripUndefined({
-          id: `monthly_complete_${currentUser.id}_${challenge.id}`,
+          // Gold keeps its original id so historical posts stay deduped.
+          id: award.tier === 'gold'
+            ? `monthly_complete_${currentUser.id}_${challenge.id}`
+            : `trophy_${award.tier}_${currentUser.id}_${challenge.id}`,
           type: 'system' as const,
           authorId: 'system',
           content,
@@ -601,7 +615,7 @@ export default function HomePage() {
         }
       }
     },
-    [currentUser, challenge, allLogs, todayLog, today, participation, pushCelebrations]
+    [currentUser, challenge, allLogs, todayLog, today, participation, pushCelebrations, refreshCurrentUser]
   )
 
   const saveTodayLog = useCallback(
@@ -700,29 +714,48 @@ export default function HomePage() {
     ]
     setPastChallengeLogs(prev => ({ ...prev, [pastChallenge.id]: updatedLogs }))
 
-    // Award badge if this makeup completes the challenge
+    // A closed challenge is never a closed book — makeup days keep climbing the
+    // trophy ladder here exactly like they do on the live challenge.
     const completedDays = updatedLogs.filter(l => l.completionFraction >= 1).length
-    let completionFired = false
-    if (completedDays >= getRequiredDays(pastChallenge)) {
-      const alreadyHasBadge = currentUser.badges?.some(
-        b => b.challengeId === pastChallenge.id && b.type === 'completed'
-      )
-      if (!alreadyHasBadge) {
-        const badge: AchievementBadge = {
-          challengeId: pastChallenge.id,
-          type: 'completed',
-          awardedAt: new Date().toISOString(),
-        }
-        await setBadge(currentUser.id, badge, currentUser.badges ?? [])
-        setCelebrationChallenge(pastChallenge)
-        setShowCelebration(true)
-        completionFired = true
-      }
+    const award = await syncChallengeTrophy(
+      currentUser, pastChallenge, completedDays, claimedTrophyRef.current.get(pastChallenge.id)
+    )
+    if (award) claimedTrophyRef.current.set(pastChallenge.id, award.tier)
+    let trophyMomentFired = false
+    if (award?.tier === 'gold') {
+      setCelebrationChallenge(pastChallenge)
+      setShowCelebration(true)
+      trophyMomentFired = true
+    } else if (award && (award.tier === 'bronze' || award.tier === 'silver')) {
+      pushCelebrations([buildTrophyCelebration(award.tier, pastChallenge, completedDays, true)])
+      trophyMomentFired = true
+    }
+    if (award) refreshCurrentUser()
+    if (award && award.tier !== 'participant') {
+      const content = trophyFeedPost({
+        userName: currentUser.displayName,
+        challenge: pastChallenge,
+        tier: award.tier,
+        completedDays,
+      })
+      await createFeedPostOnce(stripUndefined({
+        id: award.tier === 'gold'
+          ? `monthly_complete_${currentUser.id}_${pastChallenge.id}`
+          : `trophy_${award.tier}_${currentUser.id}_${pastChallenge.id}`,
+        type: 'system' as const,
+        authorId: 'system',
+        content,
+        hashtags: extractHashtags(content),
+        mentions: [currentUser.id],
+        challengeId: pastChallenge.id,
+        createdAt: new Date().toISOString(),
+        deleted: false,
+      }))
     }
 
-    // Redemption moment (skipped when the big completion celebration fires)
+    // Redemption moment (skipped when the big celebration/trophy moment fires)
     const wasComplete = !!(existing && existing.completionFraction >= 1)
-    if (!completionFired && fraction >= 1 && !wasComplete) {
+    if (!trophyMomentFired && fraction >= 1 && !wasComplete) {
       const done = new Set(updatedLogs.filter(l => l.completionFraction >= 1).map(l => l.date))
       const remaining = getChallengeDates(pastChallenge).filter(d =>
         !isRestDay(pastChallenge, d) && !done.has(d)
@@ -733,7 +766,7 @@ export default function HomePage() {
         true
       )
     }
-  }, [currentUser, pastChallengeLogs, pushCelebrations])
+  }, [currentUser, pastChallengeLogs, pushCelebrations, refreshCurrentUser])
 
   // ── Complete bonus challenge for this week ──────────────────────────────
 
@@ -897,6 +930,14 @@ export default function HomePage() {
   // Missed days now live in the swipeable day carousel above — the Catch Up
   // section is only for missed bonus weeks.
   const hasCatchUp = missedBonusWeeks.length > 0
+
+  // Required days already behind the user (today included) — the pace yardstick
+  // for the trophy nudge.
+  const elapsedRequiredDays = allDates.filter(d =>
+    d <= today &&
+    !isRestDay(challenge, d) &&
+    !conditionalRestApplies(challenge, d, completedLogDates)
+  ).length
 
   const todayFraction = todayLog?.completionFraction ?? 0
   const todayLoggedReps = todayLog?.exerciseLogs.reduce((sum, el) => sum + el.completedReps, 0) ?? 0
@@ -1134,6 +1175,15 @@ export default function HomePage() {
             onMakeupReps={handleMakeupReps}
           />
         )}
+
+        {/* ── Month trophy: which tier you're holding and what's next ── */}
+        <TrophyTrackCard
+          challenge={challenge}
+          completedDays={completedLogDates.length}
+          elapsedRequiredDays={elapsedRequiredDays}
+          missedDays={incompletePastDates.length}
+          seed={dayNumber}
+        />
 
         {/* ── Next badge: near-miss advertising + Badge of the Month ── */}
         <NextBadgeCard nextUp={nextUp} featured={featuredEval} hasMissedDays={incompletePastDates.length > 0} />

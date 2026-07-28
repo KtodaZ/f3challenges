@@ -1,7 +1,16 @@
 'use client'
 
 import { Modal } from '@/components/ui/Modal'
-import { getChallengeById, nearMissLabel } from '@/lib/challenges'
+import {
+  getChallengeById,
+  getRequiredDays,
+  getTrophyTier,
+  nearMissLabel,
+  nextTrophyTier,
+  resolveBadgeTier,
+  tierDaysRequired,
+} from '@/lib/challenges'
+import { TROPHY_TIER_STYLES } from '@/lib/trophyStyles'
 import { cn } from '@/lib/utils'
 import type { AchievementBadge, AchievementEvaluation } from '@/types'
 
@@ -79,22 +88,21 @@ export function BadgeDetailModal({ detail, onClose }: { detail: BadgeDetail | nu
       {detail?.kind === 'challenge' && (() => {
         const { badge } = detail
         const challenge = getChallengeById(badge.challengeId)
-        const isCompleted = badge.type === 'completed'
+        const tier = getTrophyTier(resolveBadgeTier(badge))
+        const next = nextTrophyTier(tier.tier)
         return (
           <div className="text-center space-y-4 pb-2">
             <div
               className={cn(
                 'w-24 h-24 mx-auto rounded-3xl flex items-center justify-center text-5xl border',
-                isCompleted ? 'bg-amber-900/40 border-amber-700/60' : 'bg-zinc-800 border-zinc-700'
+                TROPHY_TIER_STYLES[tier.tier].tile
               )}
             >
-              {isCompleted ? '🏆' : '🥈'}
+              {tier.emoji}
             </div>
 
             <div>
-              <h2 className="text-xl font-black text-white">
-                {isCompleted ? 'Challenge Complete' : 'Participant'}
-              </h2>
+              <h2 className="text-xl font-black text-white">{tier.label} Trophy</h2>
               <p className="text-sm text-orange-400 font-semibold mt-1">
                 {challenge?.name ?? badge.challengeId}
               </p>
@@ -106,11 +114,23 @@ export function BadgeDetailModal({ detail, onClose }: { detail: BadgeDetail | nu
                 How to earn it
               </p>
               <p className="text-sm text-zinc-200">
-                {isCompleted
+                {tier.tier === 'gold'
                   ? 'Complete every required day of the challenge — makeups count, so Catch Up can still get you here.'
-                  : 'Log at least one day of the challenge. Make up the missed days to upgrade this to the 🏆 Completion badge.'}
+                  : `${tier.blurb} ${challenge ? `That's ${tierDaysRequired(challenge, tier.tier)} of ${getRequiredDays(challenge)} days.` : ''}`}
               </p>
             </div>
+
+            {next && challenge && (
+              <div className="bg-zinc-800/40 border border-zinc-700/50 rounded-2xl p-4 text-left">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">
+                  Next tier
+                </p>
+                <p className="text-sm text-zinc-200">
+                  {next.emoji} {next.label} at {tierDaysRequired(challenge, next.tier)} days. Missed
+                  days never expire — make them up in Catch Up and this trophy upgrades.
+                </p>
+              </div>
+            )}
 
             <div className="bg-green-950/40 border border-green-700/40 rounded-2xl px-4 py-3">
               <p className="text-green-400 font-bold text-sm">

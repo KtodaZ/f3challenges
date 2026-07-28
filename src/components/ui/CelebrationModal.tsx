@@ -2,8 +2,14 @@
 
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import type { ChallengeTemplate } from '@/types'
-import { getRequiredDays } from '@/lib/challenges'
+import type { ChallengeTemplate, TrophyTier } from '@/types'
+import {
+  getRequiredDays,
+  getTrophyTier,
+  nextTrophyTier,
+  resolveBadgeTier,
+  tierDaysRequired,
+} from '@/lib/challenges'
 
 const CONFETTI_COLORS = [
   '#f59e0b', '#ef4444', '#3b82f6', '#22c55e',
@@ -76,12 +82,16 @@ function ConfettiCanvas() {
 interface CelebrationModalProps {
   challenge: ChallengeTemplate
   badgeType?: 'completed' | 'participant'
+  /** Trophy tier being celebrated. Falls back to `badgeType` for old records. */
+  tier?: TrophyTier
   onClose: () => void
 }
 
-export function CelebrationModal({ challenge, badgeType = 'completed', onClose }: CelebrationModalProps) {
+export function CelebrationModal({ challenge, badgeType = 'completed', tier, onClose }: CelebrationModalProps) {
   const days = getRequiredDays(challenge)
-  const isCompleted = badgeType === 'completed'
+  const earned = getTrophyTier(tier ?? resolveBadgeTier({ type: badgeType }))
+  const isCompleted = earned.tier === 'gold'
+  const next = nextTrophyTier(earned.tier)
 
   if (typeof document === 'undefined') return null
 
@@ -100,9 +110,9 @@ export function CelebrationModal({ challenge, badgeType = 'completed', onClose }
       >
         {isCompleted ? (
           <>
-            <div className="text-8xl mb-5" role="img" aria-label="trophy">🏆</div>
+            <div className="text-8xl mb-5" role="img" aria-label="gold medal">🥇</div>
             <h1 className="text-4xl font-black text-white uppercase tracking-tight mb-1 leading-none">
-              Challenge<br />Complete!
+              Gold<br />Trophy!
             </h1>
             <p className="text-orange-400 font-bold text-xl mt-3 mb-1">{challenge.name}</p>
             <p className="text-zinc-400 text-sm mb-8">
@@ -110,7 +120,7 @@ export function CelebrationModal({ challenge, badgeType = 'completed', onClose }
             </p>
             <div className="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-5 mb-8">
               <div className="text-4xl mb-2">🏅</div>
-              <p className="text-amber-400 font-bold text-base">Completion Badge Earned</p>
+              <p className="text-amber-400 font-bold text-base">Gold Trophy Earned</p>
               <p className="text-zinc-400 text-xs mt-1">{challenge.hashtag}</p>
             </div>
             <button
@@ -122,24 +132,24 @@ export function CelebrationModal({ challenge, badgeType = 'completed', onClose }
           </>
         ) : (
           <>
-            <div className="text-8xl mb-5" role="img" aria-label="muscle">💪</div>
+            <div className="text-8xl mb-5" role="img" aria-label={earned.label}>{earned.emoji}</div>
             <h1 className="text-4xl font-black text-white uppercase tracking-tight mb-1 leading-none">
-              You Showed<br />Up!
+              {earned.label}<br />Trophy!
             </h1>
             <p className="text-orange-400 font-bold text-xl mt-3 mb-1">{challenge.name}</p>
-            <p className="text-zinc-400 text-sm mb-6">
-              You put in the work. That counts.
-            </p>
+            <p className="text-zinc-400 text-sm mb-6">{earned.blurb}</p>
             <div className="bg-zinc-700/30 border border-zinc-600/40 rounded-2xl p-5 mb-4">
-              <div className="text-4xl mb-2">🥈</div>
-              <p className="text-zinc-200 font-bold text-base">Participant Badge Earned</p>
+              <div className="text-4xl mb-2">{earned.emoji}</div>
+              <p className="text-zinc-200 font-bold text-base">{earned.label} Trophy Earned</p>
               <p className="text-zinc-400 text-xs mt-1">{challenge.hashtag}</p>
             </div>
-            <div className="bg-amber-500/10 border border-amber-600/30 rounded-2xl p-3 mb-7 text-left">
-              <p className="text-amber-400 text-sm font-semibold">
-                🏆 Complete your missed days to upgrade to the Completion Badge
-              </p>
-            </div>
+            {next && (
+              <div className="bg-amber-500/10 border border-amber-600/30 rounded-2xl p-3 mb-7 text-left">
+                <p className="text-amber-400 text-sm font-semibold">
+                  {next.emoji} Hit {tierDaysRequired(challenge, next.tier)} days to upgrade to {next.label} — missed days never expire, make them up in Catch Up
+                </p>
+              </div>
+            )}
             <button
               onClick={onClose}
               className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-black text-xl py-4 rounded-2xl transition-colors"

@@ -1,5 +1,6 @@
 'use client'
 
+import { resolveBadgeTier } from '@/lib/challenges'
 import type { DailyLog, AchievementBadge } from '@/types'
 
 interface CumulativeStatsProps {
@@ -14,13 +15,13 @@ export function CumulativeStats({ allLogs, badges }: CumulativeStatsProps) {
 
   const totalDaysCompleted = allLogs.filter(log => log.completionFraction >= 1).length
 
-  const challengesCompleted = badges.filter(b => b.type === 'completed').length
+  const goldTrophies = badges.filter(b => resolveBadgeTier(b) === 'gold').length
   const challengesParticipated = badges.length
 
   const stats = [
     { label: 'Total Reps', value: totalReps.toLocaleString(), icon: '💪' },
     { label: 'Days Completed', value: totalDaysCompleted.toLocaleString(), icon: '✅' },
-    { label: 'Challenges Won', value: challengesCompleted.toLocaleString(), icon: '🏆' },
+    { label: 'Gold Trophies', value: goldTrophies.toLocaleString(), icon: '🥇' },
     { label: 'Challenges Joined', value: challengesParticipated.toLocaleString(), icon: '🎯' },
   ]
 

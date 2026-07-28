@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import {
   getCurrentUserId, setCurrentUserId, clearCurrentUserId,
   getCachedUser, setCachedUser, clearCachedUser,
@@ -71,15 +71,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setCurrentUser(null)
   }
 
-  function refreshCurrentUser() {
-    if (!currentUser) return
-    getUser(currentUser.id).then(u => {
+  // Stable identity so callers can safely list it as an effect/callback dep.
+  const currentUserId = currentUser?.id
+  const refreshCurrentUser = useCallback(() => {
+    if (!currentUserId) return
+    getUser(currentUserId).then(u => {
       if (u) {
         setCurrentUser(u)
         setCachedUser(u)
       }
     })
-  }
+  }, [currentUserId])
 
   return (
     <UserContext.Provider value={{ currentUser, allUsers, loading, login, logout, refreshCurrentUser }}>

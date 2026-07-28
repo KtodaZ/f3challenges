@@ -6,7 +6,6 @@ import { onRequest } from "firebase-functions/v2/https";
 import {
   getChallengeForDate,
   getChallengeById,
-  getRequiredDays,
   getDayNumber,
   getTotalDays,
   getMilestoneDays,
@@ -20,8 +19,12 @@ import {
   getRemainingExercises,
   formatRemainingWork,
   getRemainingNudge,
+  tierForCompletedDays,
+  trophyUpgrade,
+  legacyBadgeType,
+  trophyNotification,
 } from "@f3-bedrock/shared";
-import type { ChallengeTemplate, DailyTarget, NotificationVars } from "@f3-bedrock/shared";
+import type { ChallengeTemplate, DailyTarget, NotificationVars, TrophyTier } from "@f3-bedrock/shared";
 
 admin.initializeApp()
 
@@ -1533,8 +1536,6 @@ export const sendTestPush = onRequest(
 async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: string; name: string; action: string }>> {
   const challenge = getChallengeById(challengeId);
   if (!challenge) throw new Error(`Unknown challengeId: ${challengeId}`);
-  const requiredDays = getRequiredDays(challenge);
-  const challengeLabel = challenge.name;
   const db = admin.firestore();
 
   const usersSnap = await db.collection("users").get();
@@ -1545,11 +1546,8 @@ async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: st
     const userId = userDoc.id;
     const name: string = data.displayName ?? userId;
 
-    const badges: Array<{ challengeId: string; type: string }> = data.badges ?? [];
-    if (badges.some(b => b.challengeId === challengeId)) {
-      results.push({ userId, name, action: "already_has_badge" });
-      continue;
-    }
+    const badges: Array<{ challengeId: string; type?: string; tier?: TrophyTier }> = data.badges ?? [];
+    const existing = badges.find(b => b.challengeId === challengeId);
 
     const logsSnap = await db.collection("dailyLogs")
       .where("userId", "==", userId)
@@ -1565,20 +1563,26 @@ async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: st
       continue;
     }
 
-    const isCompleted = completedDays >= requiredDays;
-    const badgeType = isCompleted ? "completed" : "participant";
+    // Trophies only climb: 🎖️ → 🥉 50% → 🥈 80% → 🥇 100%. A user who already
+    // holds this (or a higher) tier is left untouched, which is what makes this
+    // safe to re-run and safe against badges awarded live during the month.
+    const tier = trophyUpgrade(existing, tierForCompletedDays(challenge, completedDays));
+    if (!tier) {
+      results.push({ userId, name, action: "already_has_badge" });
+      continue;
+    }
 
+    const badgeType = legacyBadgeType(tier);
     const filteredBadges = badges.filter(b => b.challengeId !== challengeId);
     await db.doc(`users/${userId}`).update({
-      badges: [...filteredBadges, { challengeId, type: badgeType, awardedAt: new Date().toISOString() }],
-      pendingCelebration: { challengeId, badgeType },
+      badges: [...filteredBadges, { challengeId, type: badgeType, tier, awardedAt: new Date().toISOString() }],
+      pendingCelebration: { challengeId, badgeType, tier },
     });
 
     const notifId = nanoid();
-    const notifTitle = isCompleted ? "🏆 Badge Awarded!" : "💪 Participation Badge Awarded!";
-    const notifBody = isCompleted
-      ? `You completed ${challengeLabel} — every single day. Your completion badge is now on your profile!`
-      : `You put in the work on ${challengeLabel} — ${completedDays} days logged. Your participation badge is on your profile. Make up missed days to earn the completion badge!`;
+    const { title: notifTitle, body: notifBody } = trophyNotification({
+      challenge, tier, completedDays,
+    });
     await db.doc(`notifications/${userId}/items/${notifId}`).set({
       id: notifId, userId, type: "system", title: notifTitle, body: notifBody,
       read: false, createdAt: new Date().toISOString(),
@@ -1589,7 +1593,7 @@ async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: st
       await sendPushNotification(userId, tokens, notifTitle, notifBody);
     }
 
-    results.push({ userId, name, action: `${badgeType}_badge_awarded (${completedDays} days)` });
+    results.push({ userId, name, action: `${tier}_trophy_awarded (${completedDays} days)` });
   }
 
   return results;

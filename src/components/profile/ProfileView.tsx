@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Input } from '@/components/ui/Input'
 import { TrophyCase } from '@/components/profile/TrophyCase'
+import { TrophyTierSummary } from '@/components/profile/TrophyTierSummary'
 import { TodaySummary } from '@/components/profile/TodaySummary'
 import { HeatMap } from '@/components/profile/HeatMap'
 import { CumulativeStats } from '@/components/profile/CumulativeStats'
@@ -332,6 +333,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
                   sublabel={`${progressPct}%`}
                   color={progressPct >= 100 ? 'green' : 'orange'}
                 />
+                <TrophyTierSummary challenge={currentChallenge} completedDays={daysCompleted} />
               </div>
             )}
           </Card>
