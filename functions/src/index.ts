@@ -12,6 +12,8 @@ import {
   getMilestoneDays,
   getTodayPT,
   getWeekStartPT,
+  getChallengeDates,
+  isRestDay,
   getDailyTarget,
   getNotificationTemplates,
   renderNotification,
@@ -80,6 +82,10 @@ interface DailyLog {
   date: string;
   userId: string;
   exerciseLogs?: ExerciseLogEntry[];
+  isMakeUp?: boolean;
+  loggedAt?: string;   // ISO — first write for this day
+  updatedAt?: string;  // ISO — last write
+  completedAt?: string; // ISO — when the day first hit 100%
 }
 
 interface ChallengeParticipation {
@@ -318,6 +324,39 @@ function firstName(name: string): string {
   return name.split(" ")[0];
 }
 
+/** PT calendar date (YYYY-MM-DD) of an ISO timestamp; null if missing/invalid. */
+function ptDateOf(iso?: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+}
+
+/** When a day was actually finished — matches how the stack badges count. */
+function finishedAt(log: DailyLog): string | undefined {
+  return log.completedAt ?? log.updatedAt ?? log.loggedAt;
+}
+
+// Challenge days a PAX skipped between their last completed day and today.
+// Rest days don't count against anyone, so they never inflate a "you've been
+// away" nudge.
+function daysMissedBetween(challenge: ChallengeTemplate, lastDone: string, today: string): number {
+  return getChallengeDates(challenge)
+    .filter(d => d > lastDone && d < today && !isRestDay(challenge, d))
+    .length;
+}
+
+// A PAX is "away" once they've skipped this many required days in a row.
+const AWAY_THRESHOLD = 3;
+
+// The "what's left today" phrases are lowercase fragments ("the dead hang,
+// standard merkins, and LBCs") and plenty of templates drop them at the start
+// of a sentence. Capitalizing sentence starts once, at the end, beats
+// hand-casing every template — and keeps new copy from reintroducing it.
+function sentenceCase(text: string): string {
+  return text.replace(/(^|[.!?]\s+)([a-z])/g, (_m, pre: string, ch: string) => pre + ch.toUpperCase());
+}
+
 // "Alice"              → "Alice"
 // "Alice, Bob"         → "Alice and Bob"
 // "Alice, Bob, Charlie, Dave" → "Alice, Bob, and 2 others"
@@ -329,7 +368,7 @@ function fmtNames(names: string[]): string {
   return `${names[0]}, ${names[1]}, and ${others} other${others > 1 ? "s" : ""}`;
 }
 
-function generateNotification(ctx: {
+type NotificationCtx = {
   challenge: ChallengeTemplate;
   dailyTarget: DailyTarget;
   exerciseLogs: ExerciseLogEntry[] | null;
@@ -340,7 +379,21 @@ function generateNotification(ctx: {
   groupCompletedCount: number; groupTotalCount: number; userStreak: number;
   participationStatus: string; notificationType: string;
   completedNames: string[]; notDoneNames: string[];
-}): { title: string; body: string } {
+  // Challenge days finished during today (today + makeups) — 2+ means they
+  // stacked days, same count the Double Duty / Triple Threat badges use.
+  stackedDays: number;
+  // Required days skipped since their last completed day. 0 if they've never
+  // logged this challenge — "welcome back" only makes sense if they left.
+  daysAway: number;
+};
+
+/** Picks the copy for one push, then cleans up sentence casing. */
+function generateNotification(ctx: NotificationCtx): { title: string; body: string } {
+  const { title, body } = buildNotification(ctx);
+  return { title, body: sentenceCase(body) };
+}
+
+function buildNotification(ctx: NotificationCtx): { title: string; body: string } {
   const {
     challenge, dailyTarget, exerciseLogs,
     userName, challengeName, dayNumber, totalDays,
@@ -348,6 +401,7 @@ function generateNotification(ctx: {
     userCompleted, groupCompletedCount, groupTotalCount,
     notificationType, completedNames, notDoneNames,
     participationStatus, userStreak,
+    stackedDays, daysAway,
   } = ctx;
 
   const fn = firstName(userName);
@@ -374,6 +428,11 @@ function generateNotification(ctx: {
   const progressNote = repsCompleted > 0
     ? `${workLeft} still to go`
     : `${workLeft} to go`;
+
+  // --- Modifying participation — acknowledge and still encourage ---
+  const modNote = participationStatus.startsWith("modifying")
+    ? "Scaled or not, "
+    : "";
 
   // --- Milestone days ---
   const { quarter: quarterDay, half: halfDay, threeQuarter: threeQuarterDay } = getMilestoneDays(challenge);
@@ -412,6 +471,89 @@ function generateNotification(ctx: {
     return { title: `Week in Review, ${fn}`, body: pick(bodies, seed) };
   }
 
+  // --- Stacked days: multiple challenge days finished in one calendar day ---
+  if (stackedDays >= 2) {
+    // Matches the same-day stack badges so the push and the trophy agree.
+    const stackName = stackedDays === 2 ? "Double Duty"
+      : stackedDays === 3 ? "Triple Threat"
+      : stackedDays === 4 ? "Quad Stack"
+      : `${stackedDays}-Day Stack`;
+    const titles = [
+      `${stackedDays} Days in One, ${fn}! 🔥`,
+      `${stackName}, ${fn}! 💪`,
+      `${fn} Stacked ${stackedDays} Days!`,
+      `${stackedDays}x Day — Absurd, ${fn} 🧱`,
+      `Somebody Stop ${fn}`,
+      `${stackedDays} Days. One Day. 🔥`,
+    ];
+    const bodies = [
+      `${stackedDays} full challenge days knocked out in one calendar day, ${fn}. That's ${stackName}. 🧱`,
+      `You just did ${stackedDays} days while the rest of the PAX were working on one. 🔥`,
+      `${stackedDays} days, one day. That's how you erase a hole — nothing left behind.`,
+      `${stackedDays} days logged today, ${fn}. Absolutely relentless. 💪`,
+      `Most PAX check one box today. You checked ${stackedDays}. Respect.`,
+      `${stackedDays} full days in a single day. ${fn} is not playing around. 🔥`,
+    ];
+    if (notDoneNames.length > 0) {
+      bodies.push(
+        `${stackedDays} days in one day, and ${partnerStr} still ${notDoneNames.length === 1 ? "hasn't" : "haven't"} done one. Go fire them up. 🔥`,
+      );
+    }
+    return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+  }
+
+  // --- Comeback: back on the board after time away ---
+  if (daysAway >= AWAY_THRESHOLD && userCompleted) {
+    const titles = [
+      `Welcome Back, ${fn}! 🔥`,
+      `${fn} Is Back! 💪`,
+      `Look Who's Back`,
+      `Back on the Board, ${fn}`,
+      `The Return of ${fn} 🔥`,
+      `That's a Comeback, ${fn}`,
+    ];
+    const bodies = [
+      `${daysAway} days out and you just put Day ${dayNumber} on the board. The hard part is done — now run it back tomorrow.`,
+      `Back in it. Day ${dayNumber} logged after ${daysAway} days away. That's the rep that counts. 🔥`,
+      `Nobody cares that you missed ${daysAway} days — they care that you came back. Day ${dayNumber} ✅`,
+      `The comeback starts with one day, and you just logged it, ${fn}. 💪`,
+      `${daysAway} days off didn't finish you. Day ${dayNumber} is in the books — the missed days are still waiting in Catch Up whenever you want them.`,
+      `Welcome back, ${fn}. Day ${dayNumber} done. Two in a row and nobody will even remember the gap. 🔥`,
+    ];
+    if (hasPeers) {
+      bodies.push(`${peerStr} ${peerVerb} been holding it down. You're back on the board with them today, ${fn}. 🔥`);
+    }
+    return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+  }
+
+  // --- Away: several required days skipped, today still open ---
+  if (daysAway >= AWAY_THRESHOLD) {
+    const titles = [
+      `Get Back In, ${fn}`,
+      `${daysAway} Days Out — Come Back 🔥`,
+      `The PAX Miss You, ${fn}`,
+      `One Day Restarts It All`,
+      `Back in It, ${fn}?`,
+      `Today's the Day, ${fn}`,
+    ];
+    const bodies = [
+      `It's been ${daysAway} days. Day ${dayNumber} is waiting: ${workLeft}. One day and you're back on the board. 💪`,
+      `${daysAway} days off doesn't end your challenge, ${fn}. Knock out ${workLeft} today and you're back in it. 🔥`,
+      `The board's still open: ${workLeft} on Day ${dayNumber} — and every day you missed is still there in Catch Up.`,
+      `Nobody's counting the ${daysAway} days you missed, ${fn}. ${modNote}they'll count the one you come back on. ${workLeft}.`,
+      `Restart today: ${workLeft} on Day ${dayNumber}. That's all it takes to be back in this thing. 💪`,
+      `${daysAway} days is a gap, not a wall. Take ${workLeft} today, ${fn} — climb back in. 🔥`,
+    ];
+    if (hasPeers) {
+      bodies.push(
+        `${peerStr} ${peerVerb} completed today's challenge and there's a spot open next to them — ${workLeft} and you're next, ${fn}. 🔥`,
+        `${peerStr} ${peerVerb} logged today. ${daysAway} days out — ${workLeft} and you're back with the crew. 💪`,
+      );
+    }
+    if (nudge) bodies.push(nudge);
+    return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+  }
+
   // --- User completed ---
   if (userCompleted) {
     if (notDoneNames.length === 0) {
@@ -429,6 +571,8 @@ function generateNotification(ctx: {
         `Full house on Day ${dayNumber}! That's the standard, ${fn}.`,
         `Nobody left behind — whole PAX finished Day ${dayNumber}. Let's go!`,
         `${groupTotalCount} for ${groupTotalCount} today. That's what F3 Bedrock is about.`,
+        `Not one PAX left it on the table today. Day ${dayNumber} swept. 🔥`,
+        `${groupTotalCount}/${groupTotalCount} on Day ${dayNumber}. Try finding another crew that does that.`,
       ];
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     } else {
@@ -450,15 +594,12 @@ function generateNotification(ctx: {
         `${partnerStr} still ${needPlural} Day ${dayNumber}'s reps. Tag them in the feed.`,
         `Solid work. Now drag ${partnerStr} across the finish line.`,
         `${groupCompletedCount}/${groupTotalCount} done — ${partnerStr} still out there. Send the encouragement.`,
+        `Box checked, ${fn}. ${partnerStr} could use a name-drop in the feed right about now. 🔥`,
+        `You're in. ${partnerStr} ${plural} logged Day ${dayNumber} yet — one shoutout might be all it takes.`,
       ];
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
     }
   }
-
-  // --- Modifying participation — acknowledge and still encourage ---
-  const modNote = participationStatus.startsWith("modifying")
-    ? "Scaled or not, "
-    : "";
 
   // --- Endgame (last 3 days) — heavy urgency with countdown ---
   if (isEndgame) {
@@ -470,6 +611,8 @@ function generateNotification(ctx: {
       `Finish What You Started`,
       `So Close, ${fn} — Don't Stop`,
       `The End Is in Sight`,
+      `Bring It Home, ${fn} 🔥`,
+      `${daysRemaining} ${daysWord} — That's It`,
     ];
     const peerLine = hasPeers ? `${peerStr} ${peerVerb} completed today's challenge. ` : "";
     const bodies = [
@@ -480,6 +623,8 @@ function generateNotification(ctx: {
       `${peerLine}${progressNote}. ${daysRemaining} ${daysWord} left — make it count.`,
       `${daysRemaining} ${daysWord} left in ${challengeName}. ${workLeft} today — this is what you trained for.`,
       `${modNote}${workLeft} left. ${daysRemaining} ${daysWord} remaining — leave nothing on the table, ${fn}.`,
+      `${daysRemaining} ${daysWord} out from done. ${workLeft} today — you did not come this far to come this far. 🔥`,
+      `${fn}, this is the part you'll remember. ${workLeft}, ${daysRemaining} ${daysWord} left. 💪`,
     ];
     if (nudge) bodies.push(nudge, `${peerLine}${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -496,6 +641,8 @@ function generateNotification(ctx: {
       `Grind Don't Stop`,
       `${daysRemaining} ${daysWord} to Finish Strong`,
       `Almost Home, ${fn}`,
+      `Still Here, ${fn}? 🔥`,
+      `Stack Another One, ${fn}`,
     ];
     const bodies = [
       `${peerLine}${workLeft} left on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — hold the line.`,
@@ -505,6 +652,8 @@ function generateNotification(ctx: {
       `You've put in the work. ${daysRemaining} ${daysWord} left — finishing today keeps the streak alive. ${workLeft}.`,
       `${daysRemaining} ${daysWord} left in ${challengeName}. ${fn}: ${progressNote}. Stay locked in.`,
       `${peerLine}${workLeft} on Day ${dayNumber}. ${daysRemaining} ${daysWord} to go — don't let up now.`,
+      `${modNote}${daysRemaining} ${daysWord} left and ${workLeft} today. Stack another one, ${fn}. 🔥`,
+      `Late month is where the crew thins out. ${workLeft} on Day ${dayNumber} — still here, ${fn}? 💪`,
     ];
     if (nudge) bodies.push(nudge, `${peerLine}${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -525,6 +674,8 @@ function generateNotification(ctx: {
       ];
       const bodies = [
         `${peerStr} already crushed Day ${dayNumber}. ${workLeft} left for you — get after it.`,
+        `${peerStr} ${peerVerb} already banked Day ${dayNumber}. ${workLeft} and you're level with them, ${fn}. 🔥`,
+        `Board's filling up — ${peerStr} ${peerVerb} logged. ${workLeft} to get your name on it. 💪`,
         `${peerStr} ${peerVerb} completed today's challenge. ${fn}, ${workLeft} — start your first set now.`,
         `${peerStr} put in the work. Day ${dayNumber}: ${workLeft} — be next.`,
         `${peerStr} ${peerVerb} completed today's challenge — don't let them show you up. ${workLeft}, ${fn}.`,
@@ -552,6 +703,8 @@ function generateNotification(ctx: {
         `You and ${partnerStr} are all still in it. First one done fires up the rest — go.`,
         `Morning sets pay dividends. ${fn}, ${workLeft} — lead the crew.`,
         `${partnerStr} haven't finished yet. ${fn}: ${progressNote} — lead the charge.`,
+        `Empty board this morning. ${workLeft}, ${fn} — put the first name on it. 🔥`,
+        `${modNote}Day ${dayNumber} is wide open. First PAX done sets the pace — that you, ${fn}? 💪`,
       ];
       if (nudge) bodies.push(nudge, `Nobody's done yet — go first. ${nudge}`);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -569,6 +722,8 @@ function generateNotification(ctx: {
         `Day ${dayNumber} on ${challengeName}. Be the first PAX to finish today.`,
         `${fn}, ${workLeft} today. Knock your first set out early and thank yourself later.`,
         `${modNote}${workLeft} waiting, ${fn}. Morning is the best time — go.`,
+        `Day ${dayNumber}: ${workLeft}. Do it before the day gets a vote. 🔥`,
+        `${fn}, nobody ever regretted knocking it out early. ${workLeft}. 💪`,
       ];
       if (nudge) bodies.push(nudge);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -594,6 +749,8 @@ function generateNotification(ctx: {
         `${peerStr} are done for the day. ${fn}: ${workLeft} left, go now.`,
         `${peerStr} already crushed it. Afternoon's the sweet spot — ${workLeft}, ${fn}.`,
         `${peerStr} ${peerVerb} completed today's challenge. ${fn}, don't push it to tonight — ${workLeft} now.`,
+        `${peerStr} ${peerVerb} handled Day ${dayNumber} already. ${workLeft} left, ${fn} — your turn. 🔥`,
+        `Half the day's gone and ${peerStr} ${peerVerb} logged. ${progressNote}, ${fn}. 💪`,
       ];
       if (nudge) bodies.push(nudge, `${peerStr} ${peerVerb} completed today's challenge. ${nudge}`);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -611,6 +768,7 @@ function generateNotification(ctx: {
         `You're not alone — ${partnerStr} still have work left too. ${workLeft} to go, ${fn}.`,
         `${groupCompletedCount}/${groupTotalCount} PAX done. ${fn}: ${workLeft} — don't push it to evening.`,
         `${modNote}${partnerStr} still grinding too. ${workLeft} left — who finishes first?`,
+        `Nobody's closed Day ${dayNumber} yet. ${workLeft} — be the one who breaks the seal, ${fn}. 🔥`,
       ];
       if (nudge) bodies.push(nudge, `${partnerStr} haven't finished yet either. ${nudge}`);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -626,6 +784,7 @@ function generateNotification(ctx: {
         `Day ${dayNumber}: ${workLeft}. Don't let it pile up for tonight.`,
         `${fn}, ${progressNote}. Go now while it's light.`,
         `${modNote}${workLeft} left on Day ${dayNumber}. Afternoons are for grinding — go.`,
+        `${fn}, ${workLeft} on Day ${dayNumber}. Evening-you will thank afternoon-you. 💪`,
       ];
       if (nudge) bodies.push(nudge);
       return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -651,6 +810,8 @@ function generateNotification(ctx: {
       `${peerStr} are done for the day. ${fn}: clock's running — ${workLeft} left.`,
       `${peerStr} ${peerVerb} completed today's challenge. Don't let Day ${dayNumber} slip — ${workLeft} now.`,
       `${peerStr} put it in. ${fn}, ${workLeft} — don't be the one who didn't finish today.`,
+      `${peerStr} ${peerVerb} closed Day ${dayNumber}. ${workLeft} between you and joining them. 🔥`,
+      `Day ${dayNumber} is almost gone, ${fn}. ${workLeft} — finish it while it still counts. 💪`,
     ];
     if (nudge) bodies.push(nudge, `${peerStr} ${peerVerb} completed today's challenge. ${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -668,6 +829,7 @@ function generateNotification(ctx: {
       `Only ${notDoneNames.length + 1} PAX left to finish Day ${dayNumber}. ${fn}, ${workLeft} — go.`,
       `${partnerStr} haven't finished either. ${fn}: ${workLeft} — tonight's your last shot.`,
       `${modNote}${partnerStr} still out there too. ${workLeft}, ${fn} — close it out.`,
+      `${workLeft} stands between you and a clean Day ${dayNumber}, ${fn}. Clock's honest. 🔥`,
     ];
     if (nudge) bodies.push(nudge, `${partnerStr} haven't finished either. ${nudge}`);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -685,6 +847,7 @@ function generateNotification(ctx: {
       `Tonight's your last shot on Day ${dayNumber}. ${modNote}${workLeft} — go.`,
       `${fn}: ${progressNote}. Don't let Day ${dayNumber} slip.`,
       `${modNote}${workLeft} between you and Day ${dayNumber}. Close it out, ${fn}.`,
+      `Last call on Day ${dayNumber}, ${fn}. ${workLeft} — go get it. 🔥`,
     ];
     if (nudge) bodies.push(nudge);
     return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
@@ -742,6 +905,39 @@ function buildStandings(
 }
 
 const repWord = (n: number) => `${n} rep${n === 1 ? "" : "s"}`;
+
+/** Neck-and-neck lines for when the gap is small enough to close in one set.
+ *  These beat the regular chase/defend copy — a 6-rep gap is a race, a
+ *  400-rep gap is a status report. */
+function photoFinishBodies(
+  scope: CompScope, c: CompetitiveContext, fn: string, todayTail: string, threshold: number,
+): string[] {
+  const board = scope === "week" ? "this week's board" : "the month";
+  const bodies: string[] = [];
+  const closeChase  = c.aheadName  != null && c.aheadGap  != null && c.aheadGap  > 0 && c.aheadGap  <= threshold;
+  const closeDefend = c.behindName != null && c.behindGap != null && c.behindGap > 0 && c.behindGap <= threshold;
+
+  if (closeChase) {
+    bodies.push(
+      `Photo finish on ${board}: ${c.aheadName} is ${repWord(c.aheadGap!)} ahead. One set and the spot is yours. ${todayTail}`,
+      `${repWord(c.aheadGap!)}. That's all that separates you from ${c.aheadName} on ${board}, ${fn}. 🔥`,
+      `You're breathing down ${c.aheadName}'s neck — ${repWord(c.aheadGap!)} on ${board}. Go take it. 💪`,
+    );
+  }
+  if (closeDefend) {
+    bodies.push(
+      `${c.behindName} is ${repWord(c.behindGap!)} behind you on ${board}. That's nothing — do not let them through. ${todayTail}`,
+      `Dead heat at #${c.rank}: ${repWord(c.behindGap!)} covers you and ${c.behindName} on ${board}. 🔥`,
+      `${c.behindName} is one set from taking your spot on ${board}, ${fn}. ${todayTail}`,
+    );
+  }
+  if (closeChase && closeDefend) {
+    bodies.push(
+      `Three-way scrap at #${c.rank} on ${board}: ${repWord(c.aheadGap!)} up to ${c.aheadName}, ${repWord(c.behindGap!)} down to ${c.behindName}. Every rep swings it. 🔥`,
+    );
+  }
+  return bodies;
+}
 
 /** Scope-specific chase/defend body lines. Weekly copy leans on "this week's
  *  board" so a mid-month joiner sees a race they can actually win right now;
@@ -820,21 +1016,44 @@ function generateCompetitiveNotification(ctx: {
   seed: number;
   week?: CompetitiveContext;
   month?: CompetitiveContext;
+  // Gap (in reps) at or under which a race counts as neck-and-neck. Scaled to
+  // the day's target by the caller so it means the same thing in a 50-rep
+  // challenge and a 300-rep one.
+  closeThreshold: number;
 }): { title: string; body: string } | null {
-  const { fn, notificationType, userCompleted, workLeft, seed, week, month } = ctx;
+  const { fn, notificationType, userCompleted, workLeft, seed, week, month, closeThreshold } = ctx;
 
   const todayTail = userCompleted
     ? "You're locked in for today — keep stacking."
     : (workLeft ? `${workLeft} left today — go get it.` : "Get after it.");
+
+  // A tight race trumps a status report: if anyone is within striking distance
+  // in either scope, only photo-finish lines are eligible.
+  const closeCandidates: Array<{ scope: CompScope; body: string }> = [];
+  if (week)  for (const body of photoFinishBodies("week",  week,  fn, todayTail, closeThreshold)) closeCandidates.push({ scope: "week",  body });
+  if (month) for (const body of photoFinishBodies("month", month, fn, todayTail, closeThreshold)) closeCandidates.push({ scope: "month", body });
 
   // Pool candidates from both scopes; the seeded pick naturally alternates the
   // same PAX between weekly and monthly framing across days and time slots.
   const candidates: Array<{ scope: CompScope; body: string }> = [];
   if (week)  for (const body of competitiveBodies("week",  week,  fn, todayTail)) candidates.push({ scope: "week",  body });
   if (month) for (const body of competitiveBodies("month", month, fn, todayTail)) candidates.push({ scope: "month", body });
-  if (candidates.length === 0) return null;
 
-  const chosen = pick(candidates, seed + 1);
+  const pool = closeCandidates.length > 0 ? closeCandidates : candidates;
+  if (pool.length === 0) return null;
+
+  const chosen = pick(pool, seed + 1);
+
+  if (closeCandidates.length > 0) {
+    const closeTitles = [
+      `Photo Finish, ${fn} 🏁`,
+      `Neck and Neck 🏁`,
+      `Too Close to Call, ${fn}`,
+      `It's a Race, ${fn} 🔥`,
+      `Inches Apart, ${fn}`,
+    ];
+    return { title: pick(closeTitles, seed), body: sentenceCase(chosen.body) };
+  }
 
   const monthTitlesByType: Record<typeof notificationType, string[]> = {
     morning:   [`Rise & Climb, ${fn} 🏁`, `Morning Standings, ${fn}`, `Chase It Down, ${fn}`, `Move Up Today, ${fn}`],
@@ -848,7 +1067,7 @@ function generateCompetitiveNotification(ctx: {
   };
   const titles = chosen.scope === "week" ? weekTitlesByType[notificationType] : monthTitlesByType[notificationType];
 
-  return { title: pick(titles, seed), body: chosen.body };
+  return { title: pick(titles, seed), body: sentenceCase(chosen.body) };
 }
 
 // ---------------------------------------------------------------------------
@@ -985,6 +1204,11 @@ export const sendScheduledNotifications = onSchedule(
     const weekStart = getWeekStartPT(today);
     const repsByUser = new Map<string, number>();
     const weeklyRepsByUser = new Map<string, number>();
+    // Same pass also builds the personal history the smart notifications need:
+    // when each PAX last finished a day, and how many days they've knocked out
+    // during today (today + makeups).
+    const lastDoneBefore = new Map<string, string>();
+    const stackedTodayByUser = new Map<string, number>();
     for (const doc of allLogsSnap.docs) {
       const log = doc.data() as DailyLog;
       if (optedOutIds.has(log.userId)) continue;
@@ -992,6 +1216,16 @@ export const sendScheduledNotifications = onSchedule(
       repsByUser.set(log.userId, (repsByUser.get(log.userId) ?? 0) + reps);
       if (log.date >= weekStart) {
         weeklyRepsByUser.set(log.userId, (weeklyRepsByUser.get(log.userId) ?? 0) + reps);
+      }
+      if (log.completionFraction < 1) continue;
+      if (log.date < today) {
+        const prev = lastDoneBefore.get(log.userId);
+        if (!prev || log.date > prev) lastDoneBefore.set(log.userId, log.date);
+      }
+      // Counted by when the day was finished, not which day it was — same rule
+      // the Double Duty / Triple Threat badges use.
+      if (ptDateOf(finishedAt(log)) === today) {
+        stackedTodayByUser.set(log.userId, (stackedTodayByUser.get(log.userId) ?? 0) + 1);
       }
     }
     const activeRoster = activeUsers.map(u => ({ id: u.id, displayName: u.displayName }));
@@ -1079,6 +1313,15 @@ export const sendScheduledNotifications = onSchedule(
           const repsRemaining   = Math.max(0, todayReps - repsCompleted);
           const repsPerExercise = todayTarget.repsPerExercise;
 
+          // Smart-notification context: how long they've been gone, and how
+          // many days they've stacked today.
+          const lastDone    = lastDoneBefore.get(user.id);
+          const daysAway    = lastDone ? daysMissedBetween(challenge, lastDone, today) : 0;
+          const stackedDays = stackedTodayByUser.get(user.id) ?? 0;
+          if (daysAway >= AWAY_THRESHOLD || stackedDays >= 2) {
+            console.log(`[notify]   → smart context: daysAway=${daysAway} stackedDays=${stackedDays}`);
+          }
+
           let { title, body } = generateNotification({
             challenge,
             dailyTarget:         todayTarget,
@@ -1101,13 +1344,18 @@ export const sendScheduledNotifications = onSchedule(
             notificationType:    w.type,
             completedNames: [...completedUserIds].filter(id => id !== user.id).map(id => userById.get(id) ?? "").filter(Boolean),
             notDoneNames:   activeUsers.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
+            stackedDays,
+            daysAway,
           });
 
           // Competitive nudges (opt-in): for morning/afternoon/evening, replace
           // the standard nudge with a rank-based one when there's a spot to
-          // chase or defend. Weekly recaps keep their own copy.
+          // chase or defend. Weekly recaps keep their own copy. A comeback or a
+          // stacked day is the bigger story — those keep their message.
           if (
             prefs.competitive &&
+            stackedDays < 2 &&
+            daysAway < AWAY_THRESHOLD &&
             (w.type === "morning" || w.type === "afternoon" || w.type === "evening")
           ) {
             const monthRc = rankByUser.get(user.id);
@@ -1121,6 +1369,7 @@ export const sendScheduledNotifications = onSchedule(
                 seed: notifSeed(dayNumber, `${w.type}_competitive`),
                 week: weekRc,
                 month: monthRc,
+                closeThreshold: Math.max(5, Math.round(todayReps * 0.1)),
               });
               if (comp) {
                 ({ title, body } = comp);
@@ -1166,12 +1415,17 @@ export const sendScheduledNotifications = onSchedule(
 // Optional overrides:
 //   -d '{"userId":"<id>","notificationType":"evening"}'   (default: "morning")
 //   -d '{"userId":"<id>","title":"Custom","body":"Hi"}'   (skip generation, send directly)
+//   -d '{"userId":"<id>","stackedDays":3}'                (force the stacked-days copy)
+//   -d '{"userId":"<id>","daysAway":5}'                   (force the comeback / away copy)
 // ---------------------------------------------------------------------------
 export const sendTestPush = onRequest(
   async (req, res) => {
     if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
 
-    const { userId, title, body, notificationType = "morning" } = req.body ?? {};
+    const {
+      userId, title, body, notificationType = "morning",
+      stackedDays: stackedOverride, daysAway: awayOverride,
+    } = req.body ?? {};
     if (!userId) { res.status(400).json({ error: "userId required" }); return; }
 
     const userSnap = await admin.firestore().doc(`users/${userId}`).get();
@@ -1197,11 +1451,12 @@ export const sendTestPush = onRequest(
       if (!testTarget || testTarget.isRestDay) { res.status(400).json({ error: "Today is a rest day — no notification to send" }); return; }
       const todayReps = testTarget.totalReps;
 
-      const [userLogSnap, partSnap, usersSnap, allLogsSnap] = await Promise.all([
+      const [userLogSnap, partSnap, usersSnap, allLogsSnap, userLogsSnap] = await Promise.all([
         admin.firestore().doc(`dailyLogs/${userId}_${today}`).get(),
         admin.firestore().doc(`participation/${userId}_${challenge.id}`).get(),
         admin.firestore().collection("users").get(),
         admin.firestore().collection("dailyLogs").where("challengeId", "==", challenge.id).where("date", "==", today).get(),
+        admin.firestore().collection("dailyLogs").where("challengeId", "==", challenge.id).where("userId", "==", userId).get(),
       ]);
 
       const userLog = userLogSnap.exists ? (userLogSnap.data() as DailyLog) : null;
@@ -1224,6 +1479,23 @@ export const sendTestPush = onRequest(
       const repsRemaining   = Math.max(0, todayReps - repsCompleted);
       const repsPerExercise = testTarget.repsPerExercise;
 
+      // Real comeback / stacked-day context, unless the request overrides it
+      // so the copy can be previewed on demand.
+      let lastDone: string | undefined;
+      let realStacked = 0;
+      for (const doc of userLogsSnap.docs) {
+        const log = doc.data() as DailyLog;
+        if (log.completionFraction < 1) continue;
+        if (log.date < today && (!lastDone || log.date > lastDone)) lastDone = log.date;
+        if (ptDateOf(finishedAt(log)) === today) realStacked++;
+      }
+      const stackedDays = typeof stackedOverride === "number"
+        ? stackedOverride
+        : realStacked;
+      const daysAway = typeof awayOverride === "number"
+        ? awayOverride
+        : (lastDone ? daysMissedBetween(challenge, lastDone, today) : 0);
+
       const result = generateNotification({
         challenge,
         dailyTarget: testTarget,
@@ -1241,6 +1513,8 @@ export const sendTestPush = onRequest(
         notificationType,
         completedNames,
         notDoneNames,
+        stackedDays,
+        daysAway,
       });
       finalTitle = result.title;
       finalBody  = result.body;
