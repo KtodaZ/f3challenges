@@ -97,7 +97,6 @@ function buildDailyCompleteMessage(
   else if (!isMakeUp && day === halfDay) section = 'half'
   else if (!isMakeUp && day === threeQuarterDay) section = 'threeQuarter'
   else if (isMakeUp) section = 'makeUp'
-  else if (day > totalDays / 2) section = 'regularLate'
   else section = 'regular'
 
   const weekNumber = challenge.weeklyTiers

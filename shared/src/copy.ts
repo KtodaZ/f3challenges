@@ -133,26 +133,6 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "@{name} — Day {day} complete. {totalReps} reps, {exerciseCount} exercises, zero quit. Are you in or are you watching? {hashtag}",
     "Another day, another stack. @{name} posted {totalReps} reps on Day {day}. {hashtag}",
   ],
-  regularLate: [
-    "Getting harder, @{name}? {totalReps} reps says otherwise. 😏 {hashtag}",
-    "Day {day}. {totalReps} reps. Still looks easy on @{name}. 😏 {hashtag}",
-    "{totalReps} reps on Day {day}. Was that supposed to be hard? @{name} didn't notice. 😏 {hashtag}",
-    "Only {daysLeft} days left. @{name} is already bored. {totalReps} reps. 😏 {hashtag}",
-    "@{name} on Day {day} like it's nothing. {totalReps} reps. {challengeName} is embarrassed. 😂 {hashtag}",
-    "The reps keep going up. @{name} keeps not caring. Day {day}, {totalReps} done. 😏 {hashtag}",
-    "Day {day} of {totalDays}. @{name} said \"is that all?\" and logged {totalReps} reps. 😂 {hashtag}",
-    "Does @{name} ever stop? Day {day}, {totalReps} reps. Apparently not. 😏 {hashtag}",
-    "Knees weak, arms heavy — @{name} coming through on Day {day} anyway. {totalReps} reps. 😂 {hashtag}",
-    "@{name} could do this in their sleep. Day {day} knocked out — {totalReps} reps. 😏 {hashtag}",
-    "{totalReps} reps and @{name} didn't even break a sweat. Day {day}. Someone stop them. 😂 {hashtag}",
-    "@{name} out here doing {totalReps} reps like it's a warm-up. Somebody tell {challengeName} to try harder. 😏 {hashtag}",
-    "@{name} with {totalReps} reps on Day {day}. If you're not even gonna have the decency to struggle, at least pretend. 😏 {hashtag}",
-    "{totalReps} reps and @{name} acts like nothing happened. {challengeName} is starting to take it personally. 😂 {hashtag}",
-    "Will the real @{name} please stand up? {totalReps} reps on Day {day}/{totalDays}. Man refuses to lose. 😏 {hashtag}",
-    "@{name} posting {totalReps} reps on Day {day} with the energy of someone ordering coffee. Does this man even have a heart rate? 😂 {hashtag}",
-    "Day {day}. {totalReps} reps. @{name} could probably do this blindfolded at this point. {challengeName} is embarrassed. 😏 {hashtag}",
-    "Somebody check on @{name} — {totalReps} reps on Day {day} and not a single complaint. That's not normal behavior. 😂 {hashtag}",
-  ],
 }
 
 // ─── Default Notification Templates ──────────────────────────────────────────

@@ -141,7 +141,6 @@ export interface ChallengeTemplateCopy {
     threeQuarter?: string[]
     makeUp?: string[]
     regular?: string[]
-    regularLate?: string[]
   }
 
   notification?: {

@@ -141,12 +141,6 @@ export const CHALLENGES: ChallengeTemplate[] = [
           "Day {day} logged. @{name} worked through pull-ups, push-ups, squats, and dead hangs — {totalReps} reps. {hashtag} 💪",
           "@{name} put in the work across all four PPSD movements. Day {day}/{totalDays}, {totalReps} reps. Who else is posting? {hashtag}",
         ],
-        regularLate: [
-          "Week {weekNumber} of PPSD hits harder — {totalReps} reps and @{name} didn't even flinch. Day {day}. 😏 {hashtag}",
-          "@{name} on Day {day}: {totalReps} reps across four movements, and still has energy to trash-talk. 😂 {hashtag}",
-          "Dead hangs getting long, reps getting heavy — @{name} still doesn't care. Day {day}, {totalReps} done. 😏 {hashtag}",
-          "Week {weekNumber} asked for more. @{name} delivered {totalReps} reps on Day {day} without a complaint. 😏 {hashtag}",
-        ],
         makeUp: [
           "@{name} came back for Day {day} — {totalReps} reps of pull-ups, push-ups, squats, and dead hangs. No skips. {hashtag} ✅",
           "Day {day} wasn't getting left behind. @{name} came back and knocked out {totalReps} PPSD reps. {hashtag}",
@@ -377,11 +371,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
           "Day {day} in the books. @{name} hung, pushed, crunched, and lunged. {hashtag} 🔥",
           "@{name} put in the work on Day {day} of {hashtag}. {totalReps} reps plus the hang. No excuses.",
           "Hang. Merkin. LBC. Lunge. @{name} ran the whole list on Day {day}. {hashtag} 💪",
-        ],
-        regularLate: [
-          "@{name} is still showing up — Day {day} of {hashtag} logged. 😏",
           "@{name} on Day {day}: hang, merkins, LBCs, lunges — all of it. Consistency is the challenge. {hashtag} 💪",
-          "Late in the month and @{name} is still showing up. Day {day}/{totalDays}. {hashtag} 🔥",
         ],
         makeUp: [
           "@{name} came back for Day {day} — hang, merkins, LBCs, and lunges. Nothing left behind. {hashtag} ✅",
