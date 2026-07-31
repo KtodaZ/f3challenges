@@ -5,7 +5,7 @@
 
 import type { CelebrationContent } from '@/components/ui/CelebrationOverlay'
 import { getTrophyProgress, getTrophyTier } from '@/lib/challenges'
-import type { AchievementDefinition, ChallengeTemplate, TrophyTier } from '@/types'
+import type { AchievementDefinition, ChallengeTemplate, TrophyTier, WeekProgress } from '@/types'
 
 export type MilestoneKind = 'quarter' | 'half' | 'threeQuarter'
 
@@ -92,7 +92,7 @@ export function buildTrophyCelebration(
   completedDays: number,
   ended = false,
 ): CelebrationContent {
-  const def = getTrophyTier(tier)
+  const def = getTrophyTier(tier, challenge)
   const progress = getTrophyProgress(challenge, completedDays)
   const next = progress.next
   return {
@@ -101,16 +101,46 @@ export function buildTrophyCelebration(
     kicker: ended ? `${challenge.name} · Catch Up` : challenge.name,
     title: `${def.label.toUpperCase()}\nTROPHY`,
     subtitle: ended
-      ? `${completedDays} of ${progress.requiredDays} days — and you went back for them.`
+      ? `${completedDays.toLocaleString()} of ${progress.required.toLocaleString()} ${progress.unit.many} — and you went back for them.`
       : def.blurb,
     detail: next
       ? {
           emoji: next.emoji,
-          title: `${next.label} at ${progress.nextTierDays} days`,
-          caption: `${progress.daysToNext} more ${progress.daysToNext === 1 ? 'day' : 'days'} to upgrade`,
+          title: `${next.label} at ${progress.nextTierAmount.toLocaleString()} ${progress.unit.many}`,
+          caption: `${progress.toNext.toLocaleString()} more ${progress.toNext === 1 ? progress.unit.one : progress.unit.many} to upgrade`,
         }
       : undefined,
     buttonLabel: next ? `GOING FOR ${next.label.toUpperCase()} ${next.emoji}` : 'CLAIM IT 🏅',
+  }
+}
+
+/**
+ * Crossing a week's rep target on a weekly-cumulative challenge — the moment
+ * that replaces "day complete" on these challenges. Finishing with days still
+ * on the clock gets its own line; that's the flex worth calling out.
+ */
+export function buildWeekCelebration(
+  week: WeekProgress,
+  challengeName: string,
+  isMakeUp = false,
+): CelebrationContent {
+  const target = week.target.toLocaleString()
+  return {
+    theme: isMakeUp ? 'embers' : 'confetti',
+    emoji: isMakeUp ? '✅' : '💪',
+    kicker: isMakeUp ? `${challengeName} · Catch Up` : challengeName,
+    title: `WEEK ${week.week.index}\nCOMPLETE`,
+    subtitle: isMakeUp
+      ? `You went back and finished it — all ${target}. No week left behind.`
+      : `${target} in the bank. That's the week.`,
+    detail: !isMakeUp && week.daysLeft >= 2
+      ? {
+          emoji: '⏱️',
+          title: `${week.daysLeft} days to spare`,
+          caption: 'Everything from here is interest',
+        }
+      : undefined,
+    buttonLabel: 'BANKED 💪',
   }
 }
 

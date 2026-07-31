@@ -1,12 +1,29 @@
 import {
+  isWeeklyCumulative,
   legacyBadgeType,
   resolveBadgeTier,
-  tierForCompletedDays,
+  sumLogReps,
+  tierForAmount,
   trophyTierRank,
   trophyUpgrade,
 } from '@/lib/challenges'
 import { setBadge } from '@/lib/firestore'
-import type { AchievementBadge, ChallengeTemplate, TrophyTier, User } from '@/types'
+import type { AchievementBadge, ChallengeTemplate, DailyLog, TrophyTier, User } from '@/types'
+
+/**
+ * The number the trophy ladder is measured in for this challenge: fully
+ * completed days normally, total reps banked on a weekly-cumulative challenge
+ * (whole weeks are far too coarse a rung to nudge anyone with).
+ *
+ * One place so the award, the home nudge, and the feed post can never disagree
+ * about what "75% of the challenge" means.
+ */
+export function trophyAmount(challenge: ChallengeTemplate, logs: DailyLog[]): number {
+  const own = logs.filter(l => l.challengeId === challenge.id)
+  return isWeeklyCumulative(challenge)
+    ? sumLogReps(own)
+    : own.filter(l => l.completionFraction >= 1).length
+}
 
 export interface TrophyAward {
   /** The tier just earned. */
@@ -27,7 +44,8 @@ export interface TrophyAward {
 export async function syncChallengeTrophy(
   user: User,
   challenge: ChallengeTemplate,
-  completedDays: number,
+  /** Amount banked in the challenge's trophy unit — see trophyAmount(). */
+  amount: number,
   /** Tier already awarded this session — the user doc refresh is async, and
    *  rapid quick-taps must not re-fire a tier that just landed. */
   sessionTier?: TrophyTier,
@@ -39,7 +57,7 @@ export async function syncChallengeTrophy(
     .filter((t): t is TrophyTier => t !== null)
     .sort((a, b) => trophyTierRank(b) - trophyTierRank(a))[0] ?? null
 
-  const earned = tierForCompletedDays(challenge, completedDays)
+  const earned = tierForAmount(challenge, amount)
   const upgrade = trophyUpgrade(held ? { tier: held } : undefined, earned)
   if (!upgrade) return null
 

@@ -12,6 +12,7 @@ import {
 } from '@/lib/challenges'
 import { TROPHY_TIER_STYLES } from '@/lib/trophyStyles'
 import { cn } from '@/lib/utils'
+import { TrophyIcon } from '@/components/ui/TrophyIcon'
 import type { AchievementBadge, AchievementEvaluation } from '@/types'
 
 export type BadgeDetail =
@@ -88,8 +89,10 @@ export function BadgeDetailModal({ detail, onClose }: { detail: BadgeDetail | nu
       {detail?.kind === 'challenge' && (() => {
         const { badge } = detail
         const challenge = getChallengeById(badge.challengeId)
-        const tier = getTrophyTier(resolveBadgeTier(badge))
-        const next = nextTrophyTier(tier.tier)
+        // Themed per challenge — August's ladder reads Bronze/Silver/Gold Bicep.
+        const tier = getTrophyTier(resolveBadgeTier(badge), challenge)
+        const nextBase = nextTrophyTier(tier.tier)
+        const next = nextBase ? getTrophyTier(nextBase.tier, challenge) : null
         return (
           <div className="text-center space-y-4 pb-2">
             <div
@@ -98,7 +101,7 @@ export function BadgeDetailModal({ detail, onClose }: { detail: BadgeDetail | nu
                 TROPHY_TIER_STYLES[tier.tier].tile
               )}
             >
-              {tier.emoji}
+              <TrophyIcon tier={tier} size={68} />
             </div>
 
             <div>

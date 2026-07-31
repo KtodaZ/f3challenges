@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
       isMakeUp: log.isMakeUp ?? false,
       notes: log.notes,
       modificationNote: log.modificationNote,
+      load: log.load,
       loggedAt: log.loggedAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }

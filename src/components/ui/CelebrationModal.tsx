@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { ChallengeTemplate, TrophyTier } from '@/types'
+import { TrophyIcon } from '@/components/ui/TrophyIcon'
 import {
   getRequiredDays,
   getTrophyTier,
@@ -89,9 +90,10 @@ interface CelebrationModalProps {
 
 export function CelebrationModal({ challenge, badgeType = 'completed', tier, onClose }: CelebrationModalProps) {
   const days = getRequiredDays(challenge)
-  const earned = getTrophyTier(tier ?? resolveBadgeTier({ type: badgeType }))
+  const earned = getTrophyTier(tier ?? resolveBadgeTier({ type: badgeType }), challenge)
   const isCompleted = earned.tier === 'gold'
-  const next = nextTrophyTier(earned.tier)
+  const nextBase = nextTrophyTier(earned.tier)
+  const next = nextBase ? getTrophyTier(nextBase.tier, challenge) : null
 
   if (typeof document === 'undefined') return null
 
@@ -110,7 +112,9 @@ export function CelebrationModal({ challenge, badgeType = 'completed', tier, onC
       >
         {isCompleted ? (
           <>
-            <div className="text-8xl mb-5" role="img" aria-label="gold medal">🥇</div>
+            <div className="flex justify-center mb-5">
+              <TrophyIcon tier={earned} size={128} />
+            </div>
             <h1 className="text-4xl font-black text-white uppercase tracking-tight mb-1 leading-none">
               Gold<br />Trophy!
             </h1>

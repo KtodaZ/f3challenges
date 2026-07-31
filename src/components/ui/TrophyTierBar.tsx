@@ -1,6 +1,6 @@
 'use client'
 
-import { TROPHY_TIERS, tierDaysRequired } from '@/lib/challenges'
+import { getTrophyTiers, tierAmountRequired } from '@/lib/challenges'
 import { TROPHY_TIER_STYLES } from '@/lib/trophyStyles'
 import { cn } from '@/lib/utils'
 import type { ChallengeTemplate, TrophyProgress } from '@/types'
@@ -13,13 +13,22 @@ interface TrophyTierBarProps {
   className?: string
 }
 
+/** Rung label, kept short enough that three chips fit a narrow phone: "14d",
+ *  "675", "1.4k". The exact figures live in the summary line above the bar. */
+function unitShort(progress: TrophyProgress, amount: number): string {
+  if (progress.unit.unit === 'day') return `${amount}d`
+  return amount >= 10_000 ? `${Math.round(amount / 1000)}k` : String(amount)
+}
+
 /**
  * Progress across the whole challenge with the three trophy rungs marked:
- * 🥉 Bronze at half the days, 🥈 Silver at 80%, 🥇 Gold at every day. Earned
- * rungs light up; the one you're chasing is outlined.
+ * 🥉 Bronze at half, 🥈 Silver at 75%, 🥇 Gold at all of it — measured in
+ * whichever unit the challenge scores (days, or reps for weekly-cumulative).
+ * Earned rungs light up; the one you're chasing is outlined.
  */
 export function TrophyTierBar({ challenge, progress, showRungs = true, className }: TrophyTierBarProps) {
-  const rungs = TROPHY_TIERS.filter(t => t.tier !== 'participant')
+  // Themed for this challenge — August hands out Bronze/Silver/Gold Bicep.
+  const rungs = getTrophyTiers(challenge).filter(t => t.tier !== 'participant')
   const fillTier = progress.earned?.tier ?? 'participant'
   const pct = Math.round(progress.fraction * 100)
 
@@ -28,7 +37,7 @@ export function TrophyTierBar({ challenge, progress, showRungs = true, className
       <div className="relative h-2 bg-zinc-800 rounded-full overflow-hidden">
         <div
           className={cn('h-full rounded-full transition-all duration-500', TROPHY_TIER_STYLES[fillTier].bar)}
-          style={{ width: `${Math.max(pct, progress.completedDays > 0 ? 3 : 0)}%` }}
+          style={{ width: `${Math.max(pct, progress.completed > 0 ? 3 : 0)}%` }}
         />
         {/* Rung markers sit on the track so the gaps are visible at a glance */}
         {rungs.slice(0, -1).map(rung => (
@@ -46,8 +55,8 @@ export function TrophyTierBar({ challenge, progress, showRungs = true, className
         // sit in fixed columns so they can never collide on a narrow phone.
         <div className="flex items-center justify-between gap-1">
           {rungs.map(rung => {
-            const days = tierDaysRequired(challenge, rung.tier)
-            const earned = progress.completedDays >= days
+            const amount = tierAmountRequired(challenge, rung.tier)
+            const earned = progress.completed >= amount
             const isNext = progress.next?.tier === rung.tier
             return (
               <span
@@ -62,7 +71,7 @@ export function TrophyTierBar({ challenge, progress, showRungs = true, className
                 )}
               >
                 <span className={cn(!earned && 'grayscale opacity-60')}>{rung.emoji}</span>
-                {rung.label} · {days}d
+                {rung.label} · {unitShort(progress, amount)}
               </span>
             )
           })}

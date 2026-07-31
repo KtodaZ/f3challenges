@@ -15,6 +15,9 @@ export interface Exercise {
   // Custom encouragement lines shown when this exercise is the last one
   // standing today. Supports {remaining} (amount left) and {name} (plural).
   encouragements?: string[]
+  // No external load possible (chin-ups, dips). The weight picker offers "BW"
+  // only and the leaderboard load badge stays quiet for these.
+  bodyweight?: boolean
 }
 
 // For 'weekly-tiers' challenges: each tier covers a day range with per-exercise amounts.
@@ -22,6 +25,21 @@ export interface WeekTier {
   startDay: number // 1-based day within the challenge
   endDay: number
   targets: Array<{ exerciseId: string; amount: number }>
+}
+
+// ─── Weekly-cumulative weeks ──────────────────────────────────────────────────
+// For 'weekly-cumulative' challenges: one pooled rep target per calendar week,
+// filled by any mix of the challenge's exercises. Weeks are listed explicitly
+// rather than derived so a challenge can open or close mid-week with a
+// prorated target (August 2026 starts on a Saturday: a 1-day week worth 50)
+// and so a future challenge can escalate its weekly target week over week
+// without any code change.
+export interface ChallengeWeek {
+  startDate: string // YYYY-MM-DD, inclusive
+  endDate: string   // YYYY-MM-DD, inclusive
+  target: number    // pooled reps for the week
+  /** Optional override for the card header; defaults to "Week {n}". */
+  label?: string
 }
 
 export type ConditionalRestCondition = 'logged-previous-day'
@@ -45,6 +63,31 @@ export interface BonusChallenge {
   weeks: BonusChallengeWeek[]
 }
 
+/**
+ * What a challenge badge asks for. Every variant is pure data so a new
+ * challenge can ship its own badges without touching the engine — add a case
+ * here plus its progress rule in achievements.ts and every future challenge
+ * gets it for free.
+ */
+export type ChallengeBadgeCriteria =
+  /** The whole challenge: every required day, or every week on a
+   *  weekly-cumulative challenge. Make-ups count. */
+  | { type: 'complete-challenge' }
+  /** N fully completed days. */
+  | { type: 'complete-days'; days: number }
+  /** N reps banked across the challenge, any exercise. */
+  | { type: 'challenge-reps'; reps: number }
+  /** N reps of one specific exercise across the challenge. */
+  | { type: 'exercise-reps'; exerciseId: string; reps: number }
+  /** N reps inside a single day. */
+  | { type: 'single-day-reps'; reps: number }
+  /** N weekly targets hit (weekly-cumulative only). */
+  | { type: 'weeks-completed'; weeks: number }
+  /** Every one of the challenge's exercises logged inside one week. */
+  | { type: 'week-variety' }
+  /** Hit a week's target with at least this many days still on the clock. */
+  | { type: 'week-early'; daysEarly: number }
+
 // A signature achievement that ships with a specific challenge — defined as
 // data here, turned into a full AchievementDefinition by achievements.ts.
 export interface ChallengeBadgeDef {
@@ -53,9 +96,9 @@ export interface ChallengeBadgeDef {
   emoji: string
   description: string
   howTo: string
-  criteria:
-    | { type: 'complete-challenge' }              // every required day (makeups count)
-    | { type: 'complete-days'; days: number }     // N fully completed days
+  criteria: ChallengeBadgeCriteria
+  /** Noun for near-miss copy ("2 reps away"). Defaults per criteria type. */
+  unitLabel?: string
 }
 
 export interface ChallengeTemplate {
@@ -68,13 +111,26 @@ export interface ChallengeTemplate {
   exercises: Exercise[]
 
   // Challenge computation type — defaults to 'escalating' for backward compat
-  type?: 'escalating' | 'weekly-tiers'
+  type?: 'escalating' | 'weekly-tiers' | 'weekly-cumulative'
 
   // 'escalating': total reps for day N = N * dailyMultiplier, split equally across exercises
   dailyMultiplier?: number
 
   // 'weekly-tiers': fixed targets per exercise per week tier
   weeklyTiers?: WeekTier[]
+
+  // 'weekly-cumulative': one pooled rep target per week, no daily quota.
+  // Reps count toward the week regardless of which exercise they came from.
+  weeks?: ChallengeWeek[]
+
+  // Day the challenge's week rolls over: 0=Sunday (default) … 6=Saturday.
+  // Shared by the weekly leaderboard, the week card, and the Cloud Functions
+  // so the app and the push queue can never disagree about which week it is.
+  weekStartsOn?: number
+
+  // How-to-run-it bullets shown on the home screen and in onboarding.
+  // Free-form coaching notes; rendered verbatim, in order.
+  guidance?: string[]
 
   // Days that do not need to be logged and do not break streaks
   restDates?: string[]              // fixed rest days (e.g. holidays)
@@ -89,6 +145,20 @@ export interface ChallengeTemplate {
   // Badge of the Month: featured achievement id — pinned on the home
   // Next Badge card and unlocked with extra fanfare
   featuredBadgeId?: string
+
+  // Re-skins the 🎖️/🥉/🥈/🥇 trophy ladder for this challenge only — so a
+  // themed month can hand out "Gold Bicep 🥇💪" without renaming the trophies
+  // on every other challenge. Any tier left out keeps the standard look.
+  trophyStyle?: {
+    emoji?: Partial<Record<'participant' | 'bronze' | 'silver' | 'gold', string>>
+    label?: Partial<Record<'participant' | 'bronze' | 'silver' | 'gold', string>>
+    /** Public path to real artwork for a tier, e.g.
+     *  '/challenges/aug-2026/bicep-gold.png'. Used only where the mark renders
+     *  large enough to read (trophy case, detail, celebrations) — small chips
+     *  stay on emoji, where a downscaled illustration turns to mush. Always
+     *  falls back to `emoji` if the file is missing or fails to load. */
+    iconUrl?: Partial<Record<'participant' | 'bronze' | 'silver' | 'gold', string>>
+  }
 
   startDate: string // YYYY-MM-DD
   endDate: string   // YYYY-MM-DD
@@ -173,4 +243,50 @@ export interface DailyTarget {
   totalReps: number        // sum of rep-type targets; 0 on rest days
   repsPerExercise: number  // first rep-type target for notification copy; 0 on rest days
   exercises: Array<{ exercise: Exercise; reps: number }> // reps = amount regardless of unit
+  /** True on 'weekly-cumulative' challenges: there is no daily quota, so
+   *  `totalReps` is 0 and nothing should render a "% of today" figure. Callers
+   *  that show daily progress must branch on this and use WeekProgress. */
+  isOpenEnded?: boolean
+}
+
+// ─── Load (weight used) ───────────────────────────────────────────────────────
+// Optional, per-log, and deliberately coarse: one weight for the session rather
+// than one per variation. Nobody is going to fill in four numbers on their
+// phone in the gym, and the point is bragging rights, not a training log.
+
+export interface ExerciseLoad {
+  /** Pounds per hand (or per bar for barbell). Omitted for bodyweight-only work. */
+  lbs?: number
+  /** 1 = single dumbbell / one arm at a time, 2 = a pair. Absent for a barbell. */
+  hands?: 1 | 2
+  /** True when the work was bodyweight (chin-ups) — renders as "BW". */
+  bodyweight?: boolean
+}
+
+// ─── Weekly-cumulative progress ───────────────────────────────────────────────
+
+/** A challenge week resolved against the calendar, with its position. */
+export interface ResolvedWeek extends ChallengeWeek {
+  /** 1-based index within the challenge. */
+  index: number
+  /** Calendar days the week spans (1–7). */
+  dayCount: number
+}
+
+/** Where a PAX stands inside one week of a 'weekly-cumulative' challenge. */
+export interface WeekProgress {
+  week: ResolvedWeek
+  /** Reps banked this week across every exercise. */
+  reps: number
+  target: number
+  /** reps / target, capped at 1. */
+  fraction: number
+  /** Reps still owed (0 once the target is hit). */
+  remaining: number
+  /** Days of the week still available, today included. 0 once the week ends. */
+  daysLeft: number
+  /** Reps/day needed across `daysLeft` to finish. 0 when already done. */
+  perDayNeeded: number
+  /** True once `reps >= target`. */
+  isComplete: boolean
 }

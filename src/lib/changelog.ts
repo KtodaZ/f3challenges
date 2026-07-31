@@ -18,6 +18,25 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-31',
+    changes: [
+      'August is **The Bedrock Bicep Challenge** 💪 — 300 curls a week. Dumbbell, barbell, hammer, chin-ups: any mix, any day, however you want to break it up.',
+      'This one is scored by the **week**, not the day. There’s no daily quota to hit and no “you missed a day” — you owe the week 300 reps and it’s on you how they get there. Weeks run Sunday to Saturday.',
+      'August opens on a Saturday, so Week 1 is a single day worth 50, and the last stretch (Aug 30–31) is worth 100. Every short week is priced at the same 50/day as a full one.',
+      'The home screen is rebuilt for it: one bar you fill across the week with 1/4, 1/2 and 3/4 marked on it, plus what’s left and roughly how many a day it’ll take to finish.',
+      'Logging is now **additive** — pick your variation, tap +20, done. Both your variation and your weight stick between sessions, so most of the time it’s a single tap. There’s an Undo if you fat-finger it.',
+      'New: **post your weight**. Tap the 🏋 button, say whether it’s one dumbbell or two, and it shows up as a short badge next to your name on the leaderboard — `2×25`, `1×35`, `65 lb`, or `BW` for chin-ups. Totally optional.',
+      'A “this week’s mix” panel shows what your reps were actually made of — how much came from dumbbells vs hammers vs chin-ups.',
+      'The leaderboard now tracks the week: your row shows `180/300` until you hit it, then ✅. The “call out a PAX” list switches to whoever is short of the week rather than whoever hasn’t logged today.',
+      'Your 🔥 daily streak still counts, and still only asks that you log *something* — two reps on a rest day keeps it alive. A new 💪 badge next to it tracks weeks hit.',
+      'Come up short on a week? It’s not gone. **Catch Up** lets you top up any closed week for full trophy credit, same as making up a day.',
+      'Trophies this month are **Bicep-themed**: 🥉💪 Bronze Bicep, 🥈💪 Silver Bicep, 🥇💪 Gold Bicep — scored on total reps banked across August (1,350 for Gold).',
+      'Silver now lands at **75%** of a challenge instead of 80%, on every challenge. Nobody’s existing trophy goes down.',
+      'Six new badges for August: **The Bedrock Bicep** (hit every week), **Century Curl** (100 in one day), **Four-Way Flex** (all four variations in one week), **Chin Music** (100 chin-ups), **Ahead of the Curl** (finish a week with 2 days to spare), and **Sleeve Buster** (2,000 reps).',
+      'The weekly bonus is back and stays a mystery until its week opens — first one unlocks Sunday, Aug 2. Keep an eye out.',
+    ],
+  },
+  {
     date: '2026-07-28',
     changes: [
       'Monthly trophies now come in tiers. Finish half the challenge and you take home 🥉 Bronze, 80% earns 🥈 Silver, and every required day is 🥇 Gold. Log at least one day and you’re on the board with a 🎖️ Participant trophy.',

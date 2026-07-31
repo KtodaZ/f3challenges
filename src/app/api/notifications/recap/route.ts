@@ -12,6 +12,7 @@ import {
   getAchievementById,
   getNextAchievements,
   nearMissLabel,
+  getWeekProgress,
 } from '@/lib/challenges'
 import type {
   AchievementContext,
@@ -161,6 +162,9 @@ export async function POST(req: NextRequest) {
     weeklyReps,
     madeUpDaysThisWeek,
     currentStreak: user.currentStreak ?? 0,
+    // Weekly-cumulative challenges are scored on the week's rep total, not on
+    // days finished — hand the recap that number so it talks about the right thing.
+    weeklyTarget: getWeekProgress(challenge, today, currentLogs)?.target,
     badgesEarnedThisWeek,
     nextBadge,
     missedDaysOutstanding,

@@ -6,6 +6,8 @@ export type {
   ExerciseUnit, Exercise, ChallengeTemplate, DailyTarget, WeekTier, ConditionalRestDate,
   ChallengeTemplateCopy, FeedPostVars, NotificationVars, NotificationTemplatePair,
   BonusChallenge, BonusChallengeWeek,
+  ChallengeWeek, ResolvedWeek, WeekProgress, ExerciseLoad,
+  TrophyUnit, TrophyUnitInfo,
   AchievementLogInput, AchievementContext, EarnedAchievement,
   AchievementCategory, CelebrationTheme, AchievementProgress,
   AchievementDefinition, AchievementEvaluation,
@@ -104,8 +106,15 @@ export interface DailyLog {
   userId: string
   challengeId: string
   date: string            // YYYY-MM-DD
+  /** On day-based challenges: share of today's target completed.
+   *  On 'weekly-cumulative' challenges there is no daily target, so this is
+   *  simply 1 when any reps were logged and 0 otherwise — "did you train
+   *  today". Week completion lives in WeekProgress, derived from these logs. */
   completionFraction: CompletionFraction
   exerciseLogs: ExerciseLog[]
+  /** Optional weight used for this session. Purely for bragging rights —
+   *  never affects scoring. See ExerciseLoad. */
+  load?: import('@f3-bedrock/shared').ExerciseLoad
   modificationNote?: string
   isMakeUp: boolean
   notes?: string
@@ -205,6 +214,12 @@ export interface LeaderboardEntry {
   /** ISO timestamp of the most recent shoutout this PAX *received*, if any.
    *  Lets the push queue spread the love — recently celebrated PAX rank lower. */
   lastShoutoutAt?: string
+  /** Most recent weight this PAX logged — rendered as the load badge. */
+  load?: import('@f3-bedrock/shared').ExerciseLoad
+  /** Set on 'weekly-cumulative' challenges: where they stand in the current
+   *  week. The row shows this instead of a "done today" badge, because on
+   *  these challenges a skipped day is allowed and a short week is not. */
+  week?: import('@f3-bedrock/shared').WeekProgress
 }
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
