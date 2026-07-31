@@ -38,8 +38,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Everything you see is your own region: your crew on the leaderboard, your feed, your challenge, your reminders. Bedrock and Sactown run separate months and separate boards — nothing of yours moved or changed.',
       'New PAX pick their region when they sign up, or land straight in it from their region’s invite link.',
       'Two PAX in different regions can now share an F3 name without the app arguing about it.',
-      'The app has a real address: f3challenges.com. Open the old link and it\u2019ll walk you across \u2014 one tap and you land already signed in, streak, badges and history intact.',
-      'If you added the app to your home screen, add it again from the new address and delete the old icon. The old one stays pinned to the old link, and notifications follow the new one.',
+      'The app has a real address: f3challenges.com \u2014 that\u2019s the one to use from here on. Already got it on your home screen? Leave it exactly where it is: your existing icon keeps working, notifications and all. Nothing to reinstall, nothing to move.',
     ],
   },
   {

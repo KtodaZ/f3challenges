@@ -13,7 +13,6 @@ import { FirestoreConnectionGuard } from '@/components/providers/FirestoreConnec
 import { CrashCapture } from '@/components/providers/CrashCapture'
 import { UpdateChecker } from '@/components/providers/UpdateChecker'
 import { PendingCelebrationHandler } from '@/components/providers/PendingCelebrationHandler'
-import { MigrationGate } from '@/components/providers/MigrationGate'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 
@@ -54,25 +53,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <RegionProvider>
             <UserProvider>
               <TooltipProvider>
-                <MigrationGate>
-                  <CrashCapture />
-                  <FCMInitializer />
-                  <FirestoreConnectionGuard />
-                  <UpdateChecker />
-                  <PendingCelebrationHandler />
-                  <TopBar />
-                  <main className="pb-nav min-h-dvh">
-                    {children}
-                  </main>
-                  <BottomNav />
-                  <Toaster
-                    position="bottom-center"
-                    offset="80px"
-                    toastOptions={{
-                      style: { background: '#27272a', border: '1px solid #3f3f46', color: '#fafafa' },
-                    }}
-                  />
-                </MigrationGate>
+                <CrashCapture />
+                <FCMInitializer />
+                <FirestoreConnectionGuard />
+                <UpdateChecker />
+                <PendingCelebrationHandler />
+                <TopBar />
+                <main className="pb-nav min-h-dvh">
+                  {children}
+                </main>
+                <BottomNav />
+                <Toaster
+                  position="bottom-center"
+                  offset="80px"
+                  toastOptions={{
+                    style: { background: '#27272a', border: '1px solid #3f3f46', color: '#fafafa' },
+                  }}
+                />
               </TooltipProvider>
             </UserProvider>
           </RegionProvider>

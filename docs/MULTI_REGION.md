@@ -112,30 +112,21 @@ No admin panel exists; admin work is manual for now.
 ### Phase 3 — Security
 `firestore.rules` is currently `allow read, write: if true` everywhere. Trust-based is fine for one region of 20 who know each other; it is not fine for cross-region admin actions. Needs Firebase Anonymous Auth + custom claims for role, and rules gating `role` / `regionId` / `suspended` writes to admins. **This is a prerequisite for Phase 2, not a follow-up** — an unauthenticated destructive admin endpoint is worse than no admin panel.
 
-### Phase 4 — Custom domain + PWA migration ✅ (built, not yet shipped)
+### Phase 4 — Custom domain ✅ (shipped 2026-07-31)
 
 Live at **f3challenges.com** (Vercel Hobby — custom domains are free there; the cron limit that normally forces an upgrade is already sidestepped by running notifications on Firebase `onSchedule`).
 
-**Infrastructure (done 2026-07-30):**
 - Domain added to the Vercel project, connected to Production. Apex only — the "redirect apex to www" default was unchecked, so the app serves bare `f3challenges.com`.
 - Squarespace DNS: deleted the "Squarespace Defaults" preset (four parking A records on `@`, a `www` CNAME, and an HTTPS record whose `ipv4hint` pointed at Squarespace IPs — all of which fight Vercel). Added `A / @ / 216.198.79.1`. Domain Connect and Email Security (SPF/DKIM/DMARC) left intact.
-- The legacy `*.vercel.app` origin stays connected to Production as a second alias. **Never make it a redirect** — a cross-origin 301 kicks an installed PWA out of standalone mode.
+- The legacy `*.vercel.app` origin stays connected to Production as a second alias.
 
-**Why any of this is needed:** an installed PWA is bound to its origin. localStorage doesn't carry over (every PAX lands back at onboarding), FCM tokens are tied to the service worker registration at the old origin (so the *old* install keeps receiving push), and iOS additionally needs the icon deleted, re-added, and notification permission re-granted.
+**Nobody reinstalls.** An installed PWA is bound to its origin, but the old origin serves the *same deployment* against the *same* Firebase project — so an existing install is a fully working app, not a stale one. Push keeps landing because `fcmOptions.link` is a relative path (`/feed`) that resolves against whichever origin registered the service worker; `APP_URL` is only used for a server-to-server recap fetch and works from either.
 
-**The flow** (`src/lib/migration.ts`, `src/components/providers/MigrationGate.tsx`):
-1. `MigrationGate` takes over the screen on the legacy origin only — `LEGACY_HOSTS` is an exact-host list, so localhost and previews never see it. A session-scoped "Not right now" escape hatch stops anyone being stranded.
-2. The CTA is a one-time claim link, `https://f3challenges.com/?claim=<userId>`.
-3. `UserContext` consumes `?claim=` before anything else touches the session (child effects run before parent ones), lands the PAX signed in past onboarding in their own region, and stamps `user.migratedAt`. It ignores the local cache on a claim — that cache belongs to whoever used the new origin last.
-4. Back on the legacy origin, `migratedAt` triggers `retireLegacyPushRegistration()`: remove the token from Firestore **first**, then `deleteToken()` (reverse that order and the token is unrecoverable but still live in the array), then unregister the service worker. This is what actually stops double-push.
+A migration takeover was built and then removed before it did any harm. It's the wrong trade: it blocked a working app, and its FCM cleanup would have **deleted live push tokens** from installs that had no problem. If a reason to retire the old origin ever appears, the thing to preserve is that the old origin must keep *serving* — a cross-origin 301 kicks an installed PWA out of standalone mode.
 
-`APP_URL` in `functions/src/index.ts` now defaults to the new origin — otherwise every push deep-links PAX back to the origin they just left, where the gate hands them straight back again. No `APP_URL` env override exists anywhere, so the code default governs.
+What survives is `claimUrl()` / `consumeClaimParam()` in `src/lib/migration.ts`: `?claim=<userId>` restores a session without re-picking a name off the roster. Useful for a new phone, or for anyone who does choose to move across. `user.migratedAt` records who has.
 
-**Reinstall instructions live on the NEW origin** (`src/components/providers/ReinstallPrompt.tsx`), not the old one. This is deliberate and was a bug first time around: the old origin can only report whether *that session* is standalone, and the announcement link gets opened from Slack — i.e. a browser tab — so it reads "not installed" even for PAX who do have the old icon. It's also the wrong moment: they read the steps, tap through, and the steps are gone. On the new origin `isStandalone()` answers the question that actually matters (is this device set up here yet), and the steps are in front of them when they can act. The old origin just carries a one-line heads-up.
-
-The steps are migration-specific, not the generic onboarding install guide: add to home screen, **delete the old icon**, and on iOS re-allow notifications (a new origin is a new app, so permission resets). Driven by a `f3_needs_reinstall` localStorage flag set on claim, cleared once standalone is detected or the PAX dismisses.
-
-**Remaining:** ship it (merge to `main`), then tell the PAX. Nothing prompts anyone until the build with `MigrationGate` is deployed — the new domain currently serves the same app quietly.
+**Known wart:** two cohorts now exist — existing Bedrock PAX on `*.vercel.app`, everyone new on `f3challenges.com`. Both work identically. The old alias must stay attached to the Vercel project; detaching it would break those installs.
 
 ### Backlog
 Inter-regional leaderboard toggle and region-vs-region card · admin challenge builder (challenges are static files today, so Kyle is the bottleneck for every region) · self-serve region creation · per-region timezone · leaderboard read-scaling (`getUsersWithChallengeLogs` fires one query per user, `src/lib/firestore.ts`)

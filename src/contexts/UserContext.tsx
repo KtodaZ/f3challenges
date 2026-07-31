@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import {
   getCurrentUserId, setCurrentUserId, clearCurrentUserId,
   getCachedUser, setCachedUser, clearCachedUser,
-  setOnboardingComplete, setNeedsReinstall,
+  setOnboardingComplete,
 } from '@/lib/storage'
 import { getUser, subscribeToUsers, updateUser } from '@/lib/firestore'
 import { consumeClaimParam } from '@/lib/migration'
@@ -68,9 +68,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
           // Land them fully signed in, in their own region, past onboarding.
           setCurrentUserId(u.id)
           setOnboardingComplete()
-          // They came from the old domain, so their home-screen icon (if any)
-          // still points there. Prompt for a re-add once they're here.
-          setNeedsReinstall()
           if (u.regionId) setRegion(u.regionId)
           // Tells the old origin it may retire its push registration.
           if (!u.migratedAt) {
