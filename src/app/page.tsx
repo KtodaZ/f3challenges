@@ -24,7 +24,6 @@ import {
   getLogsForDateRange,
 } from '@/lib/firestore'
 import {
-  getCurrentChallenge,
   getDailyTarget,
   getTodayPT,
   getDayNumber,
@@ -37,7 +36,6 @@ import {
   AWAY_THRESHOLD,
   getCurrentBonusWeek,
   getBonusWeekFeedPost,
-  CHALLENGES,
   buildFeedPost,
   getRemainingExercises,
   trophyFeedPost,
@@ -72,6 +70,8 @@ import { NextBadgeCard } from '@/components/home/NextBadgeCard'
 import { TrophyTrackCard } from '@/components/home/TrophyTrackCard'
 import { syncChallengeTrophy, trophyAmount } from '@/lib/trophies'
 import { useAchievementEngine } from '@/hooks/useAchievementEngine'
+import { useRegion } from '@/contexts/RegionContext'
+import { useCurrentChallenge, usePastChallenges } from '@/hooks/useChallenge'
 import {
   buildMilestoneCelebration,
   buildRedemptionCelebration,
@@ -199,12 +199,13 @@ function Spinner() {
 // ─── No Active Challenge ──────────────────────────────────────────────────────
 
 function NoChallengeView() {
+  const { region } = useRegion()
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh px-6 text-center gap-4">
       <div className="text-5xl">🏋️</div>
       <h1 className="text-2xl font-bold text-white">No Active Challenge</h1>
       <p className="text-zinc-400 text-sm max-w-xs">
-        There&apos;s no challenge running right now. Check back soon — the next one will be here before you know it.
+        There&apos;s no {region.shortName} challenge running right now. Check back soon — the next one will be here before you know it.
       </p>
     </div>
   )
@@ -217,7 +218,10 @@ export default function HomePage() {
   const { currentUser, allUsers, loading: userLoading, refreshCurrentUser } = useUser()
 
   const today = getTodayPT()
-  const challenge = getCurrentChallenge()
+  const challenge = useCurrentChallenge()
+  // Only this region's history — otherwise Sactown PAX get offered makeups
+  // for Bedrock challenges they were never part of.
+  const pastChallenges = usePastChallenges()
 
   // Daily log (real-time)
   const [todayLog, setTodayLog] = useState<DailyLog | null>(null)
@@ -351,7 +355,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!currentUser) return
-    const ended = CHALLENGES.filter(c => c.endDate < today)
+    const ended = pastChallenges
     if (ended.length === 0) return
     Promise.all(
       ended.map(c => getUserChallengeLogs(currentUser.id, c.id).then(logs => ({ id: c.id, logs })))
@@ -360,7 +364,7 @@ export default function HomePage() {
       for (const { id, logs } of results) map[id] = logs
       setPastChallengeLogs(map)
     })
-  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, pastChallenges]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Subscribe to today's log ────────────────────────────────────────────
 
@@ -1524,7 +1528,7 @@ export default function HomePage() {
         )}
 
         {/* ── Makeup section (past challenges) — collapsible, keeps the modal ── */}
-        {CHALLENGES.filter(c => c.endDate < today).map(pastChallenge => {
+        {pastChallenges.map(pastChallenge => {
           const logs = pastChallengeLogs[pastChallenge.id] ?? []
           if (logs.length === 0) return null
           if (dismissedMakeups.has(pastChallenge.id)) return null

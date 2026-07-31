@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
-import { CHALLENGES, getTotalDays, getMonthlyTotal, getTodayPT } from '@/lib/challenges'
-import type { AchievementBadge } from '@/types'
+import { getTotalDays, getMonthlyTotal } from '@/lib/challenges'
+import { usePastChallenges } from '@/hooks/useChallenge'
+import type { AchievementBadge, ChallengeTemplate } from '@/types'
 
 interface Props {
   onNext: (badges: AchievementBadge[]) => void
@@ -13,24 +14,36 @@ interface Props {
 
 type Selection = 'completed' | 'participant' | 'skipped'
 
-const HISTORICAL = CHALLENGES.filter(c => c.endDate < getTodayPT())
-
-function initialSelections(existingBadges: AchievementBadge[] = []): Record<string, Selection> {
+function initialSelections(
+  historical: ChallengeTemplate[],
+  existingBadges: AchievementBadge[] = [],
+): Record<string, Selection> {
   const byId = Object.fromEntries(existingBadges.map(b => [b.challengeId, b.type as Selection]))
-  return Object.fromEntries(HISTORICAL.map(c => [c.id, byId[c.id] ?? 'skipped']))
+  return Object.fromEntries(historical.map(c => [c.id, byId[c.id] ?? 'skipped']))
 }
 
 export function PastChallengesStep({ onNext, existingBadges }: Props) {
+  // Only this region's history — a brand-new region has none, and the step
+  // should be skipped entirely rather than shown empty.
+  const historical = usePastChallenges()
   const [selections, setSelections] = useState<Record<string, Selection>>(
-    () => initialSelections(existingBadges)
+    () => initialSelections(historical, existingBadges)
   )
+
+  // Region resolves a tick after mount — re-seed so the selections match the
+  // list actually being shown. See PastChallengesSettings for the same fix.
+  const historicalKey = historical.map(c => c.id).join(',')
+  useEffect(() => {
+    setSelections(initialSelections(historical, existingBadges))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historicalKey])
 
   function select(challengeId: string, val: Selection) {
     setSelections(prev => ({ ...prev, [challengeId]: val }))
   }
 
   function handleContinue() {
-    const badges: AchievementBadge[] = HISTORICAL
+    const badges: AchievementBadge[] = historical
       .filter(c => selections[c.id] !== 'skipped')
       .map(c => ({
         challengeId: c.id,
@@ -48,7 +61,7 @@ export function PastChallengesStep({ onNext, existingBadges }: Props) {
       </div>
 
       <div className="space-y-4 flex-1">
-        {HISTORICAL.map(challenge => {
+        {historical.map(challenge => {
           const days  = getTotalDays(challenge)
           const total = getMonthlyTotal(challenge)
           const sel   = selections[challenge.id]

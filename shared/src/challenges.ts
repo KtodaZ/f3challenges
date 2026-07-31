@@ -13,6 +13,7 @@ import type {
   BonusChallengeWeek, ChallengeTemplate, DailyTarget, ExerciseLoad,
   ResolvedWeek, WeekProgress,
 } from './types'
+import { DEFAULT_REGION_ID } from './regions'
 
 export const CHALLENGES: ChallengeTemplate[] = [
   {
@@ -439,6 +440,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
   },
   {
     id: 'aug-2026',
+    regionIds: ['bedrock'],
     name: 'The Bedrock Bicep Challenge',
     hashtag: '#BedrockBicep',
     tagline: '300 curls a week. Any variation. However you want it. 💪',
@@ -574,20 +576,64 @@ export const CHALLENGES: ChallengeTemplate[] = [
       },
     },
   },
+  {
+    // F3 Sactown's first challenge on the app — Babe's 100-merkins-a-day for
+    // August. Flat target every day, so it's a single weekly tier spanning the
+    // whole month rather than an escalating multiplier.
+    id: 'aug-2026-sactown',
+    name: 'The Century Club',
+    hashtag: '#100ADay',
+    tagline: '100 merkins. Every day. All month.',
+    month: 8,
+    year: 2026,
+    regionIds: ['sactown'],
+    type: 'weekly-tiers',
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+    exercises: [
+      { id: 'merkin', name: 'Merkin', shortName: 'Merkin' },
+    ],
+    weeklyTiers: [
+      { startDay: 1, endDay: 31, targets: [{ exerciseId: 'merkin', amount: 100 }] },
+    ],
+  },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Returns the challenge active on a given date, or undefined. */
-export function getChallengeForDate(date: string): ChallengeTemplate | undefined {
-  return CHALLENGES.find(c => date >= c.startDate && date <= c.endDate)
+/** Regions a challenge belongs to. No `regionIds` means Bedrock-only, so every
+ *  challenge written before regions existed keeps working untouched. */
+export function challengeRegionIds(c: ChallengeTemplate): string[] {
+  return c.regionIds ?? [DEFAULT_REGION_ID]
 }
 
-/** Returns today's active challenge (PT date). */
-export function getCurrentChallenge(): ChallengeTemplate | undefined {
-  return getChallengeForDate(getTodayPT())
+export function challengeBelongsToRegion(c: ChallengeTemplate, regionId: string): boolean {
+  return challengeRegionIds(c).includes(regionId)
 }
 
+/** Every challenge a region runs, in definition order. Use this anywhere you'd
+ *  otherwise scan CHALLENGES directly — otherwise a region sees another
+ *  region's history in past-challenge lists, badges, and achievements. */
+export function challengesForRegion(regionId: string): ChallengeTemplate[] {
+  return CHALLENGES.filter(c => challengeBelongsToRegion(c, regionId))
+}
+
+/** Returns the challenge active on a given date for a region, or undefined.
+ *  Two regions can run different challenges over the same dates, so the region
+ *  is required — there is no such thing as "the" challenge for a date. */
+export function getChallengeForDate(date: string, regionId: string): ChallengeTemplate | undefined {
+  return CHALLENGES.find(
+    c => date >= c.startDate && date <= c.endDate && challengeBelongsToRegion(c, regionId)
+  )
+}
+
+/** Returns a region's active challenge today (PT date). */
+export function getCurrentChallenge(regionId: string): ChallengeTemplate | undefined {
+  return getChallengeForDate(getTodayPT(), regionId)
+}
+
+/** Lookup by id, deliberately not region-scoped — used to resolve a challenge
+ *  a user already has a badge or log for. */
 export function getChallengeById(id: string): ChallengeTemplate | undefined {
   return CHALLENGES.find(c => c.id === id)
 }

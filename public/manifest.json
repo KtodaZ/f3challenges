@@ -1,7 +1,7 @@
 {
-  "name": "F3 Bedrock Monthly Challenge",
+  "name": "F3 Norcal Monthly Challenge",
   "short_name": "Monthly Challenge",
-  "description": "Track and crush the F3 Bedrock monthly fitness challenge.",
+  "description": "Track and crush your F3 region's monthly fitness challenge.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#09090b",

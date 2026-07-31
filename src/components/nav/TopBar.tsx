@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { useUser } from '@/contexts/UserContext'
+import { useRegion } from '@/contexts/RegionContext'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 const TITLES: Record<string, string> = {
@@ -14,12 +15,13 @@ const TITLES: Record<string, string> = {
 export function TopBar() {
   const pathname    = usePathname()
   const { currentUser } = useUser()
+  const { region } = useRegion()
 
   // Hide on onboarding
   if (pathname.startsWith('/onboarding')) return null
 
   const title = TITLES[pathname]
-    ?? (pathname.startsWith('/profile') ? 'Profile' : 'F3 Bedrock')
+    ?? (pathname.startsWith('/profile') ? 'Profile' : region.name)
 
   return (
     <header className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-sm border-b border-zinc-800/60 safe-top">

@@ -34,6 +34,12 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Silver now lands at **75%** of a challenge instead of 80%, on every challenge. Nobody’s existing trophy goes down.',
       'Six new badges for August: **The Bedrock Bicep** (hit every week), **Century Curl** (100 in one day), **Four-Way Flex** (all four variations in one week), **Chin Music** (100 chin-ups), **Ahead of the Curl** (finish a week with 2 days to spare), and **Sleeve Buster** (2,000 reps).',
       'The weekly bonus is back and stays a mystery until its week opens — first one unlocks Sunday, Aug 2. Keep an eye out.',
+      'The app is now F3 Norcal Monthly Challenge — F3 Sactown is joining us, starting with their 100-merkins-a-day challenge in August. Welcome, Sactown. 🤝',
+      'Everything you see is your own region: your crew on the leaderboard, your feed, your challenge, your reminders. Bedrock and Sactown run separate months and separate boards — nothing of yours moved or changed.',
+      'New PAX pick their region when they sign up, or land straight in it from their region’s invite link.',
+      'Two PAX in different regions can now share an F3 name without the app arguing about it.',
+      'The app has a real address: f3challenges.com. Open the old link and it\u2019ll walk you across \u2014 one tap and you land already signed in, streak, badges and history intact.',
+      'If you added the app to your home screen, add it again from the new address and delete the old icon. The old one stays pinned to the old link, and notifications follow the new one.',
     ],
   },
   {

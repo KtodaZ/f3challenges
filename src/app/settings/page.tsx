@@ -117,7 +117,7 @@ export default function SettingsPage() {
 
       {/* App info */}
       <div className="mt-10 text-center space-y-1">
-        <p className="text-xs text-zinc-600 font-medium tracking-wide uppercase">F3 Bedrock Monthly Challenge</p>
+        <p className="text-xs text-zinc-600 font-medium tracking-wide uppercase">F3 Norcal Monthly Challenge</p>
         <Link href="/changelog" className="inline-block text-xs text-zinc-700 hover:text-zinc-500 transition-colors">
           v1.0.0 · What&apos;s new
         </Link>

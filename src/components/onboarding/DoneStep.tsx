@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
-import { getCurrentChallenge, getDailyTarget, getTodayPT, getChallengeWeek } from '@/lib/challenges'
+import { getDailyTarget, getTodayPT, getChallengeWeek } from '@/lib/challenges'
+import { useCurrentChallenge } from '@/hooks/useChallenge'
 import { setOnboardingComplete } from '@/lib/storage'
 import { updateUser } from '@/lib/firestore'
 import { useUser } from '@/contexts/UserContext'
@@ -24,7 +25,7 @@ export function DoneStep({ earnedBadges, notifPrefs }: Props) {
     return () => clearTimeout(t)
   }, [])
 
-  const challenge = getCurrentChallenge()
+  const challenge = useCurrentChallenge()
   const today     = getTodayPT()
   const target    = challenge ? getDailyTarget(challenge, today) : null
   const week      = challenge ? getChallengeWeek(challenge, today) : undefined
