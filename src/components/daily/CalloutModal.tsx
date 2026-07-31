@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { MentionAutocomplete } from '@/components/feed/MentionAutocomplete'
 import { createFeedPost } from '@/lib/firestore'
+import { useRegion } from '@/contexts/RegionContext'
 import { generateId, extractHashtags, extractMentionNames } from '@/lib/utils'
 import type { User, FeedPost } from '@/types'
 
@@ -38,14 +39,15 @@ interface CalloutModalProps {
   onPosted?: (targetUserId: string | null) => void
 }
 
+// {region} is replaced with the PAX's own region name at render time.
 const CREW_PLACEHOLDERS = [
   'Great work out there, PAX!',
   'The crew showed up today!',
-  'F3 Bedrock putting in the work!',
+  '{region} putting in the work!',
   'Whole PAX grinding — let\'s go!',
   'Proud of this crew today.',
   'Nobody left behind out there!',
-  'That\'s what F3 Bedrock is about!',
+  'That\'s what {region} is about!',
 ]
 
 const TARGET_PLACEHOLDERS = [
@@ -80,6 +82,7 @@ export function CalloutModal({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [placeholderIdx, setPlaceholderIdx] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { region } = useRegion()
 
   // Sync selection and content when the modal opens; pick a fresh placeholder each time
   useEffect(() => {
@@ -303,7 +306,7 @@ export function CalloutModal({
                 placeholder={
                   singleTarget
                     ? TARGET_PLACEHOLDERS[placeholderIdx % TARGET_PLACEHOLDERS.length](singleTarget.displayName)
-                    : CREW_PLACEHOLDERS[placeholderIdx]
+                    : CREW_PLACEHOLDERS[placeholderIdx].replace('{region}', region.name)
                 }
                 rows={3}
                 disabled={saving}

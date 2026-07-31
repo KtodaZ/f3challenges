@@ -6,6 +6,9 @@ import { onRequest } from "firebase-functions/v2/https";
 import {
   getChallengeForDate,
   getChallengeById,
+  REGIONS,
+  resolveRegion,
+  challengeRegionIds,
   getDayNumber,
   getTotalDays,
   getMilestoneDays,
@@ -27,7 +30,7 @@ import {
   legacyBadgeType,
   trophyNotification,
 } from "@f3-bedrock/shared";
-import type { ChallengeTemplate, DailyTarget, NotificationVars, TrophyTier, WeekProgress } from "@f3-bedrock/shared";
+import type { ChallengeTemplate, DailyTarget, NotificationVars, Region, TrophyTier, WeekProgress } from "@f3-bedrock/shared";
 
 admin.initializeApp()
 
@@ -39,6 +42,7 @@ interface FeedPost {
   id: string;
   type: "post" | "shoutout" | "system";
   authorId: string;
+  regionId?: string;
   content: string;
   hashtags: string[];
   mentions: string[]; // user IDs
@@ -51,6 +55,9 @@ interface FeedPost {
 interface User {
   id: string;
   displayName: string;
+  /** Which F3 region this PAX belongs to. Absent on docs written before
+   *  regions existed — resolveRegion() falls those back to Bedrock. */
+  regionId?: string;
   fcmTokens?: string[];
   notificationPreferences: {
     mentions: boolean;
@@ -89,6 +96,7 @@ interface DailyLog {
   date: string;
   userId: string;
   challengeId?: string;
+  regionId?: string;
   exerciseLogs?: ExerciseLogEntry[];
   isMakeUp?: boolean;
   loggedAt?: string;   // ISO — first write for this day
@@ -276,8 +284,9 @@ export const onUserCreated = onDocumentCreated(
     // Give the user a moment to finish onboarding before the welcome post appears
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    const challenge = getChallengeForDate(getTodayPT());
-    const challengeLabel = challenge ? challenge.name : "F3 Bedrock";
+    const region = resolveRegion(user.regionId);
+    const challenge = getChallengeForDate(getTodayPT(), region.id);
+    const challengeLabel = challenge ? challenge.name : region.name;
 
     const templates = [
       `@${user.displayName} just joined ${challengeLabel}! Welcome to the crew! 💪`,
@@ -286,7 +295,7 @@ export const onUserCreated = onDocumentCreated(
       `@${user.displayName} just laced up for ${challengeLabel}. The crew just got stronger! 🙌`,
       `Heads up PAX — @${user.displayName} is locked in for ${challengeLabel}. Welcome! 🔥`,
       `The crew grows! @${user.displayName} just joined ${challengeLabel}. Let's go! 💪`,
-      `@${user.displayName} is here and ready for ${challengeLabel}. Welcome to F3 Bedrock! 🙌`,
+      `@${user.displayName} is here and ready for ${challengeLabel}. Welcome to ${region.name}! 🙌`,
       `@${user.displayName} just showed up for ${challengeLabel}. That's how it's done! 🔥`,
     ];
 
@@ -295,6 +304,8 @@ export const onUserCreated = onDocumentCreated(
       id: postId,
       type: "system",
       authorId: "system",
+      // Without regionId the post never shows up in any region's feed.
+      regionId: region.id,
       content: templates[Math.floor(Math.random() * templates.length)],
       hashtags: [],
       mentions: [userId],
@@ -356,16 +367,18 @@ export const onDailyLogCompleted = onDocumentWritten(
 
     const db = admin.firestore();
     const today = getTodayPT();
+    const regionId = resolveRegion(after.regionId).id;
     // Only for the challenge that's actually running — backfilling a finished
     // month shouldn't announce movement on a board nobody is watching.
-    if (getChallengeForDate(today)?.id !== challenge.id) return;
+    if (getChallengeForDate(today, regionId)?.id !== challenge.id) return;
     const postId = `overtake_${after.userId}_${today}`;
     // Cheap bail-out before the expensive reads: one overtake post per PAX per day.
     if ((await db.doc(`feed/${postId}`).get()).exists) return;
 
     const [logsSnap, usersSnap, partSnap] = await Promise.all([
       db.collection("dailyLogs").where("challengeId", "==", challenge.id).get(),
-      db.collection("users").get(),
+      // Region-scoped: an overtake post must only rank PAX on the same board.
+      db.collection("users").where("regionId", "==", regionId).get(),
       db.collection("participation").where("challengeId", "==", challenge.id).get(),
     ]);
 
@@ -412,6 +425,7 @@ export const onDailyLogCompleted = onDocumentWritten(
       id: postId,
       type: "system",
       authorId: "system",
+      regionId,
       content,
       hashtags: [challenge.hashtag.replace(/^#/, "")],
       mentions: [after.userId, ...passed.map(p => p.id)],
@@ -476,6 +490,8 @@ type NotificationCtx = {
   dailyTarget: DailyTarget;
   exerciseLogs: ExerciseLogEntry[] | null;
   userName: string; challengeName: string; dayNumber: number; totalDays: number;
+  /** The PAX's region name, e.g. 'F3 Sactown' — group copy calls it by name. */
+  regionName: string;
   todayTarget: number; repsCompleted: number; repsRemaining: number;
   repsPerExercise: number; primaryExercise: string;
   userCompleted: boolean; completionFraction: number;
@@ -607,7 +623,7 @@ function generateNotification(ctx: NotificationCtx): { title: string; body: stri
 function buildNotification(ctx: NotificationCtx): { title: string; body: string } {
   const {
     challenge, dailyTarget, exerciseLogs,
-    userName, challengeName, dayNumber, totalDays,
+    userName, challengeName, dayNumber, totalDays, regionName,
     repsCompleted, repsRemaining,
     userCompleted, groupCompletedCount, groupTotalCount,
     notificationType, completedNames, notDoneNames,
@@ -789,11 +805,11 @@ function buildNotification(ctx: NotificationCtx): { title: string; body: string 
         "Clean Sweep, PAX!",
       ];
       const bodies = [
-        `Every PAX crushed Day ${dayNumber}. F3 Bedrock coming through!`,
+        `Every PAX crushed Day ${dayNumber}. ${regionName} coming through!`,
         `All ${groupTotalCount} PAX done. Day ${dayNumber} belongs to the crew!`,
         `Full house on Day ${dayNumber}! That's the standard, ${fn}.`,
         `Nobody left behind — whole PAX finished Day ${dayNumber}. Let's go!`,
-        `${groupTotalCount} for ${groupTotalCount} today. That's what F3 Bedrock is about.`,
+        `${groupTotalCount} for ${groupTotalCount} today. That's what ${regionName} is about.`,
         `Not one PAX left it on the table today. Day ${dayNumber} swept. 🔥`,
         `${groupTotalCount}/${groupTotalCount} on Day ${dayNumber}. Try finding another crew that does that.`,
       ];
@@ -1307,7 +1323,10 @@ function generateCompetitiveNotification(ctx: {
 
 // const cronSecret = defineSecret("CRON_SECRET");
 
-const APP_URL = process.env.APP_URL ?? "https://f3-bedrock-monthly-challenge.vercel.app";
+// Push notification deep links. Must track the canonical domain — otherwise
+// every notification sends PAX back to the origin they just migrated off,
+// where MigrationGate hands them straight back again.
+const APP_URL = process.env.APP_URL ?? "https://f3challenges.com";
 
 async function fetchAiRecap(
   userId: string,
@@ -1342,6 +1361,286 @@ async function fetchAiRecap(
   }
 }
 
+// ---------------------------------------------------------------------------
+// notifyRegion — one region's scheduled-notification pass.
+//
+// Extracted so the scheduler can run each region independently: regions run
+// different challenges over the same dates, so day number, daily target,
+// group-completion counts, and the competitive standings are all per region.
+// A `return` here skips this region only; the next one still runs.
+// ---------------------------------------------------------------------------
+async function notifyRegion(
+  region: Region,
+  today: string,
+  nowDate: Date,
+  nowTotal: number,
+): Promise<void> {
+  const challenge = getChallengeForDate(today, region.id);
+  if (!challenge) {
+    console.log(`[notify] no active challenge for ${today} in ${region.id}, skipping region`);
+    return;
+  }
+  const dayNumber = getDayNumber(challenge, today)!;
+  const totalDays = getTotalDays(challenge);
+  const todayTarget = getDailyTarget(challenge, today);
+  if (!todayTarget || todayTarget.isRestDay) {
+    console.log(`[notify] rest day or no target for ${today}, exiting`);
+    return;
+  }
+  const todayReps = todayTarget.totalReps;
+  console.log(`[notify] challenge=${challenge.name} day=${dayNumber}/${totalDays}`);
+
+  // Region-scoped: otherwise Sactown PAX get reminders computed off
+  // Bedrock's day number and group-completion counts.
+  const usersSnap = await admin.firestore().collection("users")
+    .where("regionId", "==", region.id)
+    .get();
+  const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User & { notificationPreferences: NotifPrefs; currentStreak?: number }));
+  console.log(`[notify] ${users.length} users in ${region.id}`);
+
+  // Fetch participation for all users to exclude opted-out PAX from stats
+  const participationSnap = await admin.firestore().collection("participation")
+    .where("challengeId", "==", challenge.id)
+    .get();
+  const optedOutIds = new Set(
+    participationSnap.docs
+      .filter(d => (d.data() as ChallengeParticipation).status === "opted-out")
+      .map(d => (d.data() as ChallengeParticipation).userId)
+  );
+  const activeUsers = users.filter(u => !optedOutIds.has(u.id));
+  console.log(`[notify] ${optedOutIds.size} opted-out, ${activeUsers.length} active`);
+
+  // Group completion stats for today (active users only)
+  const todayLogsSnap = await admin.firestore().collection("dailyLogs")
+    .where("challengeId", "==", challenge.id)
+    .where("date", "==", today)
+    .get();
+  const groupCompleted = todayLogsSnap.docs.filter(d => {
+    const log = d.data() as DailyLog;
+    return log.completionFraction >= 1 && !optedOutIds.has(log.userId);
+  }).length;
+  console.log(`[notify] group completion: ${groupCompleted}/${activeUsers.length} done today`);
+
+  // Build name lists for peer pressure messaging (active users only)
+  const userById = new Map(users.map(u => [u.id, u.displayName]));
+  const completedUserIds = new Set(
+    todayLogsSnap.docs
+      .filter(d => {
+        const log = d.data() as DailyLog;
+        return log.completionFraction >= 1 && !optedOutIds.has(log.userId);
+      })
+      .map(d => (d.data() as DailyLog).userId)
+  );
+  const allCompletedNames = [...completedUserIds].map(id => userById.get(id) ?? "").filter(Boolean);
+  const allNotDoneNames = activeUsers
+    .filter(u => !completedUserIds.has(u.id))
+    .map(u => u.displayName);
+  console.log(`[notify] completed: [${allCompletedNames.join(", ")}] | not done: [${allNotDoneNames.join(", ")}]`);
+
+  // ── Competitive standings (for opted-in PAX) ─────────────────────────────
+  // Total reps per active PAX across the whole challenge — matches the reps
+  // ranking the leaderboard shows. Only computed once per run and reused.
+  const allLogsSnap = await admin.firestore().collection("dailyLogs")
+    .where("challengeId", "==", challenge.id)
+    .get();
+  // Month-long reps + this-week reps per active PAX. Weekly totals reset each
+  // Sunday, giving PAX who joined mid-month a board they can top today.
+  const weekStart = getWeekStartPT(today);
+  const repsByUser = new Map<string, number>();
+  const weeklyRepsByUser = new Map<string, number>();
+  // Same pass also collects each PAX's logs so the smart notifications can
+  // ask the shared helper who stacked days and who's been away.
+  const logsByUser = new Map<string, DailyLog[]>();
+  for (const doc of allLogsSnap.docs) {
+    const log = doc.data() as DailyLog;
+    if (optedOutIds.has(log.userId)) continue;
+    const reps = (log.exerciseLogs ?? []).reduce((s, el) => s + el.completedReps, 0);
+    repsByUser.set(log.userId, (repsByUser.get(log.userId) ?? 0) + reps);
+    if (log.date >= weekStart) {
+      weeklyRepsByUser.set(log.userId, (weeklyRepsByUser.get(log.userId) ?? 0) + reps);
+    }
+    const forUser = logsByUser.get(log.userId);
+    if (forUser) forUser.push(log); else logsByUser.set(log.userId, [log]);
+  }
+  const activeRoster = activeUsers.map(u => ({ id: u.id, displayName: u.displayName }));
+  const rankByUser     = buildStandings(activeRoster, repsByUser);
+  const weeklyRankByUser = buildStandings(activeRoster, weeklyRepsByUser);
+  console.log(`[notify] competitive standings built (week start ${weekStart})`);
+
+  for (const user of activeUsers) {
+    if (!user.fcmTokens?.length) {
+      console.log(`[notify] skip ${user.displayName} — no fcmTokens`);
+      continue;
+    }
+    const prefs = user.notificationPreferences;
+    if (!prefs) {
+      console.log(`[notify] skip ${user.displayName} — no notificationPreferences`);
+      continue;
+    }
+
+    type NotifType = "morning" | "afternoon" | "evening" | "weekly_recap";
+    const windows: Array<{ type: NotifType; enabled: boolean; time: string }> = [
+      { type: "morning",      enabled: prefs.morning?.enabled ?? false,     time: prefs.morning?.time ?? "08:00" },
+      { type: "afternoon",    enabled: prefs.afternoon?.enabled ?? false,    time: prefs.afternoon?.time ?? "17:00" },
+      { type: "evening",      enabled: prefs.evening?.enabled ?? false,      time: prefs.evening?.time ?? "20:00" },
+      { type: "weekly_recap", enabled: prefs.weeklyRecap?.enabled ?? false,  time: prefs.weeklyRecap?.time ?? "20:00" },
+    ];
+
+    console.log(`[notify] checking ${user.displayName} | windows: ${windows.filter(w => w.enabled).map(w => `${w.type}@${w.time}`).join(", ") || "none enabled"}`);
+
+    for (const w of windows) {
+      if (!w.enabled) continue;
+
+      if (w.type === "weekly_recap") {
+        const todayDay = nowDate.getDay();
+        const prefDay  = prefs.weeklyRecap?.dayOfWeek ?? 0;
+        if (todayDay !== prefDay) {
+          console.log(`[notify]   ${w.type} skipped — today is day ${todayDay}, pref is day ${prefDay}`);
+          continue;
+        }
+      }
+
+      const [prefH, prefM] = w.time.split(":").map(Number);
+      const prefTotal = prefH * 60 + prefM;
+      const diffMins  = Math.abs(nowTotal - prefTotal);
+      const WINDOW    = 5; // minutes either side — scheduler runs every 10 min so max drift is 5 min
+
+      console.log(`[notify]   ${w.type}@${w.time} | now=${nowTotal}min pref=${prefTotal}min diff=${diffMins}min window=±${WINDOW}`);
+
+      if (diffMins > WINDOW) {
+        console.log(`[notify]   → outside window, skip`);
+        continue;
+      }
+
+      const logKey = `${user.id}_${today}_${w.type}`;
+      const alreadySent = await admin.firestore().collection("notificationLog").doc(logKey).get();
+      if (alreadySent.exists) {
+        console.log(`[notify]   → already sent (logKey=${logKey}), skip`);
+        continue;
+      }
+
+      const userLogSnap = await admin.firestore().collection("dailyLogs").doc(`${user.id}_${today}`).get();
+      const userLog = userLogSnap.exists ? (userLogSnap.data() as DailyLog) : null;
+      const userCompleted = (userLog?.completionFraction ?? 0) >= 1;
+      console.log(`[notify]   → user log: fraction=${userLog?.completionFraction ?? 0} completed=${userCompleted}`);
+
+      const partSnap = await admin.firestore().collection("participation").doc(`${user.id}_${challenge.id}`).get();
+      const part = partSnap.exists ? (partSnap.data() as ChallengeParticipation) : null;
+      let statusStr = part?.status ?? "active";
+      if (statusStr === "opted-out") {
+        console.log(`[notify]   → opted out, skip`);
+        continue;
+      }
+      if (statusStr === "modifying" && part?.modificationNote) statusStr = `modifying: ${part.modificationNote}`;
+      console.log(`[notify]   → participation: ${statusStr}`);
+
+      try {
+        const fraction      = userLog?.completionFraction ?? 0;
+        // Sum completed reps from exercise logs (rep-type only) for accuracy on mixed-unit challenges.
+        // Fall back to fraction × totalReps if logs aren't available yet.
+        const repsCompleted = userLog?.exerciseLogs?.length
+          ? userLog.exerciseLogs.reduce((sum, el) => {
+              const ex = challenge.exercises.find(e => e.id === el.exerciseId);
+              return (ex?.unit ?? 'reps') === 'reps' ? sum + Math.min(el.completedReps, el.targetReps) : sum;
+            }, 0)
+          : Math.round(todayReps * fraction);
+        const repsRemaining   = Math.max(0, todayReps - repsCompleted);
+        const repsPerExercise = todayTarget.repsPerExercise;
+
+        // Smart-notification context: how long they've been gone, and how
+        // many days they've stacked today. Same helper the feed post uses.
+        const { stackedDays, daysAway } = completionContext(
+          challenge, logsByUser.get(user.id) ?? [], today,
+        );
+        if (daysAway >= AWAY_THRESHOLD || stackedDays >= 2) {
+          console.log(`[notify]   → smart context: daysAway=${daysAway} stackedDays=${stackedDays}`);
+        }
+
+        let { title, body } = generateNotification({
+          challenge,
+          dailyTarget:         todayTarget,
+          exerciseLogs:        userLog?.exerciseLogs ?? null,
+          userName:            user.displayName,
+          challengeName:       challenge.name,
+        regionName:          region.name,
+          dayNumber,
+          totalDays,
+          todayTarget:         todayReps,
+          repsCompleted,
+          repsRemaining,
+          repsPerExercise,
+          primaryExercise:     challenge.exercises[0]?.name ?? "Rep",
+          userCompleted,
+          completionFraction:  fraction,
+          groupCompletedCount: userCompleted ? groupCompleted - 1 : groupCompleted,
+          groupTotalCount:     activeUsers.length - 1,
+          userStreak:          (user as { currentStreak?: number }).currentStreak ?? 0,
+          participationStatus: statusStr,
+          notificationType:    w.type,
+          completedNames: [...completedUserIds].filter(id => id !== user.id).map(id => userById.get(id) ?? "").filter(Boolean),
+          notDoneNames:   activeUsers.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
+          stackedDays,
+          daysAway,
+          // Weekly-cumulative challenges route to entirely different copy —
+          // there's no daily target for the standard nudges to talk about.
+          week: isWeeklyCumulative(challenge)
+            ? getWeekProgress(challenge, today, logsByUser.get(user.id) ?? [], today) ?? undefined
+            : undefined,
+        });
+
+        // Competitive nudges (opt-in): for morning/afternoon/evening, replace
+        // the standard nudge with a rank-based one when there's a spot to
+        // chase or defend. Weekly recaps keep their own copy. A comeback or a
+        // stacked day is the bigger story — those keep their message.
+        if (
+          prefs.competitive &&
+          stackedDays < 2 &&
+          daysAway < AWAY_THRESHOLD &&
+          (w.type === "morning" || w.type === "afternoon" || w.type === "evening")
+        ) {
+          const monthRc = rankByUser.get(user.id);
+          const weekRc  = weeklyRankByUser.get(user.id);
+          if (monthRc || weekRc) {
+            const comp = generateCompetitiveNotification({
+              fn: firstName(user.displayName),
+              notificationType: w.type,
+              userCompleted,
+              workLeft: userCompleted ? "" : `${repsRemaining} reps`,
+              seed: notifSeed(dayNumber, `${w.type}_competitive`),
+              week: weekRc,
+              month: monthRc,
+              closeThreshold: Math.max(5, Math.round(todayReps * 0.1)),
+            });
+            if (comp) {
+              ({ title, body } = comp);
+              console.log(`[notify]   → competitive override applied (month #${monthRc?.rank ?? "-"}, week #${weekRc?.rank ?? "-"})`);
+            }
+          }
+        }
+
+        // Weekly recap: prefer the personalized AI recap from the Vercel
+        // app; the template above stays as the fallback.
+        if (w.type === "weekly_recap") {
+          // Empty until AI recap activation (see comment above fetchAiRecap)
+          const secretVal = process.env.CRON_SECRET ?? "";
+          const ai = await fetchAiRecap(user.id, secretVal);
+          if (ai) ({ title, body } = ai);
+          console.log(`[notify]   → recap source: ${ai ? "AI" : "template fallback"}`);
+        }
+        console.log(`[notify]   → generated: title="${title}" body="${body}"`);
+
+        await sendPushNotification(user.id, user.fcmTokens!, title, body, "/");
+        console.log(`[notify]   → FCM sent OK`);
+
+        await admin.firestore().collection("notificationLog").doc(logKey).set({ sentAt: new Date().toISOString() });
+        console.log(`[notify] ✓ sent ${w.type} to ${user.displayName}: "${title}"`);
+      } catch (err) {
+        console.error(`[notify] ✗ failed for ${user.displayName} ${w.type}:`, err);
+      }
+    }
+  }
+}
+
 export const sendScheduledNotifications = onSchedule(
   {
     schedule: "*/10 * * * *",
@@ -1358,263 +1657,13 @@ export const sendScheduledNotifications = onSchedule(
 
     console.log(`[notify] ── run start ── ${nowPT} | today=${today} | nowTotal=${nowTotal}min`);
 
-    const challenge = getChallengeForDate(today);
-    if (!challenge) {
-      console.log(`[notify] no active challenge for ${today}, exiting`);
-      return;
-    }
-    const dayNumber = getDayNumber(challenge, today)!;
-    const totalDays = getTotalDays(challenge);
-    const todayTarget = getDailyTarget(challenge, today);
-    if (!todayTarget || todayTarget.isRestDay) {
-      console.log(`[notify] rest day or no target for ${today}, exiting`);
-      return;
-    }
-    const todayReps = todayTarget.totalReps;
-    console.log(`[notify] challenge=${challenge.name} day=${dayNumber}/${totalDays}`);
-
-    const usersSnap = await admin.firestore().collection("users").get();
-    const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User & { notificationPreferences: NotifPrefs; currentStreak?: number }));
-    console.log(`[notify] ${users.length} users total`);
-
-    // Fetch participation for all users to exclude opted-out PAX from stats
-    const participationSnap = await admin.firestore().collection("participation")
-      .where("challengeId", "==", challenge.id)
-      .get();
-    const optedOutIds = new Set(
-      participationSnap.docs
-        .filter(d => (d.data() as ChallengeParticipation).status === "opted-out")
-        .map(d => (d.data() as ChallengeParticipation).userId)
-    );
-    const activeUsers = users.filter(u => !optedOutIds.has(u.id));
-    console.log(`[notify] ${optedOutIds.size} opted-out, ${activeUsers.length} active`);
-
-    // Group completion stats for today (active users only)
-    const todayLogsSnap = await admin.firestore().collection("dailyLogs")
-      .where("challengeId", "==", challenge.id)
-      .where("date", "==", today)
-      .get();
-    const groupCompleted = todayLogsSnap.docs.filter(d => {
-      const log = d.data() as DailyLog;
-      return log.completionFraction >= 1 && !optedOutIds.has(log.userId);
-    }).length;
-    console.log(`[notify] group completion: ${groupCompleted}/${activeUsers.length} done today`);
-
-    // Build name lists for peer pressure messaging (active users only)
-    const userById = new Map(users.map(u => [u.id, u.displayName]));
-    const completedUserIds = new Set(
-      todayLogsSnap.docs
-        .filter(d => {
-          const log = d.data() as DailyLog;
-          return log.completionFraction >= 1 && !optedOutIds.has(log.userId);
-        })
-        .map(d => (d.data() as DailyLog).userId)
-    );
-    const allCompletedNames = [...completedUserIds].map(id => userById.get(id) ?? "").filter(Boolean);
-    const allNotDoneNames = activeUsers
-      .filter(u => !completedUserIds.has(u.id))
-      .map(u => u.displayName);
-    console.log(`[notify] completed: [${allCompletedNames.join(", ")}] | not done: [${allNotDoneNames.join(", ")}]`);
-
-    // ── Competitive standings (for opted-in PAX) ─────────────────────────────
-    // Total reps per active PAX across the whole challenge — matches the reps
-    // ranking the leaderboard shows. Only computed once per run and reused.
-    const allLogsSnap = await admin.firestore().collection("dailyLogs")
-      .where("challengeId", "==", challenge.id)
-      .get();
-    // Month-long reps + this-week reps per active PAX. Weekly totals reset each
-    // Sunday, giving PAX who joined mid-month a board they can top today.
-    const weekStart = getWeekStartPT(today);
-    const repsByUser = new Map<string, number>();
-    const weeklyRepsByUser = new Map<string, number>();
-    // Same pass also collects each PAX's logs so the smart notifications can
-    // ask the shared helper who stacked days and who's been away.
-    const logsByUser = new Map<string, DailyLog[]>();
-    for (const doc of allLogsSnap.docs) {
-      const log = doc.data() as DailyLog;
-      if (optedOutIds.has(log.userId)) continue;
-      const reps = (log.exerciseLogs ?? []).reduce((s, el) => s + el.completedReps, 0);
-      repsByUser.set(log.userId, (repsByUser.get(log.userId) ?? 0) + reps);
-      if (log.date >= weekStart) {
-        weeklyRepsByUser.set(log.userId, (weeklyRepsByUser.get(log.userId) ?? 0) + reps);
-      }
-      const forUser = logsByUser.get(log.userId);
-      if (forUser) forUser.push(log); else logsByUser.set(log.userId, [log]);
-    }
-    const activeRoster = activeUsers.map(u => ({ id: u.id, displayName: u.displayName }));
-    const rankByUser     = buildStandings(activeRoster, repsByUser);
-    const weeklyRankByUser = buildStandings(activeRoster, weeklyRepsByUser);
-    console.log(`[notify] competitive standings built (week start ${weekStart})`);
-
-    for (const user of activeUsers) {
-      if (!user.fcmTokens?.length) {
-        console.log(`[notify] skip ${user.displayName} — no fcmTokens`);
-        continue;
-      }
-      const prefs = user.notificationPreferences;
-      if (!prefs) {
-        console.log(`[notify] skip ${user.displayName} — no notificationPreferences`);
-        continue;
-      }
-
-      type NotifType = "morning" | "afternoon" | "evening" | "weekly_recap";
-      const windows: Array<{ type: NotifType; enabled: boolean; time: string }> = [
-        { type: "morning",      enabled: prefs.morning?.enabled ?? false,     time: prefs.morning?.time ?? "08:00" },
-        { type: "afternoon",    enabled: prefs.afternoon?.enabled ?? false,    time: prefs.afternoon?.time ?? "17:00" },
-        { type: "evening",      enabled: prefs.evening?.enabled ?? false,      time: prefs.evening?.time ?? "20:00" },
-        { type: "weekly_recap", enabled: prefs.weeklyRecap?.enabled ?? false,  time: prefs.weeklyRecap?.time ?? "20:00" },
-      ];
-
-      console.log(`[notify] checking ${user.displayName} | windows: ${windows.filter(w => w.enabled).map(w => `${w.type}@${w.time}`).join(", ") || "none enabled"}`);
-
-      for (const w of windows) {
-        if (!w.enabled) continue;
-
-        if (w.type === "weekly_recap") {
-          const todayDay = nowDate.getDay();
-          const prefDay  = prefs.weeklyRecap?.dayOfWeek ?? 0;
-          if (todayDay !== prefDay) {
-            console.log(`[notify]   ${w.type} skipped — today is day ${todayDay}, pref is day ${prefDay}`);
-            continue;
-          }
-        }
-
-        const [prefH, prefM] = w.time.split(":").map(Number);
-        const prefTotal = prefH * 60 + prefM;
-        const diffMins  = Math.abs(nowTotal - prefTotal);
-        const WINDOW    = 5; // minutes either side — scheduler runs every 10 min so max drift is 5 min
-
-        console.log(`[notify]   ${w.type}@${w.time} | now=${nowTotal}min pref=${prefTotal}min diff=${diffMins}min window=±${WINDOW}`);
-
-        if (diffMins > WINDOW) {
-          console.log(`[notify]   → outside window, skip`);
-          continue;
-        }
-
-        const logKey = `${user.id}_${today}_${w.type}`;
-        const alreadySent = await admin.firestore().collection("notificationLog").doc(logKey).get();
-        if (alreadySent.exists) {
-          console.log(`[notify]   → already sent (logKey=${logKey}), skip`);
-          continue;
-        }
-
-        const userLogSnap = await admin.firestore().collection("dailyLogs").doc(`${user.id}_${today}`).get();
-        const userLog = userLogSnap.exists ? (userLogSnap.data() as DailyLog) : null;
-        const userCompleted = (userLog?.completionFraction ?? 0) >= 1;
-        console.log(`[notify]   → user log: fraction=${userLog?.completionFraction ?? 0} completed=${userCompleted}`);
-
-        const partSnap = await admin.firestore().collection("participation").doc(`${user.id}_${challenge.id}`).get();
-        const part = partSnap.exists ? (partSnap.data() as ChallengeParticipation) : null;
-        let statusStr = part?.status ?? "active";
-        if (statusStr === "opted-out") {
-          console.log(`[notify]   → opted out, skip`);
-          continue;
-        }
-        if (statusStr === "modifying" && part?.modificationNote) statusStr = `modifying: ${part.modificationNote}`;
-        console.log(`[notify]   → participation: ${statusStr}`);
-
-        try {
-          const fraction      = userLog?.completionFraction ?? 0;
-          // Sum completed reps from exercise logs (rep-type only) for accuracy on mixed-unit challenges.
-          // Fall back to fraction × totalReps if logs aren't available yet.
-          const repsCompleted = userLog?.exerciseLogs?.length
-            ? userLog.exerciseLogs.reduce((sum, el) => {
-                const ex = challenge.exercises.find(e => e.id === el.exerciseId);
-                return (ex?.unit ?? 'reps') === 'reps' ? sum + Math.min(el.completedReps, el.targetReps) : sum;
-              }, 0)
-            : Math.round(todayReps * fraction);
-          const repsRemaining   = Math.max(0, todayReps - repsCompleted);
-          const repsPerExercise = todayTarget.repsPerExercise;
-
-          // Smart-notification context: how long they've been gone, and how
-          // many days they've stacked today. Same helper the feed post uses.
-          const { stackedDays, daysAway } = completionContext(
-            challenge, logsByUser.get(user.id) ?? [], today,
-          );
-          if (daysAway >= AWAY_THRESHOLD || stackedDays >= 2) {
-            console.log(`[notify]   → smart context: daysAway=${daysAway} stackedDays=${stackedDays}`);
-          }
-
-          let { title, body } = generateNotification({
-            challenge,
-            dailyTarget:         todayTarget,
-            exerciseLogs:        userLog?.exerciseLogs ?? null,
-            userName:            user.displayName,
-            challengeName:       challenge.name,
-            dayNumber,
-            totalDays,
-            todayTarget:         todayReps,
-            repsCompleted,
-            repsRemaining,
-            repsPerExercise,
-            primaryExercise:     challenge.exercises[0]?.name ?? "Rep",
-            userCompleted,
-            completionFraction:  fraction,
-            groupCompletedCount: userCompleted ? groupCompleted - 1 : groupCompleted,
-            groupTotalCount:     activeUsers.length - 1,
-            userStreak:          (user as { currentStreak?: number }).currentStreak ?? 0,
-            participationStatus: statusStr,
-            notificationType:    w.type,
-            completedNames: [...completedUserIds].filter(id => id !== user.id).map(id => userById.get(id) ?? "").filter(Boolean),
-            notDoneNames:   activeUsers.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
-            stackedDays,
-            daysAway,
-            // Weekly-cumulative challenges route to entirely different copy —
-            // there's no daily target for the standard nudges to talk about.
-            week: isWeeklyCumulative(challenge)
-              ? getWeekProgress(challenge, today, logsByUser.get(user.id) ?? [], today) ?? undefined
-              : undefined,
-          });
-
-          // Competitive nudges (opt-in): for morning/afternoon/evening, replace
-          // the standard nudge with a rank-based one when there's a spot to
-          // chase or defend. Weekly recaps keep their own copy. A comeback or a
-          // stacked day is the bigger story — those keep their message.
-          if (
-            prefs.competitive &&
-            stackedDays < 2 &&
-            daysAway < AWAY_THRESHOLD &&
-            (w.type === "morning" || w.type === "afternoon" || w.type === "evening")
-          ) {
-            const monthRc = rankByUser.get(user.id);
-            const weekRc  = weeklyRankByUser.get(user.id);
-            if (monthRc || weekRc) {
-              const comp = generateCompetitiveNotification({
-                fn: firstName(user.displayName),
-                notificationType: w.type,
-                userCompleted,
-                workLeft: userCompleted ? "" : `${repsRemaining} reps`,
-                seed: notifSeed(dayNumber, `${w.type}_competitive`),
-                week: weekRc,
-                month: monthRc,
-                closeThreshold: Math.max(5, Math.round(todayReps * 0.1)),
-              });
-              if (comp) {
-                ({ title, body } = comp);
-                console.log(`[notify]   → competitive override applied (month #${monthRc?.rank ?? "-"}, week #${weekRc?.rank ?? "-"})`);
-              }
-            }
-          }
-
-          // Weekly recap: prefer the personalized AI recap from the Vercel
-          // app; the template above stays as the fallback.
-          if (w.type === "weekly_recap") {
-            // Empty until AI recap activation (see comment above fetchAiRecap)
-            const secretVal = process.env.CRON_SECRET ?? "";
-            const ai = await fetchAiRecap(user.id, secretVal);
-            if (ai) ({ title, body } = ai);
-            console.log(`[notify]   → recap source: ${ai ? "AI" : "template fallback"}`);
-          }
-          console.log(`[notify]   → generated: title="${title}" body="${body}"`);
-
-          await sendPushNotification(user.id, user.fcmTokens!, title, body, "/");
-          console.log(`[notify]   → FCM sent OK`);
-
-          await admin.firestore().collection("notificationLog").doc(logKey).set({ sentAt: new Date().toISOString() });
-          console.log(`[notify] ✓ sent ${w.type} to ${user.displayName}: "${title}"`);
-        } catch (err) {
-          console.error(`[notify] ✗ failed for ${user.displayName} ${w.type}:`, err);
-        }
+    for (const region of REGIONS) {
+      console.log(`[notify] ── region ${region.id} ──`);
+      try {
+        await notifyRegion(region, today, nowDate, nowTotal);
+      } catch (err) {
+        // One region's failure must not silence the other's reminders.
+        console.error(`[notify] region ${region.id} failed`, err);
       }
     }
 
@@ -1660,7 +1709,8 @@ export const sendTestPush = onRequest(
       finalBody = body;
     } else {
       const today = getTodayPT();
-      const challenge = getChallengeForDate(today);
+      const testRegionId = resolveRegion(user.regionId).id;
+      const challenge = getChallengeForDate(today, testRegionId);
       if (!challenge) { res.status(400).json({ error: "No active challenge today" }); return; }
 
       const dayNumber = getDayNumber(challenge, today)!;
@@ -1672,7 +1722,7 @@ export const sendTestPush = onRequest(
       const [userLogSnap, partSnap, usersSnap, allLogsSnap, userLogsSnap] = await Promise.all([
         admin.firestore().doc(`dailyLogs/${userId}_${today}`).get(),
         admin.firestore().doc(`participation/${userId}_${challenge.id}`).get(),
-        admin.firestore().collection("users").get(),
+        admin.firestore().collection("users").where("regionId", "==", testRegionId).get(),
         admin.firestore().collection("dailyLogs").where("challengeId", "==", challenge.id).where("date", "==", today).get(),
         admin.firestore().collection("dailyLogs").where("challengeId", "==", challenge.id).where("userId", "==", userId).get(),
       ]);
@@ -1712,6 +1762,7 @@ export const sendTestPush = onRequest(
         dailyTarget: testTarget,
         exerciseLogs: userLog?.exerciseLogs ?? null,
         userName: user.displayName, challengeName: challenge.name,
+        regionName: resolveRegion(user.regionId).name,
         dayNumber, totalDays, todayTarget: todayReps,
         repsCompleted, repsRemaining, repsPerExercise,
         primaryExercise: challenge.exercises[0]?.name ?? "Rep",
@@ -1746,7 +1797,13 @@ async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: st
   if (!challenge) throw new Error(`Unknown challengeId: ${challengeId}`);
   const db = admin.firestore();
 
-  const usersSnap = await db.collection("users").get();
+  // Only the region(s) that actually ran this challenge — otherwise every PAX
+  // in every region gets scanned, and a shared challenge would be the only
+  // case where more than one region is in scope.
+  const regionIds = challengeRegionIds(challenge);
+  const usersSnap = await db.collection("users")
+    .where("regionId", "in", regionIds)
+    .get();
   const results: Array<{ userId: string; name: string; action: string }> = [];
 
   for (const userDoc of usersSnap.docs) {

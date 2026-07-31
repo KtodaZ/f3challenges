@@ -1,14 +1,16 @@
 'use client'
 
 import { Button } from '@/components/ui/Button'
-import { getCurrentChallenge } from '@/lib/challenges'
+import { useCurrentChallenge } from '@/hooks/useChallenge'
+import { useRegion } from '@/contexts/RegionContext'
 
 interface WelcomeStepProps {
   onNext: () => void
 }
 
 export function WelcomeStep({ onNext }: WelcomeStepProps) {
-  const challenge = getCurrentChallenge()
+  const { region } = useRegion()
+  const challenge = useCurrentChallenge()
   const challengeDisplay = challenge?.name ?? 'Monthly Challenge'
   const monthDisplay = challenge
     ? new Date(challenge.startDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -37,7 +39,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         </div>
 
         <div className="space-y-1">
-          <p className="text-3xl font-black text-white tracking-widest uppercase">BEDROCK</p>
+          <p className="text-3xl font-black text-white tracking-widest uppercase">{region.shortName}</p>
           <p className="text-sm font-medium text-orange-400 tracking-wider uppercase">Monthly Challenge</p>
         </div>
 
@@ -68,7 +70,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
           Let&apos;s Go 💪
         </Button>
         <p className="text-center text-xs text-zinc-600">
-          Fitness accountability for F3 Bedrock PAX
+          Fitness accountability for {region.name} PAX
         </p>
       </div>
     </div>

@@ -11,6 +11,7 @@
 
 import {
   CHALLENGES,
+  challengesForRegion,
   getRequiredDays,
   getChallengeDates,
   getChallengeWeeks,
@@ -19,6 +20,7 @@ import {
   isRestDay,
   conditionalRestApplies,
 } from './challenges'
+import { DEFAULT_REGION_ID } from './regions'
 import type { ChallengeBadgeDef, ChallengeTemplate } from './types'
 
 // ─── Inputs ───────────────────────────────────────────────────────────────────
@@ -41,6 +43,10 @@ export interface AchievementLogInput {
 export interface AchievementContext {
   /** All of the user's logs, across every challenge. */
   logs: AchievementLogInput[]
+  /** Region whose challenge history counts. Without it, a Sactown PAX sees
+   *  progress bars toward Bedrock's Feb–Jul challenges and a trophy case full
+   *  of months they were never part of. Defaults to Bedrock. */
+  regionId?: string
   longestStreak: number
   /** Shoutouts this user has posted / received (feed). Omit if unknown. */
   shoutoutsGiven?: number
@@ -113,6 +119,9 @@ export interface AchievementDefinition {
   secret?: boolean
   /** Particle theme for the unlock celebration. */
   theme: CelebrationTheme
+  /** Set on badges that ship with a specific challenge. Used to hide another
+   *  region's signature badges from this region's trophy case. */
+  challengeId?: string
   progress: (ctx: AchievementContext) => AchievementProgress
 }
 
@@ -196,8 +205,13 @@ interface PerChallengeStats {
   makeupDays: number   // completed via makeup
 }
 
+/** The challenges that count for this context's region. */
+function contextChallenges(ctx: AchievementContext) {
+  return challengesForRegion(ctx.regionId ?? DEFAULT_REGION_ID)
+}
+
 function perChallengeStats(ctx: AchievementContext): PerChallengeStats[] {
-  return CHALLENGES.map(c => {
+  return contextChallenges(ctx).map(c => {
     const logs = ctx.logs.filter(l => l.challengeId === c.id && l.completionFraction >= 1)
     const makeupDays = logs.filter(l => l.isMakeUp).length
     return {
@@ -277,7 +291,7 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
       // 2+ days behind has zero missed days left.
       const today = getTodayPT()
       let best: AchievementProgress | null = null
-      for (const c of CHALLENGES) {
+      for (const c of contextChallenges(ctx)) {
         const logs = ctx.logs.filter(l => l.challengeId === c.id)
         if (logs.length === 0) continue
         const complete = logs.filter(l => l.completionFraction >= 1)
@@ -362,7 +376,7 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
     progress: ctx => countProgress(
       completeLogs(ctx).filter(l => {
         if (l.isMakeUp) return false
-        const c = CHALLENGES.find(ch => ch.id === l.challengeId)
+        const c = contextChallenges(ctx).find(ch => ch.id === l.challengeId)
         return !!c && l.date === c.startDate
       }).length > 0 ? 1 : 0,
       1
@@ -381,7 +395,7 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
       // "5 days away" for a badge that can no longer be earned there).
       const today = getTodayPT()
       let best: AchievementProgress | null = null
-      for (const c of CHALLENGES) {
+      for (const c of contextChallenges(ctx)) {
         const logs = ctx.logs.filter(l => l.challengeId === c.id)
         if (logs.length === 0) continue
         const completedDates = logs.filter(l => l.completionFraction >= 1).map(l => l.date)
@@ -820,6 +834,7 @@ function challengeBadgeDefinition(c: ChallengeTemplate, b: ChallengeBadgeDef): A
     category: 'special',
     unitLabel: b.unitLabel ?? rule.unitLabel,
     theme: 'confetti',
+    challengeId: c.id,
     progress: rule.progress,
   }
 }
@@ -847,7 +862,15 @@ export interface AchievementEvaluation {
 }
 
 export function evaluateAchievements(ctx: AchievementContext): AchievementEvaluation[] {
-  return ACHIEVEMENTS.map(def => ({ def, progress: def.progress(ctx) }))
+  return achievementsForRegion(ctx.regionId).map(def => ({ def, progress: def.progress(ctx) }))
+}
+
+/** Core achievements plus only the signature badges of this region's own
+ *  challenges — otherwise every region's trophy case lists every other
+ *  region's challenge badges, permanently at 0%. */
+export function achievementsForRegion(regionId: string | undefined): AchievementDefinition[] {
+  const ownChallengeIds = new Set(challengesForRegion(regionId ?? DEFAULT_REGION_ID).map(c => c.id))
+  return ACHIEVEMENTS.filter(a => !a.challengeId || ownChallengeIds.has(a.challengeId))
 }
 
 /** IDs earned in this context that aren't already in the persisted list. */

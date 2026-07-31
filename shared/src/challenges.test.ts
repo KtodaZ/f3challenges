@@ -3,6 +3,8 @@ import type { ChallengeTemplate } from './types'
 import {
   getChallengeForDate,
   getChallengeById,
+  challengesForRegion,
+  challengeBelongsToRegion,
   getDayNumber,
   getDailyTarget,
   getMonthlyTotal,
@@ -121,25 +123,62 @@ const MAY: ChallengeTemplate = {
 
 describe('getChallengeForDate', () => {
   it('returns the matching challenge on the first day', () => {
-    expect(getChallengeForDate('2026-04-01')?.id).toBe('apr-2026')
+    expect(getChallengeForDate('2026-04-01', 'bedrock')?.id).toBe('apr-2026')
   })
 
   it('returns the matching challenge on the last day', () => {
-    expect(getChallengeForDate('2026-04-30')?.id).toBe('apr-2026')
+    expect(getChallengeForDate('2026-04-30', 'bedrock')?.id).toBe('apr-2026')
   })
 
   it('returns undefined the day before April starts (March challenge already ended)', () => {
     // March ends on 2026-03-31, April starts on 2026-04-01, so there is no gap.
     // Use a date before any challenge exists at all.
-    expect(getChallengeForDate('2025-12-31')).toBeUndefined()
+    expect(getChallengeForDate('2025-12-31', 'bedrock')).toBeUndefined()
   })
 
   it('returns the march challenge for a march date', () => {
-    expect(getChallengeForDate('2026-03-15')?.id).toBe('mar-2026')
+    expect(getChallengeForDate('2026-03-15', 'bedrock')?.id).toBe('mar-2026')
   })
 
   it('returns undefined for a date with no challenge', () => {
-    expect(getChallengeForDate('2025-01-01')).toBeUndefined()
+    expect(getChallengeForDate('2025-01-01', 'bedrock')).toBeUndefined()
+  })
+})
+
+// ─── Region scoping ───────────────────────────────────────────────────────────
+
+describe('region scoping', () => {
+  it('treats a challenge with no regionIds as Bedrock-only', () => {
+    // Every pre-multi-region challenge relies on this — none of them were
+    // edited to add regionIds.
+    expect(getChallengeForDate('2026-04-15', 'bedrock')?.id).toBe('apr-2026')
+    expect(getChallengeForDate('2026-04-15', 'sactown')).toBeUndefined()
+  })
+
+  it('gives each region its own challenge over the same dates', () => {
+    const bedrock = getChallengeForDate('2026-08-15', 'bedrock')
+    const sactown = getChallengeForDate('2026-08-15', 'sactown')
+    expect(bedrock?.id).toBe('aug-2026')
+    expect(sactown?.id).toBe('aug-2026-sactown')
+  })
+
+  it('challengesForRegion excludes other regions', () => {
+    const ids = challengesForRegion('sactown').map(c => c.id)
+    expect(ids).toContain('aug-2026-sactown')
+    expect(ids).not.toContain('apr-2026')
+    expect(ids).not.toContain('aug-2026')
+  })
+
+  it('a challenge listing both regions belongs to both', () => {
+    const shared: ChallengeTemplate = {
+      id: 'x', name: 'X', hashtag: '#X', tagline: '', month: 1, year: 2027,
+      regionIds: ['bedrock', 'sactown'],
+      startDate: '2027-01-01', endDate: '2027-01-31',
+      exercises: [{ id: 'merkin', name: 'Merkin', shortName: 'Merkin' }],
+    }
+    expect(challengeBelongsToRegion(shared, 'bedrock')).toBe(true)
+    expect(challengeBelongsToRegion(shared, 'sactown')).toBe(true)
+    expect(challengeBelongsToRegion(shared, 'nope')).toBe(false)
   })
 })
 

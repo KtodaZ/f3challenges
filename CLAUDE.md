@@ -166,7 +166,8 @@ Works in both client components and Next.js API routes — `NEXT_PUBLIC_` vars a
 - `PWAInstallStep` component is platform-aware (ios/android/installed/other); shared `PWAInstallGuide` component used by both onboarding and the troubleshoot page
 
 ## Deployment
-- **Production URL**: `https://f3-bedrock-monthly-challenge.vercel.app`
+- **Production URL**: `https://f3challenges.com` (Vercel Hobby, apex — no `www`)
+- **Legacy origin**: `https://f3-bedrock-monthly-challenge.vercel.app` still *serves* the app (a Vercel alias, deliberately NOT a redirect — a cross-origin 301 kicks installed PWAs out of standalone mode). It shows the migration takeover. See `docs/MULTI_REGION.md`.
 - **Vercel** — auto-deploys from `main` branch push
 - **Firebase Functions + Firestore** — auto-deployed by GitHub Actions (`.github/workflows/firebase-deploy.yml`) on push to `main`; no local deploy needed
 - Firebase project: `f3-bedrock-monthly-challenge`

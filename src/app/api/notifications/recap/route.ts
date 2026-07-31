@@ -3,6 +3,7 @@ import { adminDb } from '@/lib/firebase-admin'
 import { generateWeeklyRecap } from '@/lib/openai'
 import {
   getCurrentChallenge,
+  resolveRegion,
   getTodayPT,
   getDayNumber,
   getTotalDays,
@@ -61,19 +62,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'userId required' }, { status: 400 })
   }
 
-  const challenge = getCurrentChallenge()
+  // The user has to be resolved first: which challenge is "current" depends on
+  // their region, since regions run different challenges over the same dates.
+  const userSnap = await adminDb.collection('users').doc(userId).get()
+  if (!userSnap.exists) {
+    return NextResponse.json({ error: 'user not found' }, { status: 404 })
+  }
+  const user = userSnap.data() as User
+
+  const challenge = getCurrentChallenge(resolveRegion(user.regionId).id)
   if (!challenge) {
     return NextResponse.json({ error: 'no active challenge' }, { status: 404 })
   }
 
   const today = getTodayPT()
   const weekStart = daysAgoPT(6) // last 7 calendar days, inclusive of today
-
-  const userSnap = await adminDb.collection('users').doc(userId).get()
-  if (!userSnap.exists) {
-    return NextResponse.json({ error: 'user not found' }, { status: 404 })
-  }
-  const user = userSnap.data() as User
 
   const [userLogsSnap, groupWeekSnap, partSnap] = await Promise.all([
     adminDb.collection('dailyLogs').where('userId', '==', userId).get(),
@@ -112,6 +115,7 @@ export async function POST(req: NextRequest) {
 
   const achievementCtx: AchievementContext = {
     logs: allLogs.map(toAchievementLog),
+    regionId: resolveRegion(user.regionId).id,
     longestStreak: Math.max(user.longestStreak ?? 0, user.currentStreak ?? 0),
   }
   const next = getNextAchievements(achievementCtx, 1)[0]
@@ -171,6 +175,7 @@ export async function POST(req: NextRequest) {
     groupWeeklyRank,
     groupSize,
     participationStatus,
+    regionName: resolveRegion(user.regionId).name,
   })
 
   return NextResponse.json({ title, body })

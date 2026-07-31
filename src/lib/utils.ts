@@ -46,7 +46,7 @@ export function formatDate(date: string): string {
 }
 
 /** Calendar day (YYYY-MM-DD) of an ISO timestamp in Pacific time — the key we
- *  group feed posts by so day separators line up with F3 Bedrock's timezone. */
+ *  group feed posts by so day separators line up with the region's timezone. */
 export function pacificDayKey(iso: string): string {
   // en-CA gives YYYY-MM-DD; timeZone shifts to America/Los_Angeles.
   return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })

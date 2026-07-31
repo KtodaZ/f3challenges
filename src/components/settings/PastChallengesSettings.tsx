@@ -1,26 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
-import { CHALLENGES, getTotalDays, getMonthlyTotal, getTodayPT } from '@/lib/challenges'
+import { getTotalDays, getMonthlyTotal } from '@/lib/challenges'
+import { usePastChallenges } from '@/hooks/useChallenge'
 import { updateUser } from '@/lib/firestore'
 import { setCachedUser } from '@/lib/storage'
 import { useUser } from '@/contexts/UserContext'
-import type { AchievementBadge } from '@/types'
+import type { AchievementBadge, ChallengeTemplate } from '@/types'
 
 type Selection = 'completed' | 'participant' | 'skipped'
 
-const HISTORICAL = CHALLENGES.filter(c => c.endDate < getTodayPT())
-
-function selectionsFromBadges(badges: AchievementBadge[] = []): Record<string, Selection> {
+function selectionsFromBadges(
+  historical: ChallengeTemplate[],
+  badges: AchievementBadge[] = [],
+): Record<string, Selection> {
   const byId = Object.fromEntries(badges.map(b => [b.challengeId, b.type as Selection]))
-  return Object.fromEntries(HISTORICAL.map(c => [c.id, byId[c.id] ?? 'skipped']))
+  return Object.fromEntries(historical.map(c => [c.id, byId[c.id] ?? 'skipped']))
 }
 
-function badgesToSelections(selections: Record<string, Selection>): AchievementBadge[] {
-  return HISTORICAL
+function badgesToSelections(
+  historical: ChallengeTemplate[],
+  selections: Record<string, Selection>,
+): AchievementBadge[] {
+  return historical
     .filter(c => selections[c.id] !== 'skipped')
     .map(c => ({
       challengeId: c.id,
@@ -31,10 +36,21 @@ function badgesToSelections(selections: Record<string, Selection>): AchievementB
 
 export function PastChallengesSettings() {
   const { currentUser, refreshCurrentUser } = useUser()
+  // Only this region's history — a Sactown PAX has no Bedrock months to claim.
+  const historical = usePastChallenges()
   const [selections, setSelections] = useState<Record<string, Selection>>(
-    () => selectionsFromBadges(currentUser?.badges)
+    () => selectionsFromBadges(historical, currentUser?.badges)
   )
   const [saving, setSaving] = useState(false)
+
+  // The region resolves a tick after mount, so the list above is initially
+  // Bedrock's. Re-seed when it changes, or a Sactown PAX edits a stale list and
+  // saves badges for challenges their region never ran.
+  const historicalKey = historical.map(c => c.id).join(',')
+  useEffect(() => {
+    setSelections(selectionsFromBadges(historical, currentUser?.badges))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historicalKey])
 
   function select(challengeId: string, val: Selection) {
     setSelections(prev => ({ ...prev, [challengeId]: val }))
@@ -44,7 +60,7 @@ export function PastChallengesSettings() {
     if (!currentUser) return
     setSaving(true)
     try {
-      const badges = badgesToSelections(selections)
+      const badges = badgesToSelections(historical, selections)
       await updateUser(currentUser.id, { badges })
       setCachedUser({ ...currentUser, badges })
       await refreshCurrentUser()
@@ -56,7 +72,7 @@ export function PastChallengesSettings() {
     }
   }
 
-  if (HISTORICAL.length === 0) {
+  if (historical.length === 0) {
     return (
       <p className="text-sm text-zinc-500 text-center py-8">No past challenges to show.</p>
     )
@@ -64,7 +80,7 @@ export function PastChallengesSettings() {
 
   return (
     <div className="space-y-4">
-      {HISTORICAL.map(challenge => {
+      {historical.map(challenge => {
         const days  = getTotalDays(challenge)
         const total = getMonthlyTotal(challenge)
         const sel   = selections[challenge.id]

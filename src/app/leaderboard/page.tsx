@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useUser } from '@/contexts/UserContext'
 import {
-  getCurrentChallenge, getTodayPT, getChallengeDates, getCurrentWeekDates,
+  getTodayPT, getChallengeDates, getCurrentWeekDates,
   getDayNumber, getTotalDays, getWeekProgress, getChallengeWeeks,
   isWeeklyCumulative, latestLoad,
 } from '@/lib/challenges'
+import { useCurrentChallenge } from '@/hooks/useChallenge'
+import { useRegion } from '@/contexts/RegionContext'
 import { getUserChallengeLogs, getChallengeParticipants, getDailyLog, getLatestShoutoutsByUser, updateUser } from '@/lib/firestore'
 import { monthProgress, cn, isChallengeParticipant } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
@@ -180,7 +182,8 @@ function CurrentLeaderboard({
 
 export default function LeaderboardPage() {
   const { currentUser, allUsers, refreshCurrentUser } = useUser()
-  const challenge = getCurrentChallenge()
+  const { regionId } = useRegion()
+  const challenge = useCurrentChallenge()
 
   // Default to the weekly board so mid-month joiners land on the race they can win.
   const [tab, setTab] = useState<Tab>('week')
@@ -202,7 +205,7 @@ export default function LeaderboardPage() {
     const [participations, allTodayLogs, shoutoutMap] = await Promise.all([
       getChallengeParticipants(challenge.id),
       Promise.all(allUsers.map(u => getDailyLog(u.id, today))),
-      getLatestShoutoutsByUser(),
+      getLatestShoutoutsByUser(regionId),
     ])
 
     const participationMap = new Map<string, ChallengeParticipation>(
@@ -318,7 +321,7 @@ export default function LeaderboardPage() {
     setDayRepCounts(repCounts)
     setLoading(false)
     setRefreshing(false)
-  }, [challenge, allUsers])
+  }, [challenge, allUsers, regionId])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadData() }, [loadData])

@@ -110,6 +110,12 @@ export interface ChallengeTemplate {
   year: number
   exercises: Exercise[]
 
+  // Regions running this challenge. Absent means Bedrock-only, which keeps
+  // every pre-multi-region challenge correct without editing it. Listing more
+  // than one region shares the same challenge across them — they still get
+  // separate leaderboards and feeds.
+  regionIds?: string[]
+
   // Challenge computation type — defaults to 'escalating' for backward compat
   type?: 'escalating' | 'weekly-tiers' | 'weekly-cumulative'
 

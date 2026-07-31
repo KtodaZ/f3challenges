@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         token,
         notification: {
           title: 'Test — it works! 💪',
-          body: 'Your F3 Bedrock notifications are set up correctly.',
+          body: 'Your notifications are set up correctly.',
         },
         data: { link: '/' },
         webpush: {

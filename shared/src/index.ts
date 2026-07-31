@@ -1,4 +1,5 @@
 export * from './types'
+export * from './regions'
 export * from './challenges'
 export * from './copy'
 export * from './remaining'

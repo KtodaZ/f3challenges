@@ -6,6 +6,8 @@
 const CURRENT_USER_KEY  = 'f3_current_user_id'
 const ONBOARDING_KEY    = 'f3_onboarding_complete'
 const CACHED_USER_KEY   = 'f3_cached_user'
+const REGION_KEY        = 'f3_region_id'
+const NEEDS_REINSTALL_KEY = 'f3_needs_reinstall'
 
 export function getCurrentUserId(): string | null {
   if (typeof window === 'undefined') return null
@@ -18,6 +20,38 @@ export function setCurrentUserId(userId: string): void {
 
 export function clearCurrentUserId(): void {
   localStorage.removeItem(CURRENT_USER_KEY)
+}
+
+// Which region this device is browsing. Written at onboarding (or by an
+// ?region= invite link) and kept in sync with the signed-in user's regionId.
+export function getStoredRegionId(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(REGION_KEY)
+}
+
+export function setStoredRegionId(regionId: string): void {
+  localStorage.setItem(REGION_KEY, regionId)
+}
+
+export function clearStoredRegionId(): void {
+  localStorage.removeItem(REGION_KEY)
+}
+
+// Set when a PAX arrives on the new domain via a claim link. Drives the
+// re-add-to-home-screen prompt, which has to live on the NEW origin — that's
+// where the install actually has to happen, and where standalone detection
+// means anything. Cleared once they're running standalone.
+export function needsReinstall(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem(NEEDS_REINSTALL_KEY) === 'true'
+}
+
+export function setNeedsReinstall(): void {
+  localStorage.setItem(NEEDS_REINSTALL_KEY, 'true')
+}
+
+export function clearNeedsReinstall(): void {
+  localStorage.removeItem(NEEDS_REINSTALL_KEY)
 }
 
 export function isOnboardingComplete(): boolean {
