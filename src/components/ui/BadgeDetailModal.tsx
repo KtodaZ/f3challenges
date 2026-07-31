@@ -12,6 +12,7 @@ import {
 } from '@/lib/challenges'
 import { TROPHY_TIER_STYLES } from '@/lib/trophyStyles'
 import { cn } from '@/lib/utils'
+import { TrophyIcon } from '@/components/ui/TrophyIcon'
 import type { AchievementBadge, AchievementEvaluation } from '@/types'
 
 export type BadgeDetail =
@@ -100,7 +101,7 @@ export function BadgeDetailModal({ detail, onClose }: { detail: BadgeDetail | nu
                 TROPHY_TIER_STYLES[tier.tier].tile
               )}
             >
-              {tier.emoji}
+              <TrophyIcon tier={tier} size={68} />
             </div>
 
             <div>

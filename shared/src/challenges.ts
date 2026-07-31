@@ -495,6 +495,15 @@ export const CHALLENGES: ChallengeTemplate[] = [
     // earned. The medal stays so the rungs still read at a glance.
     trophyStyle: {
       emoji: { participant: '💪', bronze: '🥉💪', silver: '🥈💪', gold: '🥇💪' },
+      // Real artwork, used only where the mark renders large (trophy case,
+      // badge detail, celebrations). Falls back to the emoji above if a file
+      // is missing, so declaring these is safe either way.
+      iconUrl: {
+        participant: '/challenges/aug-2026/bicep-participant.png',
+        bronze:      '/challenges/aug-2026/bicep-bronze.png',
+        silver:      '/challenges/aug-2026/bicep-silver.png',
+        gold:        '/challenges/aug-2026/bicep-gold.png',
+      },
       label: {
         participant: 'Bedrock Bicep',
         bronze: 'Bronze Bicep',

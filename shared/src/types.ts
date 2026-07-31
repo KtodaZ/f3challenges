@@ -152,6 +152,12 @@ export interface ChallengeTemplate {
   trophyStyle?: {
     emoji?: Partial<Record<'participant' | 'bronze' | 'silver' | 'gold', string>>
     label?: Partial<Record<'participant' | 'bronze' | 'silver' | 'gold', string>>
+    /** Public path to real artwork for a tier, e.g.
+     *  '/challenges/aug-2026/bicep-gold.png'. Used only where the mark renders
+     *  large enough to read (trophy case, detail, celebrations) — small chips
+     *  stay on emoji, where a downscaled illustration turns to mush. Always
+     *  falls back to `emoji` if the file is missing or fails to load. */
+    iconUrl?: Partial<Record<'participant' | 'bronze' | 'silver' | 'gold', string>>
   }
 
   startDate: string // YYYY-MM-DD

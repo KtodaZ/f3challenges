@@ -29,6 +29,9 @@ export interface TrophyTierDef {
   /** Display name — "Bronze", "Gold". */
   label: string
   emoji: string
+  /** Optional artwork for this tier on this challenge — see
+   *  ChallengeTemplate.trophyStyle.iconUrl. `emoji` is always the fallback. */
+  iconUrl?: string
   /** Share of the challenge's required days needed to earn it (0–1). */
   threshold: number
   /** One-liner for the trophy detail view. */
@@ -105,6 +108,7 @@ export function getTrophyTier(tier: TrophyTier, challenge?: ChallengeTemplate): 
     ...base,
     emoji: style.emoji?.[base.tier] ?? base.emoji,
     label: style.label?.[base.tier] ?? base.label,
+    iconUrl: style.iconUrl?.[base.tier],
   }
 }
 

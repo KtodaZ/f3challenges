@@ -3,6 +3,7 @@
 import { getChallengeById, getTrophyTier, resolveBadgeTier } from '@/lib/challenges'
 import { TROPHY_TIER_STYLES } from '@/lib/trophyStyles'
 import { cn } from '@/lib/utils'
+import { TrophyIcon } from '@/components/ui/TrophyIcon'
 import type { AchievementBadge } from '@/types'
 
 interface BadgeGridProps {
@@ -61,7 +62,7 @@ export function BadgeGrid({ badges, onSelect }: BadgeGridProps) {
                 TROPHY_TIER_STYLES[tier.tier].tile
               )}
             >
-              {tier.emoji}
+              <TrophyIcon tier={tier} size={44} />
             </div>
             <div className="text-center">
               <p className={cn('text-[10px] font-semibold leading-tight', TROPHY_TIER_STYLES[tier.tier].text)}>
