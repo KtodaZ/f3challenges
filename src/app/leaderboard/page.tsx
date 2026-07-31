@@ -4,7 +4,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useUser } from '@/contexts/UserContext'
-import { getCurrentChallenge, getTodayPT, getChallengeDates, getCurrentWeekDates, getDayNumber, getTotalDays } from '@/lib/challenges'
+import {
+  getTodayPT, getChallengeDates, getCurrentWeekDates,
+  getDayNumber, getTotalDays, getWeekProgress, getChallengeWeeks,
+  isWeeklyCumulative, latestLoad,
+} from '@/lib/challenges'
+import { useCurrentChallenge } from '@/hooks/useChallenge'
+import { useRegion } from '@/contexts/RegionContext'
 import { getUserChallengeLogs, getChallengeParticipants, getDailyLog, getLatestShoutoutsByUser, updateUser } from '@/lib/firestore'
 import { monthProgress, cn, isChallengeParticipant } from '@/lib/utils'
 import { LeaderboardRow } from '@/components/leaderboard/LeaderboardRow'
@@ -15,7 +21,10 @@ import { CalloutModal, type CalloutUserStatus } from '@/components/daily/Callout
 import { PastFinishers } from '@/components/leaderboard/PastFinishers'
 import { CompetitiveOptInModal } from '@/components/notifications/CompetitiveOptIn'
 import { ProgressBar } from '@/components/ui/ProgressBar'
-import type { LeaderboardEntry, ChallengeParticipation, User, ChallengeTemplate, DailyLog } from '@/types'
+import type {
+  LeaderboardEntry, ChallengeParticipation, User, ChallengeTemplate, DailyLog,
+  ExerciseLoad, WeekProgress,
+} from '@/types'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 
 type Tab = 'week' | 'month' | 'past'
@@ -35,23 +44,33 @@ interface RawEntry {
   hasMonthActivity: boolean
   month: { reps: number; completedDays: number }
   week:  { reps: number; completedDays: number }
+  /** Weekly-cumulative only: standing against this week's rep target. */
+  weekProgress?: WeekProgress
+  load?: ExerciseLoad
 }
 
 /** Projects a raw aggregate into a scope-specific leaderboard entry. */
 function toEntry(raw: RawEntry, scope: Scope, elapsedDays: number): LeaderboardEntry {
   const s = raw[scope]
+  // On a weekly-cumulative challenge "% complete" is share of the week's rep
+  // target, not days finished — days aren't a thing you can complete.
+  const completionPct = raw.weekProgress
+    ? Math.round(raw.weekProgress.fraction * 100)
+    : elapsedDays > 0 ? Math.round((s.completedDays / elapsedDays) * 100) : 0
   return {
     user: raw.user,
     participation: raw.participation,
     completedDays: s.completedDays,
     totalDays: elapsedDays,
-    completionPct: elapsedDays > 0 ? Math.round((s.completedDays / elapsedDays) * 100) : 0,
+    completionPct,
     totalReps: s.reps,
     currentStreak: raw.streak,
     todayComplete: raw.todayComplete,
     todayLog: raw.todayLog,
     lastActiveDate: raw.lastActiveDate,
     lastShoutoutAt: raw.lastShoutoutAt,
+    week: raw.weekProgress,
+    load: raw.load,
   }
 }
 
@@ -163,7 +182,8 @@ function CurrentLeaderboard({
 
 export default function LeaderboardPage() {
   const { currentUser, allUsers, refreshCurrentUser } = useUser()
-  const challenge = getCurrentChallenge()
+  const { regionId } = useRegion()
+  const challenge = useCurrentChallenge()
 
   // Default to the weekly board so mid-month joiners land on the race they can win.
   const [tab, setTab] = useState<Tab>('week')
@@ -185,7 +205,7 @@ export default function LeaderboardPage() {
     const [participations, allTodayLogs, shoutoutMap] = await Promise.all([
       getChallengeParticipants(challenge.id),
       Promise.all(allUsers.map(u => getDailyLog(u.id, today))),
-      getLatestShoutoutsByUser(),
+      getLatestShoutoutsByUser(regionId),
     ])
 
     const participationMap = new Map<string, ChallengeParticipation>(
@@ -193,6 +213,7 @@ export default function LeaderboardPage() {
     )
     const challengeDates = getChallengeDates(challenge)
     const monthElapsed = challengeDates.filter(d => d <= today).length
+    const isWeekly = isWeeklyCumulative(challenge)
     const weekDates = getCurrentWeekDates(challenge, today)
     const weekStart = weekDates[0] ?? today
     const weekElapsed = weekDates.length
@@ -281,6 +302,12 @@ export default function LeaderboardPage() {
           hasMonthActivity,
           month: { reps: monthReps, completedDays: monthCompletedDays },
           week:  { reps: weekReps,  completedDays: weekCompletedDays },
+          // The challenge's declared week is authoritative for these — it can
+          // be shorter than a calendar week at either end of the month.
+          weekProgress: isWeekly
+            ? getWeekProgress(challenge, today, logs) ?? undefined
+            : undefined,
+          load: latestLoad(logs),
         } satisfies RawEntry
       })
     )
@@ -294,7 +321,7 @@ export default function LeaderboardPage() {
     setDayRepCounts(repCounts)
     setLoading(false)
     setRefreshing(false)
-  }, [challenge, allUsers])
+  }, [challenge, allUsers, regionId])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadData() }, [loadData])
@@ -336,6 +363,9 @@ export default function LeaderboardPage() {
   const scope: Scope   = tab === 'month' ? 'month' : 'week'
   const scopedEntries  = scope === 'month' ? monthEntries : weekEntries
   const weekDates      = challenge ? getCurrentWeekDates(challenge, todayStr) : []
+  const totalWeeks     = challenge ? getChallengeWeeks(challenge).length : 0
+  // Any entry's week carries the same week metadata — grab the first available.
+  const currentWeek    = weekEntries.find(e => e.week)?.week
   const monthDates     = challenge ? getChallengeDates(challenge).filter(d => d <= todayStr) : []
   const chartDates     = scope === 'month' ? monthDates : weekDates
   // PAX actually participating in this challenge (logged something, opted in,
@@ -347,10 +377,16 @@ export default function LeaderboardPage() {
     return isChallengeParticipant(e.participation?.status, (raw?.totalReps ?? 0) > 0 || (raw?.completedDays ?? 0) > 0, dayNum)
   })
   const participantCount = participantEntries.length
-  // "Done today" and the call-out roster are inherently daily, so they read off
-  // whichever entries carry today's status — identical across scopes.
-  const completedToday   = participantEntries.filter(e => e.todayComplete).length
-  const needsPush        = participantEntries.filter(e => !e.todayComplete)
+  // On a weekly-cumulative challenge a skipped day is allowed, so "hasn't
+  // finished today" is noise — the roster that matters is who is short of the
+  // week's target, and the headline counts weeks hit rather than days done.
+  const weeklyScoring    = challenge ? isWeeklyCumulative(challenge) : false
+  const completedToday   = weeklyScoring
+    ? participantEntries.filter(e => e.week?.isComplete).length
+    : participantEntries.filter(e => e.todayComplete).length
+  const needsPush        = weeklyScoring
+    ? participantEntries.filter(e => e.week && !e.week.isComplete)
+    : participantEntries.filter(e => !e.todayComplete)
   const calloutUsers     = participantEntries.map(e => e.user)
   const calloutStatusById = new Map<string, CalloutUserStatus>(
     scopedEntries.map(e => {
@@ -417,8 +453,16 @@ export default function LeaderboardPage() {
         {isCurrent && challenge && (
           <ProgressBar
             value={progress}
-            label={`Day ${dayNum} of ${totalDays}`}
-            sublabel={`${completedToday} of ${participantCount} done today`}
+            label={
+              weeklyScoring && currentWeek
+                ? `Week ${currentWeek.week.index} of ${totalWeeks}`
+                : `Day ${dayNum} of ${totalDays}`
+            }
+            sublabel={
+              weeklyScoring
+                ? `${completedToday} of ${participantCount} hit the week`
+                : `${completedToday} of ${participantCount} done today`
+            }
             className="mt-2"
           />
         )}

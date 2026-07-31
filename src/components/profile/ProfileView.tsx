@@ -29,7 +29,8 @@ import { buildAchievementContext, evaluateAchievements } from '@/lib/achievement
 import type { BonusLog } from '@/types'
 import {
   getCurrentChallenge,
-  CHALLENGES,
+  challengesForRegion,
+  resolveRegion,
   getChallengeDates,
   getDailyTarget,
   getTodayPT,
@@ -67,6 +68,9 @@ function statusBadge(status: ChallengeParticipation['status'], note?: string) {
 export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
   const { currentUser, refreshCurrentUser } = useUser()
   const isOwnProfile = currentUser?.id === initialUser.id
+  // The profile's own region, not the viewer's — a profile should read the
+  // same whoever opens it, and it's what makes their badge history correct.
+  const profileRegionId = resolveRegion(initialUser.regionId).id
 
   const [user, setUser] = useState<User>(initialUser)
   const [currentLogs, setCurrentLogs] = useState<DailyLog[]>([])
@@ -81,7 +85,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
 
   useEffect(() => {
     let cancelled = false
-    const challenge = getCurrentChallenge()
+    const challenge = getCurrentChallenge(profileRegionId)
     Promise.all([
       getSocialStats(initialUser.id),
       getUserBonusLogs(initialUser.id),
@@ -95,7 +99,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
       })
       .catch(() => { /* progress just shows without social/bonus counts */ })
     return () => { cancelled = true }
-  }, [initialUser.id])
+  }, [initialUser.id, profileRegionId])
 
   const achievementEvaluations = useMemo(() => {
     const ctx = buildAchievementContext(user, allLogs, {
@@ -106,10 +110,10 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
       videosUploaded: socialStats?.videosUploaded,
       bonusLogs: bonusLogs ?? undefined,
       groupLogs: groupLogs ?? undefined,
-      currentChallengeId: getCurrentChallenge()?.id,
+      currentChallengeId: getCurrentChallenge(profileRegionId)?.id,
     })
     return evaluateAchievements(ctx)
-  }, [user, allLogs, socialStats, bonusLogs, groupLogs])
+  }, [user, allLogs, socialStats, bonusLogs, groupLogs, profileRegionId])
 
   // Modal state
   const [editNameOpen, setEditNameOpen] = useState(false)
@@ -118,7 +122,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
   const [optOutOpen, setOptOutOpen] = useState(false)
   const [shoutoutOpen, setShoutoutOpen] = useState(false)
 
-  const currentChallenge = getCurrentChallenge()
+  const currentChallenge = getCurrentChallenge(profileRegionId)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -129,7 +133,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
           ? getUserChallengeLogs(user.id, currentChallenge.id)
           : Promise.resolve([]),
         // Load logs for all challenges
-        Promise.all(CHALLENGES.map(c => getUserChallengeLogs(user.id, c.id))).then(r => r.flat()),
+        Promise.all(challengesForRegion(profileRegionId).map(c => getUserChallengeLogs(user.id, c.id))).then(r => r.flat()),
         currentChallenge
           ? getParticipation(user.id, currentChallenge.id)
           : Promise.resolve(null),

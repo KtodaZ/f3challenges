@@ -32,17 +32,17 @@ function nudge(completedDays: number, opts: { elapsed?: number; missed?: number 
 }
 
 describe('tier thresholds', () => {
-  it('places the rungs at 50% / 80% / 100% of required days', () => {
+  it('places the rungs at 50% / 75% / 100% of required days', () => {
     expect(getRequiredDays(feb)).toBe(28)
     expect(tierDaysRequired(feb, 'bronze')).toBe(14)
-    expect(tierDaysRequired(feb, 'silver')).toBe(23) // ceil(28 * 0.8) = 23
+    expect(tierDaysRequired(feb, 'silver')).toBe(21) // ceil(28 * 0.75) = 21
     expect(tierDaysRequired(feb, 'gold')).toBe(28)
   })
 
   it('measures against required days, not calendar days', () => {
     expect(getRequiredDays(may)).toBe(30) // 31 days minus one rest day
     expect(tierDaysRequired(may, 'bronze')).toBe(15)
-    expect(tierDaysRequired(may, 'silver')).toBe(24)
+    expect(tierDaysRequired(may, 'silver')).toBe(23) // ceil(30 * 0.75)
     expect(tierDaysRequired(may, 'gold')).toBe(30)
   })
 
@@ -61,8 +61,8 @@ describe('tierForCompletedDays', () => {
     expect(tierForCompletedDays(feb, 1)).toBe('participant')
     expect(tierForCompletedDays(feb, 13)).toBe('participant')
     expect(tierForCompletedDays(feb, 14)).toBe('bronze')
-    expect(tierForCompletedDays(feb, 22)).toBe('bronze')
-    expect(tierForCompletedDays(feb, 23)).toBe('silver')
+    expect(tierForCompletedDays(feb, 20)).toBe('bronze')
+    expect(tierForCompletedDays(feb, 21)).toBe('silver')
     expect(tierForCompletedDays(feb, 27)).toBe('silver')
     expect(tierForCompletedDays(feb, 28)).toBe('gold')
   })
@@ -77,21 +77,21 @@ describe('progress', () => {
     const p = getTrophyProgress(feb, 10)
     expect(p.earned?.tier).toBe('participant')
     expect(p.next?.tier).toBe('bronze')
-    expect(p.daysToNext).toBe(4)
+    expect(p.toNext).toBe(4)
   })
 
   it('chases bronze before any day is logged', () => {
     const p = getTrophyProgress(feb, 0)
     expect(p.earned).toBeNull()
     expect(p.next?.tier).toBe('bronze')
-    expect(p.daysToNext).toBe(14)
+    expect(p.toNext).toBe(14)
   })
 
   it('has nothing left to chase at gold', () => {
     const p = getTrophyProgress(feb, 28)
     expect(p.earned?.tier).toBe('gold')
     expect(p.next).toBeNull()
-    expect(p.daysToNext).toBe(0)
+    expect(p.toNext).toBe(0)
     expect(p.fraction).toBe(1)
   })
 })
@@ -192,7 +192,9 @@ describe('nudge copy', () => {
   })
 
   it('says gold is still live when the user is on pace', () => {
-    const n = nudge(20, { elapsed: 20 })
+    // 16 of 28 days: Bronze is in hand, Silver (21) is 5 days out — far
+    // enough that the "one day away" copy doesn't take over.
+    const n = nudge(16, { elapsed: 16 })
     expect(n.body).toContain('Gold')
   })
 
@@ -205,7 +207,7 @@ describe('nudge copy', () => {
 describe('announcement copy', () => {
   it('announces each tier by name', () => {
     const post = (tier: 'bronze' | 'silver' | 'gold') =>
-      trophyFeedPost({ userName: 'Milkman', challenge: feb, tier, completedDays: 14 })
+      trophyFeedPost({ userName: 'Milkman', challenge: feb, tier, completed: 14 })
     expect(post('bronze')).toContain('🥉')
     expect(post('silver')).toContain('🥈')
     expect(post('gold')).toContain('every single day')
@@ -213,14 +215,14 @@ describe('announcement copy', () => {
   })
 
   it('pushes the next rung in the notification', () => {
-    const n = trophyNotification({ challenge: feb, tier: 'bronze', completedDays: 14 })
+    const n = trophyNotification({ challenge: feb, tier: 'bronze', completed: 14 })
     expect(n.title).toContain('Bronze')
     expect(n.body).toContain('Silver')
-    expect(n.body).toContain('9 more days')
+    expect(n.body).toContain('7 more days') // Silver at 21, 14 banked
   })
 
   it('has no next rung to push at gold', () => {
-    const n = trophyNotification({ challenge: feb, tier: 'gold', completedDays: 28 })
+    const n = trophyNotification({ challenge: feb, tier: 'gold', completed: 28 })
     expect(n.body).not.toContain('more days')
   })
 })

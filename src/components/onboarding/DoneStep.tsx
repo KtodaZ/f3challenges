@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
-import { getCurrentChallenge, getDailyTarget, getTodayPT } from '@/lib/challenges'
+import { getDailyTarget, getTodayPT, getChallengeWeek } from '@/lib/challenges'
+import { useCurrentChallenge } from '@/hooks/useChallenge'
 import { setOnboardingComplete } from '@/lib/storage'
 import { updateUser } from '@/lib/firestore'
 import { useUser } from '@/contexts/UserContext'
@@ -24,9 +25,10 @@ export function DoneStep({ earnedBadges, notifPrefs }: Props) {
     return () => clearTimeout(t)
   }, [])
 
-  const challenge = getCurrentChallenge()
+  const challenge = useCurrentChallenge()
   const today     = getTodayPT()
   const target    = challenge ? getDailyTarget(challenge, today) : null
+  const week      = challenge ? getChallengeWeek(challenge, today) : undefined
 
   async function handleGo() {
     if (currentUser) {
@@ -79,20 +81,36 @@ export function DoneStep({ earnedBadges, notifPrefs }: Props) {
 
       {challenge && target && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 w-full max-w-sm mb-8 text-left">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Today&apos;s challenge</p>
+          {/* Weekly-cumulative challenges have no daily quota — showing
+              "0 total reps" would be worse than useless. The week's target and
+              the menu of movements is the honest version. */}
+          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">
+            {target.isOpenEnded ? 'This week' : 'Today’s challenge'}
+          </p>
           <p className="text-lg font-bold text-orange-400">{challenge.name}</p>
           <p className="text-white mt-1">
-            <span className="text-2xl font-bold">{target.totalReps}</span>
-            <span className="text-zinc-400 text-sm ml-1.5">total reps</span>
+            <span className="text-2xl font-bold">
+              {target.isOpenEnded ? (week?.target.toLocaleString() ?? '—') : target.totalReps}
+            </span>
+            <span className="text-zinc-400 text-sm ml-1.5">
+              {target.isOpenEnded ? 'reps this week' : 'total reps'}
+            </span>
           </p>
           <div className="mt-3 space-y-1">
             {target.exercises.map(({ exercise, reps }) => (
               <div key={exercise.id} className="flex justify-between text-sm">
                 <span className="text-zinc-300">{exercise.name}</span>
-                <span className="text-white font-medium">{reps} reps</span>
+                <span className="text-white font-medium">
+                  {target.isOpenEnded ? 'any amount' : `${reps} reps`}
+                </span>
               </div>
             ))}
           </div>
+          {target.isOpenEnded && (
+            <p className="text-xs text-zinc-500 mt-3">
+              Any mix, any day — break it up however you want.
+            </p>
+          )}
         </div>
       )}
 

@@ -130,7 +130,7 @@ const DEFAULT_FEED: Record<keyof Required<NonNullable<ChallengeTemplateCopy['fee
     "Day {day} joins the pile — that's {stackedDays} full days @{name} has finished today. 💪 {hashtag}",
     "@{name} is erasing the whole gap in one sitting. {stackedDays} days done today. 🔥 {hashtag}",
     "We're gonna need a bigger log. @{name} finished {stackedDays} days today. 🦈 {hashtag}",
-    "THIS. IS. BEDROCK. @{name} — {stackedDays} full days in a single day. ⚔️ {hashtag}",
+    "One does not simply log {stackedDays} days in a day. @{name} did. ⚔️ {hashtag}",
     "@{name} is kind of a big deal. {stackedDays} days knocked out today. 📺 {hashtag}",
   ],
   // First day back after 3+ required days missed. {daysAway} is that gap.

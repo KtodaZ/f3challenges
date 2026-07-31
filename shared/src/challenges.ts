@@ -9,7 +9,11 @@
 // @f3-bedrock/shared workspace package. Both consume it at build time
 // (Next.js transpiles it; esbuild bundles it into functions/lib/index.js).
 
-import type { BonusChallengeWeek, ChallengeTemplate, DailyTarget } from './types'
+import type {
+  BonusChallengeWeek, ChallengeTemplate, DailyTarget, ExerciseLoad,
+  ResolvedWeek, WeekProgress,
+} from './types'
+import { DEFAULT_REGION_ID } from './regions'
 
 export const CHALLENGES: ChallengeTemplate[] = [
   {
@@ -434,20 +438,202 @@ export const CHALLENGES: ChallengeTemplate[] = [
       },
     },
   },
+  {
+    id: 'aug-2026',
+    regionIds: ['bedrock'],
+    name: 'The Bedrock Bicep Challenge',
+    hashtag: '#BedrockBicep',
+    tagline: '300 curls a week. Any variation. However you want it. 💪',
+    month: 8,
+    year: 2026,
+    type: 'weekly-cumulative',
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+    // Sunday → Saturday. August opens on a Saturday, so Week 1 is a single day.
+    weekStartsOn: 0,
+    exercises: [
+      { id: 'dumbbell-curl', name: 'Dumbbell Curl', shortName: 'DB',      plural: 'dumbbell curls' },
+      { id: 'barbell-curl',  name: 'Barbell Curl',  shortName: 'BB',      plural: 'barbell curls'  },
+      { id: 'hammer-curl',   name: 'Hammer Curl',   shortName: 'Hammer',  plural: 'hammer curls'   },
+      { id: 'chin-up',       name: 'Chin-Up',       shortName: 'Chin-Up', plural: 'chin-ups', bodyweight: true },
+    ],
+    // 300 over a 7-day week is 50/day with a rest day built in — so the short
+    // weeks at either end are priced at that same 50/day rather than prorated
+    // against 300, and nobody gets a harder week for a shorter one.
+    weeks: [
+      { startDate: '2026-08-01', endDate: '2026-08-01', target: 50  },
+      { startDate: '2026-08-02', endDate: '2026-08-08', target: 300 },
+      { startDate: '2026-08-09', endDate: '2026-08-15', target: 300 },
+      { startDate: '2026-08-16', endDate: '2026-08-22', target: 300 },
+      { startDate: '2026-08-23', endDate: '2026-08-29', target: 300 },
+      { startDate: '2026-08-30', endDate: '2026-08-31', target: 100 },
+    ],
+    guidance: [
+      'Break it up however you want — the week is the only deadline.',
+      'Quality reps. Use a weight that leaves 1–3 reps in reserve on most sets.',
+      'Take at least one full rest day each week.',
+      'If your elbows or forearms feel beat up, prioritize full range of motion. Don\'t swing the weight.',
+    ],
+    bonusChallenge: {
+      name: 'Bonus Round',
+      // One entry per bonus week. Each stays locked behind the reveal card
+      // until its week starts, so nothing spoils ahead of time — add the next
+      // week's object whenever it's decided.
+      weeks: [
+        {
+          startDate: '2026-08-02',
+          endDate: '2026-08-08',
+          description: '5 sets of 20 rows. Bent-over, single-arm, inverted — dealer\'s choice. Work it in any time this week.',
+          feedPostTemplates: [
+            '@{name} pulled 100 rows across 5 sets. Bonus Round 1 in the books. 🚣 {hashtag}',
+            '5 sets of 20. @{name} handled the rows and earned Bonus Round 1. 💪 {hashtag}',
+            '@{name} balanced out all that curling with 100 rows. Bonus Round 1 done. 🔥 {hashtag}',
+            'Pull day delivered. @{name} knocked out 5×20 rows for Bonus Round 1. 🚣 {hashtag}',
+          ],
+        },
+      ],
+    },
+    // The Bedrock Bicep runs the whole ladder — the band-app reaction emoji,
+    // earned. The medal stays so the rungs still read at a glance.
+    trophyStyle: {
+      emoji: { participant: '💪', bronze: '🥉💪', silver: '🥈💪', gold: '🥇💪' },
+      // Real artwork, used only where the mark renders large (trophy case,
+      // badge detail, celebrations). Falls back to the emoji above if a file
+      // is missing, so declaring these is safe either way.
+      iconUrl: {
+        participant: '/challenges/aug-2026/bicep-participant.png',
+        bronze:      '/challenges/aug-2026/bicep-bronze.png',
+        silver:      '/challenges/aug-2026/bicep-silver.png',
+        gold:        '/challenges/aug-2026/bicep-gold.png',
+      },
+      label: {
+        participant: 'Bedrock Bicep',
+        bronze: 'Bronze Bicep',
+        silver: 'Silver Bicep',
+        gold: 'Gold Bicep',
+      },
+    },
+    badges: [
+      {
+        id: 'aug-2026-bedrock-bicep',
+        name: 'The Bedrock Bicep',
+        emoji: '💪',
+        description: 'Hit the weekly curl target every single week of August. The real one.',
+        howTo: 'Reach the rep target for every week of the Bedrock Bicep Challenge — topping up a past week counts.',
+        criteria: { type: 'complete-challenge' },
+      },
+      {
+        id: 'aug-2026-century-curl',
+        name: 'Century Curl',
+        emoji: '💯',
+        description: '100 curls between sunrise and sunset. One day, one hundred.',
+        howTo: 'Log 100 or more reps in a single day of the Bedrock Bicep Challenge.',
+        criteria: { type: 'single-day-reps', reps: 100 },
+      },
+      {
+        id: 'aug-2026-four-way-flex',
+        name: 'Four-Way Flex',
+        emoji: '🔀',
+        description: 'Dumbbell, barbell, hammer, chin-up — every variation inside one week.',
+        howTo: 'Log all four curl variations within a single week of the challenge.',
+        criteria: { type: 'week-variety' },
+      },
+      {
+        id: 'aug-2026-chin-music',
+        name: 'Chin Music',
+        emoji: '🎺',
+        description: '100 chin-ups. The hardest way to get your reps in.',
+        howTo: 'Log 100 chin-ups across the Bedrock Bicep Challenge.',
+        criteria: { type: 'exercise-reps', exerciseId: 'chin-up', reps: 100 },
+      },
+      {
+        id: 'aug-2026-ahead-of-the-curl',
+        name: 'Ahead of the Curl',
+        emoji: '⏱️',
+        description: 'Finished a week with two days still on the clock.',
+        howTo: 'Hit a full week\'s rep target with 2 or more days left in that week.',
+        criteria: { type: 'week-early', daysEarly: 2 },
+      },
+      {
+        id: 'aug-2026-sleeve-buster',
+        name: 'Sleeve Buster',
+        emoji: '🧨',
+        description: '2,000 curls in a month. The shirts don\'t fit anymore.',
+        howTo: 'Bank 2,000 total reps across the Bedrock Bicep Challenge — 650 past the finish line.',
+        criteria: { type: 'challenge-reps', reps: 2000 },
+      },
+    ],
+    featuredBadgeId: 'aug-2026-bedrock-bicep',
+    copy: {
+      welcomeTagline: 'The Bedrock Bicep, earned. 300 curls a week — dumbbell, barbell, hammer, chin-ups. Any mix, any day, your call. 💪',
+      feedPost: {
+        // Weekly-cumulative challenges post on the week, not the day (see
+        // weekCompleteFeedPost) — these cover the trophy and badge moments.
+        regular: [
+          '@{name} is putting in Bedrock Bicep work. 💪 {hashtag}',
+          '@{name} added to the pile. The Bedrock Bicep doesn\'t build itself. 💪 {hashtag}',
+        ],
+      },
+    },
+  },
+  {
+    // F3 Sactown's first challenge on the app — Babe's 100-merkins-a-day for
+    // August. Flat target every day, so it's a single weekly tier spanning the
+    // whole month rather than an escalating multiplier.
+    id: 'aug-2026-sactown',
+    name: 'Sactown Century',
+    hashtag: '#SactownCentury',
+    tagline: 'A hundred a day, the Sactown way.',
+    month: 8,
+    year: 2026,
+    regionIds: ['sactown'],
+    type: 'weekly-tiers',
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+    exercises: [
+      { id: 'merkin', name: 'Merkin', shortName: 'Merkin' },
+    ],
+    weeklyTiers: [
+      { startDay: 1, endDay: 31, targets: [{ exerciseId: 'merkin', amount: 100 }] },
+    ],
+  },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Returns the challenge active on a given date, or undefined. */
-export function getChallengeForDate(date: string): ChallengeTemplate | undefined {
-  return CHALLENGES.find(c => date >= c.startDate && date <= c.endDate)
+/** Regions a challenge belongs to. No `regionIds` means Bedrock-only, so every
+ *  challenge written before regions existed keeps working untouched. */
+export function challengeRegionIds(c: ChallengeTemplate): string[] {
+  return c.regionIds ?? [DEFAULT_REGION_ID]
 }
 
-/** Returns today's active challenge (PT date). */
-export function getCurrentChallenge(): ChallengeTemplate | undefined {
-  return getChallengeForDate(getTodayPT())
+export function challengeBelongsToRegion(c: ChallengeTemplate, regionId: string): boolean {
+  return challengeRegionIds(c).includes(regionId)
 }
 
+/** Every challenge a region runs, in definition order. Use this anywhere you'd
+ *  otherwise scan CHALLENGES directly — otherwise a region sees another
+ *  region's history in past-challenge lists, badges, and achievements. */
+export function challengesForRegion(regionId: string): ChallengeTemplate[] {
+  return CHALLENGES.filter(c => challengeBelongsToRegion(c, regionId))
+}
+
+/** Returns the challenge active on a given date for a region, or undefined.
+ *  Two regions can run different challenges over the same dates, so the region
+ *  is required — there is no such thing as "the" challenge for a date. */
+export function getChallengeForDate(date: string, regionId: string): ChallengeTemplate | undefined {
+  return CHALLENGES.find(
+    c => date >= c.startDate && date <= c.endDate && challengeBelongsToRegion(c, regionId)
+  )
+}
+
+/** Returns a region's active challenge today (PT date). */
+export function getCurrentChallenge(regionId: string): ChallengeTemplate | undefined {
+  return getChallengeForDate(getTodayPT(), regionId)
+}
+
+/** Lookup by id, deliberately not region-scoped — used to resolve a challenge
+ *  a user already has a badge or log for. */
 export function getChallengeById(id: string): ChallengeTemplate | undefined {
   return CHALLENGES.find(c => c.id === id)
 }
@@ -503,6 +689,21 @@ export function getDailyTarget(challenge: ChallengeTemplate, date: string): Dail
   const conditionalRest = challenge.conditionalRestDates?.find(r => r.date === date)
 
   const challengeType = challenge.type ?? 'escalating'
+
+  // 'weekly-cumulative': no daily quota at all. Every exercise is listed with a
+  // target of 0 so rep entry still knows which movements are on the menu, and
+  // `isOpenEnded` tells the UI to show week progress instead of a daily ring.
+  if (challengeType === 'weekly-cumulative') {
+    return {
+      date,
+      day,
+      isRestDay: false,
+      isOpenEnded: true,
+      totalReps: 0,
+      repsPerExercise: 0,
+      exercises: challenge.exercises.map(ex => ({ exercise: ex, reps: 0 })),
+    }
+  }
 
   if (challengeType === 'weekly-tiers') {
     const tier = challenge.weeklyTiers?.find(t => day >= t.startDay && day <= t.endDay)
@@ -574,6 +775,9 @@ export function getRequiredDays(challenge: ChallengeTemplate): number {
 
 /** Returns total reps for the full challenge month (rep-type exercises only, rest days excluded). */
 export function getMonthlyTotal(challenge: ChallengeTemplate): number {
+  // Weekly-cumulative challenges carry no daily target — the month is the sum
+  // of the weekly ones.
+  if (challenge.type === 'weekly-cumulative') return getChallengeRepTotal(challenge)
   return getChallengeDates(challenge).reduce((total, date) => {
     const target = getDailyTarget(challenge, date)
     return target && !target.isRestDay ? total + target.totalReps : total
@@ -716,10 +920,181 @@ export function getWeekStartPT(date: string, weekStartsOn = 0): string {
 /**
  * The dates of the current calendar week that fall inside the challenge and are
  * on/before `today` — i.e. the days that count toward this week's board so far.
+ *
+ * Defaults to the challenge's own `weekStartsOn` so the leaderboard, the week
+ * card, and the Cloud Functions all slice the calendar identically.
  */
-export function getCurrentWeekDates(challenge: ChallengeTemplate, today: string, weekStartsOn = 0): string[] {
-  const weekStart = getWeekStartPT(today, weekStartsOn)
+export function getCurrentWeekDates(challenge: ChallengeTemplate, today: string, weekStartsOn?: number): string[] {
+  const weekStart = getWeekStartPT(today, weekStartsOn ?? challenge.weekStartsOn ?? 0)
   return getChallengeDates(challenge).filter(d => d >= weekStart && d <= today)
+}
+
+// ─── Weekly-cumulative engine ───────────────────────────────────────────────
+// A weekly-cumulative challenge has no daily quota: you owe the *week* a rep
+// total and fill it however you like. Weeks are declared explicitly on the
+// template (see ChallengeWeek) so a challenge can open or close mid-week with a
+// prorated target, or escalate its target week over week, as pure data.
+
+/** True when the challenge scores by pooled weekly reps rather than by day. */
+export function isWeeklyCumulative(challenge: ChallengeTemplate): boolean {
+  return challenge.type === 'weekly-cumulative'
+}
+
+/** Every declared week, resolved with its 1-based index and day count. */
+export function getChallengeWeeks(challenge: ChallengeTemplate): ResolvedWeek[] {
+  return (challenge.weeks ?? []).map((w, i) => ({
+    ...w,
+    index: i + 1,
+    dayCount: Math.round(
+      (new Date(w.endDate + 'T12:00:00Z').getTime() - new Date(w.startDate + 'T12:00:00Z').getTime())
+      / 86_400_000,
+    ) + 1,
+  }))
+}
+
+/** The week containing `date`, or undefined when the date sits outside them all. */
+export function getChallengeWeek(challenge: ChallengeTemplate, date: string): ResolvedWeek | undefined {
+  return getChallengeWeeks(challenge).find(w => date >= w.startDate && date <= w.endDate)
+}
+
+/** Reps banked across every exercise in a set of logs. */
+export function sumLogReps(logs: RepLogInput[]): number {
+  return logs.reduce(
+    (sum, l) => sum + (l.exerciseLogs ?? []).reduce((s, e) => s + (e.completedReps ?? 0), 0),
+    0,
+  )
+}
+
+/** The parts of a daily log the weekly engine reads. */
+export interface RepLogInput {
+  date: string
+  exerciseLogs?: Array<{ exerciseId: string; completedReps: number }>
+}
+
+/**
+ * Where a PAX stands in the week containing `date`.
+ *
+ * `logs` may be the user's whole challenge history — only the ones inside the
+ * week are counted, so callers never have to pre-filter. Returns null when the
+ * date falls outside every declared week.
+ */
+export function getWeekProgress(
+  challenge: ChallengeTemplate,
+  date: string,
+  logs: RepLogInput[],
+  today = date,
+): WeekProgress | null {
+  const week = getChallengeWeek(challenge, date)
+  if (!week) return null
+
+  const reps = sumLogReps(logs.filter(l => l.date >= week.startDate && l.date <= week.endDate))
+  const target = week.target
+  const remaining = Math.max(0, target - reps)
+
+  // Days still available, today included. A week already in the past has none;
+  // a week that hasn't started yet offers all of them.
+  const daysLeft = today > week.endDate
+    ? 0
+    : today < week.startDate
+    ? week.dayCount
+    : Math.round(
+        (new Date(week.endDate + 'T12:00:00Z').getTime() - new Date(today + 'T12:00:00Z').getTime())
+        / 86_400_000,
+      ) + 1
+
+  return {
+    week,
+    reps,
+    target,
+    fraction: target > 0 ? Math.min(1, reps / target) : 0,
+    remaining,
+    daysLeft,
+    perDayNeeded: remaining > 0 && daysLeft > 0 ? Math.ceil(remaining / daysLeft) : 0,
+    isComplete: reps >= target,
+  }
+}
+
+/** Progress for every week up to and including the one containing `today`. */
+export function getWeeklyHistory(
+  challenge: ChallengeTemplate,
+  today: string,
+  logs: RepLogInput[],
+): WeekProgress[] {
+  return getChallengeWeeks(challenge)
+    .filter(w => w.startDate <= today)
+    .map(w => getWeekProgress(challenge, w.startDate, logs, today))
+    .filter((w): w is WeekProgress => w !== null)
+}
+
+/** Weeks whose target this PAX has hit — the trophy/streak unit for these challenges. */
+export function getWeeksCompleted(
+  challenge: ChallengeTemplate,
+  today: string,
+  logs: RepLogInput[],
+): number {
+  return getWeeklyHistory(challenge, today, logs).filter(w => w.isComplete).length
+}
+
+/** Sum of every declared week's target — the whole challenge in reps. */
+export function getChallengeRepTotal(challenge: ChallengeTemplate): number {
+  return (challenge.weeks ?? []).reduce((sum, w) => sum + w.target, 0)
+}
+
+/**
+ * Consecutive weeks hitting target, counting back from the most recent *ended*
+ * week. The week in progress only extends the streak once it's actually
+ * complete, so a Monday morning can't break a streak that's still winnable.
+ */
+export function getWeekStreak(
+  challenge: ChallengeTemplate,
+  today: string,
+  logs: RepLogInput[],
+): number {
+  const history = getWeeklyHistory(challenge, today, logs)
+  let streak = 0
+  for (let i = history.length - 1; i >= 0; i--) {
+    const w = history[i]
+    if (w.isComplete) { streak++; continue }
+    // An unfinished week that hasn't ended yet is not a break — skip past it.
+    if (w.week.endDate >= today) continue
+    break
+  }
+  return streak
+}
+
+// ─── Load (weight used) ─────────────────────────────────────────────────────
+
+/** Compact badge for a load: "2×25", "1×35", "65 lb", "BW". Null when unset. */
+export function formatLoad(load?: ExerciseLoad | null): string | null {
+  if (!load) return null
+  if (load.bodyweight && !load.lbs) return 'BW'
+  if (!load.lbs || load.lbs <= 0) return null
+  return load.hands ? `${load.hands}×${load.lbs}` : `${load.lbs} lb`
+}
+
+/** Spoken form for notification/feed copy: "a pair of 25s", "65 lb", "bodyweight". */
+export function describeLoad(load?: ExerciseLoad | null): string | null {
+  if (!load) return null
+  if (load.bodyweight && !load.lbs) return 'bodyweight'
+  if (!load.lbs || load.lbs <= 0) return null
+  if (load.hands === 2) return `a pair of ${load.lbs}s`
+  if (load.hands === 1) return `a single ${load.lbs}`
+  return `${load.lbs} lb`
+}
+
+/**
+ * The load to show for a PAX: the most recent one they set. Logs may arrive in
+ * any order, so this scans rather than assuming the array is sorted.
+ */
+export function latestLoad<T extends { date: string; load?: ExerciseLoad }>(
+  logs: T[],
+): ExerciseLoad | undefined {
+  let best: T | undefined
+  for (const log of logs) {
+    if (!log.load) continue
+    if (!best || log.date > best.date) best = log
+  }
+  return best?.load
 }
 
 /** Returns reps completed as a fraction of today's target. */
@@ -762,6 +1137,54 @@ export function getBonusWeekFeedPost(
   }
   const t = templates[Math.floor(Math.random() * templates.length)]
   return t.replace(/\{name\}/g, displayName).replace(/\{hashtag\}/g, hashtag)
+}
+
+/**
+ * Feed post for finishing a week of a weekly-cumulative challenge. This fires
+ * once per PAX per week — the day-completion posts don't apply, because on
+ * these challenges every day with a single rep in it is "complete".
+ */
+export function weekCompleteFeedPost(input: {
+  name: string
+  challenge: ChallengeTemplate
+  week: WeekProgress
+  isMakeUp?: boolean
+}): string {
+  const { name, challenge, week, isMakeUp } = input
+  const handle = `@${name}`
+  const tag = challenge.hashtag
+  const target = week.target.toLocaleString()
+  const n = week.week.index
+
+  if (isMakeUp) {
+    return pickOne([
+      `${handle} went back and finished Week ${n} — all ${target} of them. No week left behind. 💪 ${tag}`,
+      `Books balanced. ${handle} topped up Week ${n} to ${target}. Late, but logged. 💪 ${tag}`,
+      `${handle} refused to leave Week ${n} short. ${target} in the bank. 💪 ${tag}`,
+    ])
+  }
+
+  const earlyBird = week.daysLeft >= 3
+    ? [
+        `${handle} closed out Week ${n} with ${week.daysLeft} days to spare. ${target} done. 💪💪 ${tag}`,
+        `Week ${n}: finished early. ${handle} banked ${target} and still has ${week.daysLeft} days on the clock. 💪 ${tag}`,
+      ]
+    : []
+
+  return pickOne([
+    ...earlyBird,
+    `${handle} put ${target} in the bank — Week ${n} complete. 💪 ${tag}`,
+    `Week ${n} done. ${handle} hit ${target}. Sleeves are getting tight. 💪 ${tag}`,
+    `${target}, handled. ${handle} closed Week ${n}. 💪 ${tag}`,
+    `${handle} finished Week ${n} — ${target} across the week. Who else is getting there? ${tag} 💪`,
+    `Week ${n} belongs to ${handle}. ${target} banked. 💪 ${tag}`,
+    `The Bedrock Bicep grows. ${handle} closed Week ${n} — ${target}. 💪 ${tag}`,
+    `${handle} earned the 💪 this week. Week ${n}, ${target} reps. ${tag}`,
+  ])
+}
+
+function pickOne<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
 }
 
 /** All dates in a challenge as YYYY-MM-DD strings. */

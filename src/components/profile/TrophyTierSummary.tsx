@@ -18,7 +18,7 @@ interface TrophyTierSummaryProps {
  */
 export function TrophyTierSummary({ challenge, completedDays }: TrophyTierSummaryProps) {
   const progress = getTrophyProgress(challenge, completedDays)
-  const { earned, next, daysToNext } = progress
+  const { earned, next, toNext, unit } = progress
 
   return (
     <div className="space-y-2 pt-1">
@@ -42,7 +42,7 @@ export function TrophyTierSummary({ challenge, completedDays }: TrophyTierSummar
         {next && (
           <span className="text-xs text-zinc-400 text-right">
             <span className="font-semibold text-zinc-200">
-              {daysToNext} {daysToNext === 1 ? 'day' : 'days'}
+              {toNext.toLocaleString()} {toNext === 1 ? unit.one : unit.many}
             </span>
             {' to '}
             {next.emoji} {next.label}

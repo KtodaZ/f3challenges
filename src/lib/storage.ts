@@ -6,6 +6,7 @@
 const CURRENT_USER_KEY  = 'f3_current_user_id'
 const ONBOARDING_KEY    = 'f3_onboarding_complete'
 const CACHED_USER_KEY   = 'f3_cached_user'
+const REGION_KEY        = 'f3_region_id'
 
 export function getCurrentUserId(): string | null {
   if (typeof window === 'undefined') return null
@@ -18,6 +19,21 @@ export function setCurrentUserId(userId: string): void {
 
 export function clearCurrentUserId(): void {
   localStorage.removeItem(CURRENT_USER_KEY)
+}
+
+// Which region this device is browsing. Written at onboarding (or by an
+// ?region= invite link) and kept in sync with the signed-in user's regionId.
+export function getStoredRegionId(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(REGION_KEY)
+}
+
+export function setStoredRegionId(regionId: string): void {
+  localStorage.setItem(REGION_KEY, regionId)
+}
+
+export function clearStoredRegionId(): void {
+  localStorage.removeItem(REGION_KEY)
 }
 
 export function isOnboardingComplete(): boolean {

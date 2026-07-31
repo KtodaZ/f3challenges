@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist } from 'next/font/google'
 import './globals.css'
+import { RegionProvider } from '@/contexts/RegionContext'
 import { UserProvider } from '@/contexts/UserContext'
 import { BottomNav } from '@/components/nav/BottomNav'
 import { TopBar } from '@/components/nav/TopBar'
@@ -16,8 +17,8 @@ import { PendingCelebrationHandler } from '@/components/providers/PendingCelebra
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 
 export const metadata: Metadata = {
-  title: 'F3 Bedrock | Monthly Challenge',
-  description: 'Track and crush the F3 Bedrock monthly fitness challenge with your crew.',
+  title: 'F3 Norcal | Monthly Challenge',
+  description: 'Track and crush your F3 region\u2019s monthly fitness challenge with your crew.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -49,27 +50,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh antialiased">
         <QueryProvider>
-          <UserProvider>
-            <TooltipProvider>
-              <CrashCapture />
-              <FCMInitializer />
-              <FirestoreConnectionGuard />
-              <UpdateChecker />
-              <PendingCelebrationHandler />
-              <TopBar />
-              <main className="pb-nav min-h-dvh">
-                {children}
-              </main>
-              <BottomNav />
-              <Toaster
-                position="bottom-center"
-                offset="80px"
-                toastOptions={{
-                  style: { background: '#27272a', border: '1px solid #3f3f46', color: '#fafafa' },
-                }}
-              />
-            </TooltipProvider>
-          </UserProvider>
+          <RegionProvider>
+            <UserProvider>
+              <TooltipProvider>
+                <CrashCapture />
+                <FCMInitializer />
+                <FirestoreConnectionGuard />
+                <UpdateChecker />
+                <PendingCelebrationHandler />
+                <TopBar />
+                <main className="pb-nav min-h-dvh">
+                  {children}
+                </main>
+                <BottomNav />
+                <Toaster
+                  position="bottom-center"
+                  offset="80px"
+                  toastOptions={{
+                    style: { background: '#27272a', border: '1px solid #3f3f46', color: '#fafafa' },
+                  }}
+                />
+              </TooltipProvider>
+            </UserProvider>
+          </RegionProvider>
         </QueryProvider>
       </body>
     </html>

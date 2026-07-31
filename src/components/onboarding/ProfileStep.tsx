@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useUser } from '@/contexts/UserContext'
+import { useRegion } from '@/contexts/RegionContext'
 import { upsertUser } from '@/lib/firestore'
 import { generateId } from '@/lib/utils'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
@@ -16,8 +17,15 @@ interface ProfileStepProps {
 }
 
 export function ProfileStep({ onNext }: ProfileStepProps) {
+  // allUsers is already scoped to the chosen region by UserContext, so both
+  // the picker and the duplicate-name check below are region-local.
   const { allUsers, login } = useUser()
-  const [mode, setMode] = useState<'existing' | 'new'>('existing')
+  const { regionId, region } = useRegion()
+  // A brand-new region has nobody to pick from, so "New PAX" is the only
+  // sensible landing mode — but an explicit tap always wins over the default.
+  const [modeOverride, setModeOverride] = useState<'existing' | 'new' | null>(null)
+  const mode = modeOverride ?? (allUsers.length === 0 ? 'new' : 'existing')
+  const setMode = setModeOverride
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [newName, setNewName] = useState('')
   const [nameError, setNameError] = useState('')
@@ -40,12 +48,13 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
       return
     }
 
-    // Check for duplicate name (case-insensitive)
+    // Duplicate check is region-scoped on purpose: F3 names repeat across
+    // regions constantly, and Sactown's Splice is not Bedrock's Splice.
     const duplicate = allUsers.find(
       u => u.displayName.toLowerCase() === trimmed.toLowerCase()
     )
     if (duplicate) {
-      setNameError('That name already exists — are you them? Select from the list.')
+      setNameError(`That name is already taken in ${region.shortName} — are you them? Select from the list.`)
       return
     }
 
@@ -54,6 +63,7 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
       const newUser: User = {
         id: generateId(),
         displayName: trimmed,
+        regionId,
         createdAt: new Date().toISOString(),
         notificationPreferences: DEFAULT_NOTIFICATION_PREFS,
         badges: [],
@@ -74,8 +84,8 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
         <h1 className="text-3xl font-black text-white mb-2">Who are you?</h1>
         <p className="text-zinc-400 text-sm">
           {mode === 'existing'
-            ? 'Select your name from the crew.'
-            : 'Enter your F3 name to join the crew.'}
+            ? `Select your name from the ${region.shortName} crew.`
+            : `Enter your F3 name to join ${region.name}.`}
         </p>
       </div>
 

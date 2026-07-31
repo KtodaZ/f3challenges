@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { DailyLog } from '@/types'
+import { adminDb } from '@/lib/firebase-admin'
+import { resolveRegion } from '@/lib/challenges'
+import type { DailyLog, User } from '@/types'
 
 // ─── POST /api/log ────────────────────────────────────────────────────────────
 // Accepts a DailyLog payload, validates it, and writes it to Firestore.
@@ -55,16 +57,28 @@ export async function POST(req: NextRequest) {
     // without changing this route's interface.
     const { upsertDailyLog } = await import('@/lib/firestore')
 
+    // Region comes from the user doc, never the request body. The ambient
+    // region in lib/firestore is browser-only, so without this every log
+    // written through this route would be stamped Bedrock regardless of who
+    // sent it — and a client could otherwise put a log in another region.
+    const userSnap = await adminDb.collection('users').doc(log.userId).get()
+    if (!userSnap.exists) {
+      return NextResponse.json({ error: 'Unknown userId' }, { status: 404 })
+    }
+    const regionId = resolveRegion((userSnap.data() as User).regionId).id
+
     const completeLog: DailyLog = {
       id: log.id,
       userId: log.userId,
       challengeId: log.challengeId,
+      regionId,
       date: log.date,
       completionFraction: log.completionFraction,
       exerciseLogs: log.exerciseLogs,
       isMakeUp: log.isMakeUp ?? false,
       notes: log.notes,
       modificationNote: log.modificationNote,
+      load: log.load,
       loggedAt: log.loggedAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }

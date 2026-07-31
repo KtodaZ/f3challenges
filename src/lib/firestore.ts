@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 import { stripUndefined } from './utils'
+import { DEFAULT_REGION_ID } from './challenges'
 import type {
   User,
   DailyLog,
@@ -31,6 +32,33 @@ import type {
   ChallengeParticipation,
   BonusLog,
 } from '@/types'
+
+// ─── Ambient Region ───────────────────────────────────────────────────────────
+
+/**
+ * The region the browser session is currently in. RegionProvider keeps this in
+ * sync; every create helper below stamps it onto new documents.
+ *
+ * Ambient rather than a parameter on ~15 call sites deliberately: a missed
+ * parameter would silently write a region-less doc that then never appears in
+ * its own region's feed. An explicit `regionId` already on the document always
+ * wins, which is how server-side callers (see /api/log) stay correct — this
+ * module-level value is only meaningful in the browser.
+ */
+let activeRegionId: string = DEFAULT_REGION_ID
+
+export function setActiveRegionId(regionId: string): void {
+  activeRegionId = regionId
+}
+
+export function getActiveRegionId(): string {
+  return activeRegionId
+}
+
+/** Stamps the active region onto a doc unless it already carries one. */
+function withRegion<T extends { regionId?: string }>(doc: T): T {
+  return doc.regionId ? doc : { ...doc, regionId: activeRegionId }
+}
 
 // ─── Collection References ────────────────────────────────────────────────────
 
@@ -56,13 +84,21 @@ export async function getUser(userId: string): Promise<User | null> {
   return snap.exists() ? (snap.data() as User) : null
 }
 
-export async function getAllUsers(): Promise<User[]> {
-  const snap = await getDocs(usersCol())
+/**
+ * Every PAX in a region. The roster is the chokepoint for region separation —
+ * it drives the name picker, @mention autocomplete, callout modal, leaderboard
+ * rows, and every group-completion denominator in the app.
+ *
+ * Docs written before regions existed are backfilled to 'bedrock' (see
+ * scripts/backfill-regions.mjs), so an equality filter is safe.
+ */
+export async function getAllUsers(regionId: string): Promise<User[]> {
+  const snap = await getDocs(query(usersCol(), where('regionId', '==', regionId)))
   return snap.docs.map(d => d.data() as User)
 }
 
 export async function upsertUser(user: User): Promise<void> {
-  await setDoc(doc(usersCol(), user.id), user, { merge: true })
+  await setDoc(doc(usersCol(), user.id), withRegion(user), { merge: true })
 }
 
 export async function updateUser(userId: string, updates: Partial<User>): Promise<void> {
@@ -82,8 +118,8 @@ export async function clearPendingCelebration(userId: string): Promise<void> {
   await updateDoc(doc(usersCol(), userId), { pendingCelebration: deleteField() })
 }
 
-export function subscribeToUsers(callback: (users: User[]) => void) {
-  return onSnapshot(usersCol(), snap => {
+export function subscribeToUsers(regionId: string, callback: (users: User[]) => void) {
+  return onSnapshot(query(usersCol(), where('regionId', '==', regionId)), snap => {
     callback(snap.docs.map(d => d.data() as User))
   })
 }
@@ -96,7 +132,7 @@ export async function getDailyLog(userId: string, date: string): Promise<DailyLo
 }
 
 export async function upsertDailyLog(log: DailyLog): Promise<void> {
-  await setDoc(doc(dailyLogsCol(), log.id), log, { merge: true })
+  await setDoc(doc(dailyLogsCol(), log.id), withRegion(log), { merge: true })
 }
 
 /** Get all logs for a user in a challenge (for heat map / streak calc). */
@@ -127,6 +163,26 @@ export async function getLogsForDate(challengeId: string, date: string): Promise
     dailyLogsCol(),
     where('challengeId', '==', challengeId),
     where('date', '==', date)
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => d.data() as DailyLog)
+}
+
+/**
+ * All logs for a challenge across a date range, inclusive. Powers the "who has
+ * hit this week's target" count on weekly-cumulative challenges, where a single
+ * day's logs can't tell you who's done.
+ */
+export async function getLogsForDateRange(
+  challengeId: string,
+  startDate: string,
+  endDate: string,
+): Promise<DailyLog[]> {
+  const q = query(
+    dailyLogsCol(),
+    where('challengeId', '==', challengeId),
+    where('date', '>=', startDate),
+    where('date', '<=', endDate),
   )
   const snap = await getDocs(q)
   return snap.docs.map(d => d.data() as DailyLog)
@@ -176,7 +232,7 @@ export async function getParticipation(
 }
 
 export async function upsertParticipation(p: ChallengeParticipation): Promise<void> {
-  await setDoc(doc(participationCol(), p.id), p, { merge: true })
+  await setDoc(doc(participationCol(), p.id), withRegion(p), { merge: true })
 }
 
 export async function getChallengeParticipants(challengeId: string): Promise<ChallengeParticipation[]> {
@@ -194,7 +250,7 @@ export async function getUserParticipations(userId: string): Promise<ChallengePa
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 
 export async function createFeedPost(post: FeedPost): Promise<void> {
-  await setDoc(doc(feedCol(), post.id), stripUndefined(post))
+  await setDoc(doc(feedCol(), post.id), stripUndefined(withRegion(post)))
 }
 
 /** Creates a feed post only if a doc with that ID doesn't already exist. */
@@ -202,7 +258,7 @@ export async function createFeedPostOnce(post: FeedPost): Promise<void> {
   const ref = doc(feedCol(), post.id)
   const snap = await getDoc(ref)
   if (snap.exists()) return
-  await setDoc(ref, post)
+  await setDoc(ref, withRegion(post))
 }
 
 export async function updateFeedPost(postId: string, updates: Partial<FeedPost>): Promise<void> {
@@ -214,17 +270,23 @@ export async function softDeletePost(postId: string): Promise<void> {
 }
 
 /**
- * Live feed listener over a growing window. `pageSize` is the number of posts
+ * Live feed listener over a growing window, scoped to one region. The feed is
+ * the only collection with no challenge filter, so `regionId` is what actually
+ * keeps two regions' feeds apart.
+ *
+ * `pageSize` is the number of posts
  * currently shown; the query fetches one extra doc so the caller can tell
  * whether older posts exist (infinite-scroll trigger). Re-subscribe with a
  * larger `pageSize` to load more — the newest page stays real-time throughout.
  */
 export function subscribeToFeed(
+  regionId: string,
   callback: (result: { posts: FeedPost[]; hasMore: boolean }) => void,
   pageSize = 30
 ) {
   const q = query(
     feedCol(),
+    where('regionId', '==', regionId),
     where('deleted', '==', false),
     orderBy('createdAt', 'desc'),
     limit(pageSize + 1)
@@ -298,10 +360,15 @@ export async function getSocialStats(userId: string): Promise<SocialStats> {
  * One equality-only query (no composite index) folded down client-side, so the
  * leaderboard's "Who needs a push?" ranking can factor in who's been getting
  * love lately and who's been overlooked. Users with no shoutout are absent.
+ *
+ * Region-scoped for cost, not correctness — the only caller looks it up for PAX
+ * already on the region's roster — but unscoped, every region pays to read
+ * every other region's shoutouts.
  */
-export async function getLatestShoutoutsByUser(): Promise<Map<string, string>> {
+export async function getLatestShoutoutsByUser(regionId: string): Promise<Map<string, string>> {
   const snap = await getDocs(query(
     feedCol(),
+    where('regionId', '==', regionId),
     where('type', '==', 'shoutout'),
     where('deleted', '==', false),
   ))
@@ -379,7 +446,7 @@ export async function getBonusLog(
 }
 
 export async function upsertBonusLog(log: BonusLog): Promise<void> {
-  await setDoc(doc(bonusLogsCol(), log.id), stripUndefined(log))
+  await setDoc(doc(bonusLogsCol(), log.id), stripUndefined(withRegion(log)))
 }
 
 /** All bonus logs for a user across challenges (Bonus Hunter achievement). */

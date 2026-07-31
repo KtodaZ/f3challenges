@@ -35,18 +35,25 @@ export interface WeeklyRecapContext {
   groupWeeklyRank?: number
   groupSize?: number
   participationStatus: string // 'active' | 'modifying: …'
+  /** Set on weekly-cumulative challenges: the week's pooled rep target and how
+   *  much of it this PAX banked. On these, days completed is just "days
+   *  trained" — the week's total is what actually counts. */
+  weeklyTarget?: number
+  /** The PAX's region name, e.g. 'F3 Sactown' — the coach persona is theirs. */
+  regionName: string
 }
 
 export async function generateWeeklyRecap(
   ctx: WeeklyRecapContext
 ): Promise<{ title: string; body: string }> {
+  const { regionName } = ctx
   const response = await getClient().chat.completions.create({
     model: 'gpt-4o-mini',
     max_tokens: 140,
     messages: [
       {
         role: 'system',
-        content: `You are a motivational coach for F3 Bedrock, a men's fitness accountability group, writing a personalized WEEKLY RECAP push notification.
+        content: `You are a motivational coach for ${regionName}, a men's fitness accountability group, writing a personalized WEEKLY RECAP push notification.
 Rules:
 - Title: max 6 words, punchy, may include the person's name
 - Body: max 45 words, direct, specific to their real week — never generic
@@ -79,7 +86,9 @@ Rules:
   } catch {
     return {
       title: `Week in Review, ${ctx.userName}`,
-      body: `Day ${ctx.dayNumber} of ${ctx.totalDays} in ${ctx.challengeName}. ${ctx.weeklyCompletedDays}/${ctx.daysPossibleThisWeek} days this week — keep showing up.`,
+      body: ctx.weeklyTarget
+        ? `${ctx.weeklyReps.toLocaleString()} of ${ctx.weeklyTarget.toLocaleString()} reps this week in ${ctx.challengeName}. 💪`
+        : `Day ${ctx.dayNumber} of ${ctx.totalDays} in ${ctx.challengeName}. ${ctx.weeklyCompletedDays}/${ctx.daysPossibleThisWeek} days this week — keep showing up.`,
     }
   }
 }

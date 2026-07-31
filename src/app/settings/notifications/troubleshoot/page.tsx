@@ -48,7 +48,7 @@ function FixInstructions({ platform, permission }: { platform: Platform; permiss
       {platform === 'ios-standalone' && (
         <ol className="text-sm text-zinc-400 space-y-2 list-none">
           <li><span className="text-orange-400 font-medium">1.</span> Open the iPhone <span className="text-white">Settings</span> app</li>
-          <li><span className="text-orange-400 font-medium">2.</span> Scroll down and tap <span className="text-white">F3 Bedrock</span> (the app name)</li>
+          <li><span className="text-orange-400 font-medium">2.</span> Scroll down and tap <span className="text-white">F3 Norcal</span> (the app name)</li>
           <li><span className="text-orange-400 font-medium">3.</span> Tap <span className="text-white">Notifications</span></li>
           <li><span className="text-orange-400 font-medium">4.</span> Turn on <span className="text-white">Allow Notifications</span></li>
           <li><span className="text-orange-400 font-medium">5.</span> Return here and tap <span className="text-white">Try Again</span></li>

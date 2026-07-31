@@ -5,6 +5,7 @@ import { FeedPost } from '@/components/feed/FeedPost'
 import { NewPostModal } from '@/components/feed/NewPostModal'
 import { subscribeToFeed } from '@/lib/firestore'
 import { useUser } from '@/contexts/UserContext'
+import { useRegion } from '@/contexts/RegionContext'
 import { pacificDayKey, formatDaySeparator } from '@/lib/utils'
 import type { FeedPost as FeedPostType } from '@/types'
 
@@ -12,6 +13,7 @@ const PAGE_SIZE = 30
 
 export default function FeedPage() {
   const { currentUser, loading } = useUser()
+  const { regionId, ready: regionReady } = useRegion()
   const [posts, setPosts]             = useState<FeedPostType[]>([])
   const [feedLoading, setFeedLoading] = useState(true)
   const [newPostOpen, setNewPostOpen] = useState(false)
@@ -22,14 +24,15 @@ export default function FeedPage() {
   // Growing-window live listener: the newest `visibleCount` posts stay
   // real-time; scrolling to the bottom widens the window by one page.
   useEffect(() => {
-    const unsub = subscribeToFeed(({ posts: incoming, hasMore: more }) => {
+    if (!regionReady) return
+    const unsub = subscribeToFeed(regionId, ({ posts: incoming, hasMore: more }) => {
       setPosts(incoming)
       setHasMore(more)
       setFeedLoading(false)
       setLoadingMore(false)
     }, visibleCount)
     return unsub
-  }, [visibleCount])
+  }, [visibleCount, regionId, regionReady])
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore) return

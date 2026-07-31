@@ -11,12 +11,16 @@
 
 import {
   CHALLENGES,
+  challengesForRegion,
   getRequiredDays,
   getChallengeDates,
+  getChallengeWeeks,
+  getWeeksCompleted,
   getTodayPT,
   isRestDay,
   conditionalRestApplies,
 } from './challenges'
+import { DEFAULT_REGION_ID } from './regions'
 import type { ChallengeBadgeDef, ChallengeTemplate } from './types'
 
 // ─── Inputs ───────────────────────────────────────────────────────────────────
@@ -30,11 +34,19 @@ export interface AchievementLogInput {
   loggedAt?: string      // ISO timestamp of when it was logged
   completedReps: number  // sum of completedReps across exercises
   targetReps: number     // sum of targetReps across exercises
+  /** Reps per exercise id. Needed by badges that care which movement it was
+   *  ("100 chin-ups", "all four variations in one week"). Absent on logs
+   *  mapped by older callers — those badges simply don't progress. */
+  exerciseReps?: Record<string, number>
 }
 
 export interface AchievementContext {
   /** All of the user's logs, across every challenge. */
   logs: AchievementLogInput[]
+  /** Region whose challenge history counts. Without it, a Sactown PAX sees
+   *  progress bars toward Bedrock's Feb–Jul challenges and a trophy case full
+   *  of months they were never part of. Defaults to Bedrock. */
+  regionId?: string
   longestStreak: number
   /** Shoutouts this user has posted / received (feed). Omit if unknown. */
   shoutoutsGiven?: number
@@ -107,6 +119,9 @@ export interface AchievementDefinition {
   secret?: boolean
   /** Particle theme for the unlock celebration. */
   theme: CelebrationTheme
+  /** Set on badges that ship with a specific challenge. Used to hide another
+   *  region's signature badges from this region's trophy case. */
+  challengeId?: string
   progress: (ctx: AchievementContext) => AchievementProgress
 }
 
@@ -190,8 +205,13 @@ interface PerChallengeStats {
   makeupDays: number   // completed via makeup
 }
 
+/** The challenges that count for this context's region. */
+function contextChallenges(ctx: AchievementContext) {
+  return challengesForRegion(ctx.regionId ?? DEFAULT_REGION_ID)
+}
+
 function perChallengeStats(ctx: AchievementContext): PerChallengeStats[] {
-  return CHALLENGES.map(c => {
+  return contextChallenges(ctx).map(c => {
     const logs = ctx.logs.filter(l => l.challengeId === c.id && l.completionFraction >= 1)
     const makeupDays = logs.filter(l => l.isMakeUp).length
     return {
@@ -271,7 +291,7 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
       // 2+ days behind has zero missed days left.
       const today = getTodayPT()
       let best: AchievementProgress | null = null
-      for (const c of CHALLENGES) {
+      for (const c of contextChallenges(ctx)) {
         const logs = ctx.logs.filter(l => l.challengeId === c.id)
         if (logs.length === 0) continue
         const complete = logs.filter(l => l.completionFraction >= 1)
@@ -356,7 +376,7 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
     progress: ctx => countProgress(
       completeLogs(ctx).filter(l => {
         if (l.isMakeUp) return false
-        const c = CHALLENGES.find(ch => ch.id === l.challengeId)
+        const c = contextChallenges(ctx).find(ch => ch.id === l.challengeId)
         return !!c && l.date === c.startDate
       }).length > 0 ? 1 : 0,
       1
@@ -375,7 +395,7 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
       // "5 days away" for a badge that can no longer be earned there).
       const today = getTodayPT()
       let best: AchievementProgress | null = null
-      for (const c of CHALLENGES) {
+      for (const c of contextChallenges(ctx)) {
         const logs = ctx.logs.filter(l => l.challengeId === c.id)
         if (logs.length === 0) continue
         const completedDates = logs.filter(l => l.completionFraction >= 1).map(l => l.date)
@@ -680,8 +700,131 @@ const CORE_ACHIEVEMENTS: AchievementDefinition[] = [
 // they become full achievements here. Adding a challenge with badges is still
 // a single-object change in challenges.ts.
 
+/** This user's logs for one challenge. */
+function challengeLogs(ctx: AchievementContext, challengeId: string): AchievementLogInput[] {
+  return ctx.logs.filter(l => l.challengeId === challengeId)
+}
+
+/** Progress rule + near-miss noun for one badge criteria. */
+function criteriaRule(
+  c: ChallengeTemplate,
+  crit: ChallengeBadgeDef['criteria'],
+): { unitLabel: string; progress: (ctx: AchievementContext) => AchievementProgress } {
+  const weekly = c.type === 'weekly-cumulative'
+
+  switch (crit.type) {
+    case 'complete-days':
+      return {
+        unitLabel: 'days',
+        progress: ctx => countProgress(
+          challengeLogs(ctx, c.id).filter(l => l.completionFraction >= 1).length,
+          crit.days,
+        ),
+      }
+
+    case 'challenge-reps':
+      return {
+        unitLabel: 'reps',
+        progress: ctx => countProgress(
+          challengeLogs(ctx, c.id).reduce((s, l) => s + l.completedReps, 0),
+          crit.reps,
+        ),
+      }
+
+    case 'exercise-reps':
+      return {
+        unitLabel: 'reps',
+        progress: ctx => countProgress(
+          challengeLogs(ctx, c.id)
+            .reduce((s, l) => s + (l.exerciseReps?.[crit.exerciseId] ?? 0), 0),
+          crit.reps,
+        ),
+      }
+
+    case 'single-day-reps':
+      return {
+        unitLabel: 'reps',
+        progress: ctx => countProgress(
+          // Best single day so far — near-miss copy then reads "12 reps away".
+          challengeLogs(ctx, c.id).reduce((best, l) => Math.max(best, l.completedReps), 0),
+          crit.reps,
+        ),
+      }
+
+    case 'weeks-completed':
+      return {
+        unitLabel: 'weeks',
+        progress: ctx => countProgress(
+          getWeeksCompleted(c, getTodayPT(), challengeLogs(ctx, c.id)),
+          crit.weeks,
+        ),
+      }
+
+    case 'week-variety':
+      return {
+        unitLabel: 'variations',
+        progress: ctx => {
+          // The best single week: most distinct exercises logged inside one.
+          const best = getChallengeWeeks(c).reduce((max, w) => {
+            const ids = new Set<string>()
+            for (const l of challengeLogs(ctx, c.id)) {
+              if (l.date < w.startDate || l.date > w.endDate) continue
+              for (const [id, reps] of Object.entries(l.exerciseReps ?? {})) {
+                if (reps > 0) ids.add(id)
+              }
+            }
+            return Math.max(max, ids.size)
+          }, 0)
+          return countProgress(best, c.exercises.length)
+        },
+      }
+
+    case 'week-early':
+      return {
+        unitLabel: 'weeks',
+        progress: ctx => {
+          const logs = challengeLogs(ctx, c.id)
+          // Did any week hit its target with `daysEarly` days still to run?
+          const hit = getChallengeWeeks(c).some(w => {
+            const cutoff = addDays(w.endDate, -crit.daysEarly)
+            const reps = logs
+              .filter(l => l.date >= w.startDate && l.date <= cutoff)
+              .reduce((s, l) => s + l.completedReps, 0)
+            return reps >= w.target
+          })
+          return countProgress(hit ? 1 : 0, 1)
+        },
+      }
+
+    case 'complete-challenge':
+    default:
+      return weekly
+        ? {
+            unitLabel: 'weeks',
+            progress: ctx => countProgress(
+              getWeeksCompleted(c, getTodayPT(), challengeLogs(ctx, c.id)),
+              getChallengeWeeks(c).length,
+            ),
+          }
+        : {
+            unitLabel: 'days',
+            progress: ctx => countProgress(
+              challengeLogs(ctx, c.id).filter(l => l.completionFraction >= 1).length,
+              getRequiredDays(c),
+            ),
+          }
+  }
+}
+
+/** YYYY-MM-DD shifted by `delta` days. Noon UTC keeps it timezone-stable. */
+function addDays(date: string, delta: number): string {
+  const d = new Date(date + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + delta)
+  return d.toISOString().slice(0, 10)
+}
+
 function challengeBadgeDefinition(c: ChallengeTemplate, b: ChallengeBadgeDef): AchievementDefinition {
-  const target = b.criteria.type === 'complete-days' ? b.criteria.days : getRequiredDays(c)
+  const rule = criteriaRule(c, b.criteria)
   return {
     id: b.id,
     name: b.name,
@@ -689,12 +832,10 @@ function challengeBadgeDefinition(c: ChallengeTemplate, b: ChallengeBadgeDef): A
     description: b.description,
     howTo: b.howTo,
     category: 'special',
-    unitLabel: 'days',
+    unitLabel: b.unitLabel ?? rule.unitLabel,
     theme: 'confetti',
-    progress: ctx => countProgress(
-      ctx.logs.filter(l => l.challengeId === c.id && l.completionFraction >= 1).length,
-      target,
-    ),
+    challengeId: c.id,
+    progress: rule.progress,
   }
 }
 
@@ -721,7 +862,15 @@ export interface AchievementEvaluation {
 }
 
 export function evaluateAchievements(ctx: AchievementContext): AchievementEvaluation[] {
-  return ACHIEVEMENTS.map(def => ({ def, progress: def.progress(ctx) }))
+  return achievementsForRegion(ctx.regionId).map(def => ({ def, progress: def.progress(ctx) }))
+}
+
+/** Core achievements plus only the signature badges of this region's own
+ *  challenges — otherwise every region's trophy case lists every other
+ *  region's challenge badges, permanently at 0%. */
+export function achievementsForRegion(regionId: string | undefined): AchievementDefinition[] {
+  const ownChallengeIds = new Set(challengesForRegion(regionId ?? DEFAULT_REGION_ID).map(c => c.id))
+  return ACHIEVEMENTS.filter(a => !a.challengeId || ownChallengeIds.has(a.challengeId))
 }
 
 /** IDs earned in this context that aren't already in the persisted list. */

@@ -21,9 +21,9 @@ import {
   upsertBonusLog,
   bonusLogId,
   subscribeToWeekBonusLogs,
+  getLogsForDateRange,
 } from '@/lib/firestore'
 import {
-  getCurrentChallenge,
   getDailyTarget,
   getTodayPT,
   getDayNumber,
@@ -36,10 +36,15 @@ import {
   AWAY_THRESHOLD,
   getCurrentBonusWeek,
   getBonusWeekFeedPost,
-  CHALLENGES,
   buildFeedPost,
   getRemainingExercises,
   trophyFeedPost,
+  isWeeklyCumulative,
+  getWeekProgress,
+  getChallengeWeeks,
+  getChallengeWeek,
+  weekCompleteFeedPost,
+  getWeekStreak,
 } from '@/lib/challenges'
 import type { FeedPostVars } from '@/lib/challenges'
 import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak, isChallengeParticipant } from '@/lib/utils'
@@ -49,6 +54,10 @@ import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { BonusChallengeCard } from '@/components/home/BonusChallengeCard'
 import { TodayStatusCard } from '@/components/daily/TodayStatusCard'
+import { WeekProgressCard } from '@/components/daily/WeekProgressCard'
+import { AddRepsPad } from '@/components/daily/AddRepsPad'
+import { WeekMixLedger } from '@/components/daily/WeekMixLedger'
+import { WeekCatchUpCard } from '@/components/daily/WeekCatchUpCard'
 import { DayLogCarousel } from '@/components/daily/DayLogCarousel'
 import { PastChallengeMakeup } from '@/components/daily/PastChallengeMakeup'
 import { MakeupBonusPicker } from '@/components/daily/MakeupBonusPicker'
@@ -59,8 +68,10 @@ import { CelebrationOverlay } from '@/components/ui/CelebrationOverlay'
 import type { CelebrationContent } from '@/components/ui/CelebrationOverlay'
 import { NextBadgeCard } from '@/components/home/NextBadgeCard'
 import { TrophyTrackCard } from '@/components/home/TrophyTrackCard'
-import { syncChallengeTrophy } from '@/lib/trophies'
+import { syncChallengeTrophy, trophyAmount } from '@/lib/trophies'
 import { useAchievementEngine } from '@/hooks/useAchievementEngine'
+import { useRegion } from '@/contexts/RegionContext'
+import { useCurrentChallenge, usePastChallenges } from '@/hooks/useChallenge'
 import {
   buildMilestoneCelebration,
   buildRedemptionCelebration,
@@ -68,6 +79,7 @@ import {
   buildUnlockCelebration,
   buildMultiUnlockCelebration,
   buildTrophyCelebration,
+  buildWeekCelebration,
 } from '@/lib/celebrations'
 import type {
   User,
@@ -79,6 +91,7 @@ import type {
   ChallengeTemplateCopy,
   BonusLog,
   TrophyTier,
+  ExerciseLoad,
 } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -136,10 +149,19 @@ function buildDailyCompleteMessage(
 // Precise completion: reps done (capped per exercise) over reps targeted.
 // Weighting by target amount makes it a true "% of reps done" and stays exact
 // at 1 only when every exercise is fully in.
+//
+// On an open-ended (weekly-cumulative) day there is no daily target to be a
+// fraction of, so this collapses to "did you train today" — 1 for any reps at
+// all, 0 for none. Week completion is derived from these logs by
+// getWeekProgress(); it deliberately does not live on the day.
 function computeOverallFraction(
   repsMap: Record<string, number>,
-  exercises: Array<{ exercise: { id: string }, reps: number }>
+  exercises: Array<{ exercise: { id: string }, reps: number }>,
+  isOpenEnded = false,
 ): number {
+  if (isOpenEnded) {
+    return Object.values(repsMap).some(n => n > 0) ? 1 : 0
+  }
   let done = 0
   let target = 0
   for (const { exercise, reps } of exercises) {
@@ -148,6 +170,17 @@ function computeOverallFraction(
     target += reps
   }
   return target > 0 ? done / target : 0
+}
+
+/** Reps banked per exercise across a set of logs. */
+function repsByExercise(logs: DailyLog[]): Record<string, number> {
+  const map: Record<string, number> = {}
+  for (const log of logs) {
+    for (const el of log.exerciseLogs) {
+      map[el.exerciseId] = (map[el.exerciseId] ?? 0) + el.completedReps
+    }
+  }
+  return map
 }
 
 // ─── Loading Spinner ──────────────────────────────────────────────────────────
@@ -166,12 +199,13 @@ function Spinner() {
 // ─── No Active Challenge ──────────────────────────────────────────────────────
 
 function NoChallengeView() {
+  const { region } = useRegion()
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh px-6 text-center gap-4">
       <div className="text-5xl">🏋️</div>
       <h1 className="text-2xl font-bold text-white">No Active Challenge</h1>
       <p className="text-zinc-400 text-sm max-w-xs">
-        There&apos;s no challenge running right now. Check back soon — the next one will be here before you know it.
+        There&apos;s no {region.shortName} challenge running right now. Check back soon — the next one will be here before you know it.
       </p>
     </div>
   )
@@ -184,7 +218,10 @@ export default function HomePage() {
   const { currentUser, allUsers, loading: userLoading, refreshCurrentUser } = useUser()
 
   const today = getTodayPT()
-  const challenge = getCurrentChallenge()
+  const challenge = useCurrentChallenge()
+  // Only this region's history — otherwise Sactown PAX get offered makeups
+  // for Bedrock challenges they were never part of.
+  const pastChallenges = usePastChallenges()
 
   // Daily log (real-time)
   const [todayLog, setTodayLog] = useState<DailyLog | null>(null)
@@ -214,6 +251,12 @@ export default function HomePage() {
   // Exact reps per exercise for quick-tap (mirrors today's log state)
   const [quickReps, setQuickReps] = useState<Record<string, number>>({})
 
+  // Weekly-cumulative additive entry: the running reps map, held in a ref so
+  // two taps inside one save round-trip can't clobber each other, plus the
+  // most recent add so it can be undone.
+  const weeklyRepsRef = useRef<Record<string, number> | null>(null)
+  const [lastAdd, setLastAdd] = useState<{ exerciseId: string; reps: number } | null>(null)
+
   // Modal state
   const [calloutOpen, setCalloutOpen] = useState(false)
 
@@ -226,6 +269,10 @@ export default function HomePage() {
 
   // Group logs for today (all PAX)
   const [groupLogs, setGroupLogs] = useState<DailyLog[]>([])
+
+  // Every PAX's logs for the current week — weekly-cumulative challenges need
+  // the whole week to say who's hit the target, which one day can't tell you.
+  const [weekGroupLogs, setWeekGroupLogs] = useState<DailyLog[]>([])
 
   // Celebration banner shown briefly after day completion
   const [dayJustCompleted, setDayJustCompleted] = useState(false)
@@ -308,7 +355,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!currentUser) return
-    const ended = CHALLENGES.filter(c => c.endDate < today)
+    const ended = pastChallenges
     if (ended.length === 0) return
     Promise.all(
       ended.map(c => getUserChallengeLogs(currentUser.id, c.id).then(logs => ({ id: c.id, logs })))
@@ -317,7 +364,7 @@ export default function HomePage() {
       for (const { id, logs } of results) map[id] = logs
       setPastChallengeLogs(map)
     })
-  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, pastChallenges]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Subscribe to today's log ────────────────────────────────────────────
 
@@ -332,6 +379,10 @@ export default function HomePage() {
           map[el.exerciseId] = el.completedReps
         }
         setQuickReps(map)
+        // Seed the additive ref from the server exactly once. After that our
+        // own optimistic writes are the truth — re-seeding on every snapshot
+        // would let an in-flight save echo back and undo a rapid second tap.
+        if (weeklyRepsRef.current === null) weeklyRepsRef.current = map
       }
     })
     return unsub
@@ -357,6 +408,19 @@ export default function HomePage() {
     if (!challenge) return
     getLogsForDate(challenge.id, today).then(setGroupLogs)
   }, [challenge, today])
+
+  // ── Load this week's group logs (weekly-cumulative only) ─────────────────
+
+  useEffect(() => {
+    if (!challenge || !isWeeklyCumulative(challenge)) return
+    const week = getChallengeWeek(challenge, today)
+    if (!week) return
+    let cancelled = false
+    getLogsForDateRange(challenge.id, week.startDate, week.endDate).then(logs => {
+      if (!cancelled) setWeekGroupLogs(logs)
+    })
+    return () => { cancelled = true }
+  }, [challenge, today, todayLog])
 
   // ── Load challenge roster (participation statuses + who has logged) ──────
 
@@ -437,14 +501,16 @@ export default function HomePage() {
       exerciseReps: Record<string, number>,
       notes: string,
       modificationNote: string,
-      isMakeUp: boolean
+      isMakeUp: boolean,
+      load?: ExerciseLoad,
     ) => {
       if (!currentUser || !challenge) return
 
       const target = getDailyTarget(challenge, date)
       if (!target) return
 
-      const overallFraction = computeOverallFraction(exerciseReps, target.exercises)
+      const isWeekly = isWeeklyCumulative(challenge)
+      const overallFraction = computeOverallFraction(exerciseReps, target.exercises, target.isOpenEnded)
 
       const exerciseLogs: ExerciseLog[] = target.exercises.map(({ exercise, reps }) => ({
         exerciseId: exercise.id,
@@ -464,6 +530,8 @@ export default function HomePage() {
         isMakeUp,
         notes: notes || undefined,
         modificationNote: modificationNote || undefined,
+        // An explicit `null` clears the weight; undefined leaves it as-is.
+        load: load ?? existingLog?.load,
         loggedAt: existingLog?.loggedAt ?? new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         // First moment the day hit 100% — powers the first-finisher badges
@@ -495,9 +563,38 @@ export default function HomePage() {
         .sort((a, b) => a.date.localeCompare(b.date))
       setAllLogs(updatedLogs)
 
-      // Daily completion feed post
+      // ── Weekly-cumulative: the week is the thing you complete ──
+      // A day-completion post would fire on the first rep of every single day,
+      // so these challenges announce the week instead — one post per PAX per
+      // week, when they cross the target.
+      if (isWeekly) {
+        const before = getWeekProgress(challenge, date, allLogs, today)
+        const after  = getWeekProgress(challenge, date, updatedLogs, today)
+        if (after && after.isComplete && !before?.isComplete) {
+          const content = weekCompleteFeedPost({
+            name: currentUser.displayName,
+            challenge,
+            week: after,
+            isMakeUp,
+          })
+          await createFeedPostOnce(stripUndefined({
+            id: `week_complete_${currentUser.id}_${after.week.startDate}`,
+            type: 'system' as const,
+            authorId: 'system',
+            content,
+            hashtags: extractHashtags(content),
+            mentions: [currentUser.id],
+            challengeId: challenge.id,
+            createdAt: new Date().toISOString(),
+            deleted: false,
+          }))
+          pushCelebrations([buildWeekCelebration(after, challenge.name, isMakeUp)], true)
+        }
+      }
+
+      // Daily completion feed post (day-scored challenges only)
       const wasComplete = !!(existingLog && existingLog.completionFraction >= 1)
-      if (overallFraction >= 1 && !wasComplete) {
+      if (!isWeekly && overallFraction >= 1 && !wasComplete) {
         const dayNum = getDayNumber(challenge, date) ?? 1
         const { stackedDays, daysAway } = completionContext(challenge, updatedLogs, today)
         const content = buildDailyCompleteMessage(
@@ -524,7 +621,7 @@ export default function HomePage() {
       }
 
       // Full-screen dopamine moments: milestone days + makeup redemptions
-      if (overallFraction >= 1 && !wasComplete) {
+      if (!isWeekly && overallFraction >= 1 && !wasComplete) {
         const dayNum = getDayNumber(challenge, date) ?? 1
         if (isMakeUp) {
           // Redemption — how many missed days remain after this one?
@@ -566,11 +663,13 @@ export default function HomePage() {
         }
       }
 
-      // Trophy tier: 🎖️ → 🥉 50% → 🥈 80% → 🥇 100%. Awarded live and only
+      // Trophy tier: 🎖️ → 🥉 50% → 🥈 75% → 🥇 100%. Awarded live and only
       // ever upgraded, so crossing a threshold mid-month claims it right away.
-      const completedDaysCount = updatedLogs.filter(l => l.completionFraction >= 1).length
+      // The amount is days on day-scored challenges and reps on weekly ones —
+      // trophyAmount() is the single place that decides.
+      const trophyScore = trophyAmount(challenge, updatedLogs)
       const award = await syncChallengeTrophy(
-        currentUser, challenge, completedDaysCount, claimedTrophyRef.current.get(challenge.id)
+        currentUser, challenge, trophyScore, claimedTrophyRef.current.get(challenge.id)
       )
       if (award) claimedTrophyRef.current.set(challenge.id, award.tier)
       if (award && award.tier === 'gold' && !celebrationFiredRef.current) {
@@ -578,7 +677,7 @@ export default function HomePage() {
         setCelebrationChallenge(challenge)
         setShowCelebration(true)
       } else if (award && (award.tier === 'bronze' || award.tier === 'silver')) {
-        pushCelebrations([buildTrophyCelebration(award.tier, challenge, completedDaysCount)])
+        pushCelebrations([buildTrophyCelebration(award.tier, challenge, trophyScore)])
       }
       if (award) refreshCurrentUser()
       // Every real rung gets announced, not just the finish — the crew should
@@ -589,7 +688,7 @@ export default function HomePage() {
           userName: currentUser.displayName,
           challenge,
           tier: award.tier,
-          completedDays: completedDaysCount,
+          completed: trophyScore,
         })
         await createFeedPostOnce(stripUndefined({
           // Gold keeps its original id so historical posts stay deduped.
@@ -637,9 +736,89 @@ export default function HomePage() {
       repsMap: Record<string, number>,
       notes: string,
       modificationNote: string,
-      isMakeUp: boolean
-    ) => saveLog(today, repsMap, notes, modificationNote, isMakeUp),
+      isMakeUp: boolean,
+      load?: ExerciseLoad,
+    ) => saveLog(today, repsMap, notes, modificationNote, isMakeUp, load),
     [saveLog, today]
+  )
+
+  // ── Weekly-cumulative: additive rep entry ────────────────────────────────
+  // Every tap banks a delta rather than setting an absolute, so the pad reads
+  // "+20" the way a set actually happens. The running map is held in a ref as
+  // well as state — two taps landing inside one save round-trip must not
+  // clobber each other with a stale snapshot.
+
+  const handleAddReps = useCallback(
+    async (exerciseId: string, delta: number) => {
+      if (!challenge) return
+      const base = weeklyRepsRef.current ?? quickReps
+      const next = { ...base, [exerciseId]: (base[exerciseId] ?? 0) + delta }
+      weeklyRepsRef.current = next
+      setQuickReps(next)
+      setLastAdd({ exerciseId, reps: delta })
+      setQuickSaving(true)
+      try {
+        await saveTodayLog(next, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false)
+      } finally {
+        setQuickSaving(false)
+      }
+    },
+    [challenge, quickReps, saveTodayLog, todayLog]
+  )
+
+  const handleUndoAdd = useCallback(async () => {
+    if (!challenge || !lastAdd) return
+    const base = weeklyRepsRef.current ?? quickReps
+    const next = {
+      ...base,
+      [lastAdd.exerciseId]: Math.max(0, (base[lastAdd.exerciseId] ?? 0) - lastAdd.reps),
+    }
+    weeklyRepsRef.current = next
+    setQuickReps(next)
+    setLastAdd(null)
+    setQuickSaving(true)
+    try {
+      await saveTodayLog(next, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false)
+    } finally {
+      setQuickSaving(false)
+    }
+  }, [challenge, lastAdd, quickReps, saveTodayLog, todayLog])
+
+  const handleSetLoad = useCallback(
+    async (load: ExerciseLoad | undefined) => {
+      if (!challenge || !currentUser) return
+      const base = weeklyRepsRef.current ?? quickReps
+      await saveTodayLog(base, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false, load)
+      toast.success(load ? 'Weight saved' : 'Weight cleared')
+    },
+    [challenge, currentUser, quickReps, saveTodayLog, todayLog]
+  )
+
+  // ── Weekly-cumulative: top up a week that closed short ───────────────────
+  // Reps land on the week's last day and are flagged as a make-up.
+
+  const [weekCatchUpSaving, setWeekCatchUpSaving] = useState<string | null>(null)
+
+  const handleWeekCatchUp = useCallback(
+    async (weekEndDate: string, exerciseId: string, reps: number) => {
+      if (!challenge) return
+      setWeekCatchUpSaving(weekEndDate)
+      try {
+        const existing = allLogs.find(l => l.date === weekEndDate)
+        const base: Record<string, number> = {}
+        for (const el of existing?.exerciseLogs ?? []) base[el.exerciseId] = el.completedReps
+        await saveLog(
+          weekEndDate,
+          { ...base, [exerciseId]: (base[exerciseId] ?? 0) + reps },
+          existing?.notes ?? '',
+          existing?.modificationNote ?? '',
+          true,
+        )
+      } finally {
+        setWeekCatchUpSaving(null)
+      }
+    },
+    [challenge, allLogs, saveLog]
   )
 
   // ── Quick-tap handler (immediate save) ─────────────────────────────────
@@ -730,7 +909,7 @@ export default function HomePage() {
 
     // A closed challenge is never a closed book — makeup days keep climbing the
     // trophy ladder here exactly like they do on the live challenge.
-    const completedDays = updatedLogs.filter(l => l.completionFraction >= 1).length
+    const completedDays = trophyAmount(pastChallenge, updatedLogs)
     const award = await syncChallengeTrophy(
       currentUser, pastChallenge, completedDays, claimedTrophyRef.current.get(pastChallenge.id)
     )
@@ -750,7 +929,7 @@ export default function HomePage() {
         userName: currentUser.displayName,
         challenge: pastChallenge,
         tier: award.tier,
-        completedDays,
+        completed: completedDays,
       })
       await createFeedPostOnce(stripUndefined({
         id: award.tier === 'gold'
@@ -921,10 +1100,37 @@ export default function HomePage() {
   const dayNumber   = getDayNumber(challenge, today) ?? 1
   const totalDays   = getTotalDays(challenge)
   const progress    = monthProgress(challenge.startDate, challenge.endDate)
-  // Makeup: past days with fraction < 1
+  const weeklyScoring = isWeeklyCumulative(challenge)
+
+  // ── Weekly-cumulative state ──
+  const weekProgress    = weeklyScoring ? getWeekProgress(challenge, today, allLogs) : null
+  const challengeWeeks  = weeklyScoring ? getChallengeWeeks(challenge) : []
+  const weekStreak      = weeklyScoring ? getWeekStreak(challenge, today, allLogs) : 0
+  const weekLogs        = weekProgress
+    ? allLogs.filter(l => l.date >= weekProgress.week.startDate && l.date <= weekProgress.week.endDate)
+    : []
+  const weekMix         = repsByExercise(weekLogs)
+  // Weeks already closed that came up short — topping them up still climbs the
+  // trophy ladder, same as making up a day on a day-scored challenge.
+  const shortWeeks = weeklyScoring
+    ? challengeWeeks
+        .filter(w => w.endDate < today)
+        .map(w => getWeekProgress(challenge, w.startDate, allLogs, today))
+        .filter((w): w is NonNullable<typeof w> => !!w && !w.isComplete)
+    : []
+  const weeksHit = weeklyScoring
+    ? challengeWeeks
+        .filter(w => w.startDate <= today)
+        .filter(w => getWeekProgress(challenge, w.startDate, allLogs, today)?.isComplete)
+        .length
+    : 0
+
+  // Makeup: past days with fraction < 1. A weekly-cumulative challenge has no
+  // daily obligation, so nothing is ever owed for a specific day — the week is
+  // what can fall short, and that's handled by shortWeeks above.
   const allDates = getChallengeDates(challenge)
   const logsMap  = Object.fromEntries(allLogs.map(l => [l.date, l]))
-  const incompletePastDates = allDates.filter(d => {
+  const incompletePastDates = weeklyScoring ? [] : allDates.filter(d => {
     if (d >= today) return false
     if (isRestDay(challenge, d)) return false
     if (conditionalRestApplies(challenge, d, completedLogDates)) return false
@@ -945,16 +1151,21 @@ export default function HomePage() {
   // section is only for missed bonus weeks.
   const hasCatchUp = missedBonusWeeks.length > 0
 
-  // Required days already behind the user (today included) — the pace yardstick
-  // for the trophy nudge.
-  const elapsedRequiredDays = allDates.filter(d =>
-    d <= today &&
-    !isRestDay(challenge, d) &&
-    !conditionalRestApplies(challenge, d, completedLogDates)
-  ).length
+  // What the challenge has asked for so far, in the trophy's own unit — the
+  // pace yardstick for the nudge. Days on a day-scored challenge; on a weekly
+  // one, the reps every week up to and including this one has demanded.
+  const elapsedRequiredDays = weeklyScoring
+    ? challengeWeeks.filter(w => w.startDate <= today).reduce((s, w) => s + w.target, 0)
+    : allDates.filter(d =>
+        d <= today &&
+        !isRestDay(challenge, d) &&
+        !conditionalRestApplies(challenge, d, completedLogDates)
+      ).length
 
   const todayFraction = todayLog?.completionFraction ?? 0
   const todayLoggedReps = todayLog?.exerciseLogs.reduce((sum, el) => sum + el.completedReps, 0) ?? 0
+  // "You're done, go push the crew" — the week's target on a weekly challenge,
+  // today's target otherwise.
   const isDayDone     = todayFraction >= 1
 
   // ── Group PAX stats ──────────────────────────────────────────────────────
@@ -974,21 +1185,44 @@ export default function HomePage() {
 
   const totalPAX      = participants.length
   const completedCount = groupLogs.filter(l => l.completionFraction >= 1).length
-  const activeCount    = groupLogs.filter(l => l.completionFraction > 0 && l.completionFraction < 1).length
 
-  // Users who haven't completed today (for the "push your crew" list)
+  // Reps each PAX has banked this week — the "done" test on a weekly challenge.
+  const weekRepsByUser = new Map<string, number>()
+  for (const log of weekGroupLogs) {
+    const reps = log.exerciseLogs.reduce((s, e) => s + e.completedReps, 0)
+    weekRepsByUser.set(log.userId, (weekRepsByUser.get(log.userId) ?? 0) + reps)
+  }
+  const weekTarget = weekProgress?.target ?? 0
+  const paxHitWeek = (id: string) => (weekRepsByUser.get(id) ?? 0) >= weekTarget && weekTarget > 0
+
+  // "Done" means hit the week on a weekly challenge, finished today otherwise.
+  const weeklyDoneCount = weeklyScoring
+    ? participants.filter(u => paxHitWeek(u.id)).length
+    : completedCount
+  const activeCount = weeklyScoring
+    ? groupLogs.filter(l => l.exerciseLogs.some(e => e.completedReps > 0)).length
+    : groupLogs.filter(l => l.completionFraction > 0 && l.completionFraction < 1).length
+
+  // Users still short of the goal (for the "push your crew" list)
   const completedTodayIds = new Set(groupLogs.filter(l => l.completionFraction >= 1).map(l => l.userId))
-  const incompleteUsers = participants.filter(u => u.id !== currentUser.id && !completedTodayIds.has(u.id))
+  const incompleteUsers = participants.filter(u =>
+    u.id !== currentUser.id && (weeklyScoring ? !paxHitWeek(u.id) : !completedTodayIds.has(u.id))
+  )
 
-  // Today's progress per PAX — lets the callout modal group by status
+  // Per-PAX progress — lets the callout modal group by status
   const calloutStatusById = new Map<string, CalloutUserStatus>(
     participants.map(u => {
+      if (weeklyScoring) {
+        const reps = weekRepsByUser.get(u.id) ?? 0
+        return [u.id, paxHitWeek(u.id) ? 'done' : reps > 0 ? 'started' : 'notStarted']
+      }
       const frac = groupLogs.find(l => l.userId === u.id)?.completionFraction ?? 0
       return [u.id, frac >= 1 ? 'done' : frac > 0 ? 'started' : 'notStarted']
     })
   )
 
-  const majorityDone = totalPAX > 0 && completedCount / totalPAX > 0.5
+  const majorityDone = totalPAX > 0 && weeklyDoneCount / totalPAX > 0.5
+  const goalMet = weeklyScoring ? !!weekProgress?.isComplete : isDayDone
 
   // Show notification setup banner when user wants notifications but has no registered device
   const hasNotifPrefsEnabled = !!(
@@ -1074,15 +1308,31 @@ export default function HomePage() {
                 {challenge.name}
               </h1>
             </div>
-            {/* Streak badge */}
-            <div className={cn(
-              'flex flex-col items-center justify-center rounded-2xl px-3 py-2',
-              streak > 0 ? 'bg-orange-500/15 border border-orange-500/30' : 'bg-zinc-900 border border-zinc-800'
-            )}>
-              <span className="text-xl leading-none">{streak > 0 ? '🔥' : '💤'}</span>
-              <span className={cn('text-xs font-bold mt-0.5', streak > 0 ? 'text-orange-400' : 'text-zinc-500')}>
-                {streak}d
-              </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Weeks hit — the weekly challenge's real scoreboard. Sits
+                  beside the day streak rather than replacing it: the streak
+                  still rewards showing up daily, which is the point. */}
+              {weeklyScoring && (
+                <div className={cn(
+                  'flex flex-col items-center justify-center rounded-2xl px-3 py-2',
+                  weeksHit > 0 ? 'bg-green-500/15 border border-green-500/30' : 'bg-zinc-900 border border-zinc-800'
+                )}>
+                  <span className="text-xl leading-none">💪</span>
+                  <span className={cn('text-xs font-bold mt-0.5', weeksHit > 0 ? 'text-green-400' : 'text-zinc-500')}>
+                    {weeksHit}/{challengeWeeks.length}w
+                  </span>
+                </div>
+              )}
+              {/* Streak badge */}
+              <div className={cn(
+                'flex flex-col items-center justify-center rounded-2xl px-3 py-2',
+                streak > 0 ? 'bg-orange-500/15 border border-orange-500/30' : 'bg-zinc-900 border border-zinc-800'
+              )}>
+                <span className="text-xl leading-none">{streak > 0 ? '🔥' : '💤'}</span>
+                <span className={cn('text-xs font-bold mt-0.5', streak > 0 ? 'text-orange-400' : 'text-zinc-500')}>
+                  {streak}d
+                </span>
+              </div>
             </div>
           </div>
           <p className="text-zinc-500 text-sm">{challenge.tagline}</p>
@@ -1092,7 +1342,11 @@ export default function HomePage() {
         <ProgressBar
           value={progress}
           label={`Day ${dayNumber} of ${totalDays}`}
-          sublabel={`${progress}% through`}
+          sublabel={
+            weeklyScoring && weekStreak > 1
+              ? `${progress}% through · ${weekStreak} weeks in a row`
+              : `${progress}% through`
+          }
           color="orange"
         />
 
@@ -1112,18 +1366,20 @@ export default function HomePage() {
           />
         )}
 
-        {/* ── PAX completion stat line ── */}
+        {/* ── PAX completion stat line ──
+              On a weekly challenge "done" means hit the week's target, not
+              finished today — a skipped day is allowed, a short week isn't. */}
         {totalPAX > 0 && (
           <div className="flex items-center gap-2 px-1">
             <span className="text-sm">💪</span>
             <p className="text-sm text-zinc-400">
-              <span className="font-semibold text-zinc-200">{completedCount}/{totalPAX}</span>
-              {' '}done
+              <span className="font-semibold text-zinc-200">{weeklyDoneCount}/{totalPAX}</span>
+              {weeklyScoring ? ' hit the week' : ' done'}
               {activeCount > 0 && (
                 <>
                   {' ·'}{' '}
                   <span className="font-semibold text-amber-400">{activeCount}</span>
-                  {' '}in progress
+                  {weeklyScoring ? ' logged today' : ' in progress'}
                 </>
               )}
             </p>
@@ -1153,10 +1409,59 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* ── Weekly-cumulative: the week is the unit ──
+              One bar you fill over the week, an additive pad to fill it with,
+              and a read-out of what the reps were actually made of. No daily
+              ring and no fraction buttons — there's no daily target for them
+              to be a fraction of. */}
+        {weeklyScoring && weekProgress && (
+          <>
+            <WeekProgressCard
+              progress={weekProgress}
+              todayReps={todayLoggedReps}
+              totalWeeks={challengeWeeks.length}
+            />
+            <AddRepsPad
+              exercises={challenge.exercises}
+              todayReps={quickReps}
+              load={todayLog?.load}
+              onAdd={handleAddReps}
+              onSetLoad={handleSetLoad}
+              onUndo={lastAdd ? handleUndoAdd : undefined}
+              disabled={quickSaving}
+            />
+            <WeekMixLedger exercises={challenge.exercises} repsByExercise={weekMix} />
+            {challenge.guidance && challenge.guidance.length > 0 && (
+              <details className="rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-3">
+                <summary className="text-xs font-semibold text-zinc-500 uppercase tracking-wider cursor-pointer list-none flex items-center justify-between">
+                  How to run it
+                  <span className="text-zinc-600" aria-hidden="true">▾</span>
+                </summary>
+                <ul className="mt-2.5 space-y-1.5">
+                  {challenge.guidance.map(line => (
+                    <li key={line} className="text-xs text-zinc-400 leading-relaxed flex gap-2">
+                      <span className="text-orange-500/70 shrink-0">•</span>
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {shortWeeks.length > 0 && (
+              <WeekCatchUpCard
+                weeks={shortWeeks}
+                exercises={challenge.exercises}
+                onAdd={handleWeekCatchUp}
+                savingWeek={weekCatchUpSaving}
+              />
+            )}
+          </>
+        )}
+
         {/* ── Today + swipeable make-up days ──
               Today sits on the right (default view); swipe left to quick-tap
               any day still owed. No modal — it's all Quick Tap. */}
-        {(!target.isRestDay || incompletePastDates.length > 0) && (
+        {!weeklyScoring && (!target.isRestDay || incompletePastDates.length > 0) && (
           <DayLogCarousel
             challenge={challenge}
             today={today}
@@ -1193,9 +1498,9 @@ export default function HomePage() {
         {/* ── Month trophy: which tier you're holding and what's next ── */}
         <TrophyTrackCard
           challenge={challenge}
-          completedDays={completedLogDates.length}
+          completedDays={trophyAmount(challenge, allLogs)}
           elapsedRequiredDays={elapsedRequiredDays}
-          missedDays={incompletePastDates.length}
+          missedDays={weeklyScoring ? shortWeeks.length : incompletePastDates.length}
           seed={dayNumber}
         />
 
@@ -1223,7 +1528,7 @@ export default function HomePage() {
         )}
 
         {/* ── Makeup section (past challenges) — collapsible, keeps the modal ── */}
-        {CHALLENGES.filter(c => c.endDate < today).map(pastChallenge => {
+        {pastChallenges.map(pastChallenge => {
           const logs = pastChallengeLogs[pastChallenge.id] ?? []
           if (logs.length === 0) return null
           if (dismissedMakeups.has(pastChallenge.id)) return null
@@ -1253,8 +1558,11 @@ export default function HomePage() {
           )
         })}
 
-        {/* ── Celebration banner (shown briefly after completing) ── */}
-        {dayJustCompleted && (
+        {/* ── Celebration banner (shown briefly after completing) ──
+              Suppressed on weekly challenges: every day with a rep in it hits
+              fraction 1 there, so this would fire on the first set of every
+              day. Week completion gets the full-screen moment instead. */}
+        {dayJustCompleted && !weeklyScoring && (
           <div className="rounded-2xl bg-green-950/60 border border-green-700/60 px-4 py-3 flex items-center gap-3 animate-pulse">
             <div className="w-8 h-8 rounded-full bg-green-500/25 flex items-center justify-center shrink-0">
               <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1267,13 +1575,13 @@ export default function HomePage() {
 
         {/* ── Post-completion: encourage your crew (waits for roster so the
               list never flashes non-participants) ── */}
-        {isDayDone && !dayJustCompleted && roster && (
+        {goalMet && !dayJustCompleted && roster && (
           <div className="rounded-2xl border border-amber-700/50 bg-gradient-to-b from-amber-950/40 to-orange-950/20 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-amber-300 font-bold text-sm">Push your crew 👊</p>
               {incompleteUsers.length > 0 && (
                 <span className="text-xs text-zinc-500">
-                  {incompleteUsers.length}/{totalPAX} haven&apos;t finished
+                  {incompleteUsers.length}/{totalPAX} {weeklyScoring ? 'still short' : 'haven\u2019t finished'}
                 </span>
               )}
             </div>
@@ -1328,19 +1636,19 @@ export default function HomePage() {
               </>
             ) : (
               <p className="text-sm text-zinc-400">
-                The whole crew got it done today — that&apos;s what it&apos;s about. 🏆
+                The whole crew got it done — that&apos;s what it&apos;s about. 🏆
               </p>
             )}
           </div>
         )}
 
         {/* ── Pre-completion motivational nudge ── */}
-        {!isDayDone && totalPAX > 0 && (
+        {!goalMet && totalPAX > 0 && (
           <div className="px-1">
             <p className="text-sm text-zinc-500 text-center">
               {majorityDone
                 ? `Half the crew is already done — don't get left behind!`
-                : `${completedCount > 0 ? completedCount + (completedCount === 1 ? ' PAX has' : ' PAX have') + ' already finished — ' : ''}${totalPAX - completedCount} ${(totalPAX - completedCount) === 1 ? 'PAX is' : 'PAX are'} counting on you — get it done!`
+                : `${weeklyDoneCount > 0 ? weeklyDoneCount + (weeklyDoneCount === 1 ? ' PAX has' : ' PAX have') + (weeklyScoring ? ' already hit the week — ' : ' already finished — ') : ''}${totalPAX - weeklyDoneCount} ${(totalPAX - weeklyDoneCount) === 1 ? 'PAX is' : 'PAX are'} counting on you — get it done!`
               }
             </p>
           </div>

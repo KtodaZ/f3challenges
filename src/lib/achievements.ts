@@ -11,7 +11,8 @@ import {
   evaluateAchievements,
   findNewlyEarned,
   getNextAchievements,
-  CHALLENGES,
+  challengesForRegion,
+  resolveRegion,
   getChallengeById,
 } from '@/lib/challenges'
 import type {
@@ -41,13 +42,18 @@ export function toAchievementLog(log: DailyLog): AchievementLogInput {
     loggedAt: log.completedAt ?? log.updatedAt ?? log.loggedAt,
     completedReps: log.exerciseLogs.reduce((s, e) => s + e.completedReps, 0),
     targetReps: log.exerciseLogs.reduce((s, e) => s + e.targetReps, 0),
+    // Per-movement breakdown for badges that care which curl it was
+    // ("100 chin-ups", "all four variations in one week").
+    exerciseReps: Object.fromEntries(
+      log.exerciseLogs.map(e => [e.exerciseId, e.completedReps]),
+    ),
   }
 }
 
 /** Best bonus-week completion across challenges (bonus-hunter is per challenge). */
-function bestBonusWeeks(bonusLogs: BonusLog[]): { completed: number; total: number } | undefined {
+function bestBonusWeeks(bonusLogs: BonusLog[], regionId: string): { completed: number; total: number } | undefined {
   let best: { completed: number; total: number } | undefined
-  for (const c of CHALLENGES) {
+  for (const c of challengesForRegion(regionId)) {
     const total = c.bonusChallenge?.weeks.length ?? 0
     if (total === 0) continue
     const completed = bonusLogs.filter(b => b.challengeId === c.id).length
@@ -181,17 +187,21 @@ export interface AchievementExtras {
 }
 
 export function buildAchievementContext(
-  user: Pick<User, 'id' | 'longestStreak' | 'currentStreak' | 'achievements'>,
+  user: Pick<User, 'id' | 'regionId' | 'longestStreak' | 'currentStreak' | 'achievements'>,
   allLogs: DailyLog[],
   extras?: AchievementExtras,
 ): AchievementContext {
   const group = extras?.groupLogs ? computeGroupFinishStats(extras.groupLogs, user.id) : undefined
+  // Taken from the user rather than the viewer's region, so a profile's badges
+  // read the same whoever opens it.
+  const regionId = resolveRegion(user.regionId).id
   return {
     logs: allLogs.map(toAchievementLog),
+    regionId,
     longestStreak: Math.max(user.longestStreak ?? 0, user.currentStreak ?? 0),
     shoutoutsGiven: extras?.shoutoutsGiven ?? extras?.givenShoutouts?.length,
     shoutoutsReceived: extras?.shoutoutsReceived,
-    bonusWeeks: extras?.bonusLogs ? bestBonusWeeks(extras.bonusLogs) : undefined,
+    bonusWeeks: extras?.bonusLogs ? bestBonusWeeks(extras.bonusLogs, regionId) : undefined,
     firstFinisherDays: group?.firstFinisherDays,
     lastFinisherDays: group?.lastFinisherDays,
     photoFinishDays: group?.photoFinishDays,

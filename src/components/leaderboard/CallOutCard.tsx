@@ -1,6 +1,7 @@
 'use client'
 
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
+import { useRegion } from '@/contexts/RegionContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { getTodayPT } from '@/lib/challenges'
 import { getPushReason, type PushTone, type PushUrgency } from '@/lib/pushPriority'
@@ -29,6 +30,7 @@ const URGENCY_ACCENT: Record<PushUrgency, string> = {
 }
 
 export function CallOutCard({ entries, onCallOut }: CallOutCardProps) {
+  const { region } = useRegion()
   const today = getTodayPT()
 
   // Only active/modifying PAX who haven't finished today. Ordered so the
@@ -46,7 +48,7 @@ export function CallOutCard({ entries, onCallOut }: CallOutCardProps) {
           <CardTitle>Who needs a push?</CardTitle>
         </CardHeader>
         <p className="text-sm text-zinc-400">
-          Everyone&apos;s crushed it today. F3 Bedrock! 💪
+          Everyone&apos;s crushed it today. {region.name}! 💪
         </p>
       </Card>
     )

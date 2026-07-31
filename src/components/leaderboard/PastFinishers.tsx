@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/Avatar'
-import { CHALLENGES, getTodayPT } from '@/lib/challenges'
+import { usePastChallenges } from '@/hooks/useChallenge'
 import { useUser } from '@/contexts/UserContext'
 import type { User } from '@/types'
 
@@ -17,11 +17,9 @@ export function PastFinishers() {
   const { allUsers, loading } = useUser()
   const router = useRouter()
 
-  // Computed inside the component so it re-evaluates if mounted across a midnight boundary.
-  const past = useMemo(
-    () => [...CHALLENGES].filter(c => c.endDate < getTodayPT()).reverse(),
-    []
-  )
+  // Newest first — the most recent finish is the interesting one.
+  const regionPast = usePastChallenges()
+  const past = useMemo(() => [...regionPast].reverse(), [regionPast])
 
   if (past.length === 0) {
     return (

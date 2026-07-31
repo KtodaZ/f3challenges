@@ -3,6 +3,7 @@
 import { getChallengeById, getTrophyTier, resolveBadgeTier } from '@/lib/challenges'
 import { TROPHY_TIER_STYLES } from '@/lib/trophyStyles'
 import { cn } from '@/lib/utils'
+import { TrophyIcon } from '@/components/ui/TrophyIcon'
 import type { AchievementBadge } from '@/types'
 
 interface BadgeGridProps {
@@ -16,7 +17,7 @@ function badgeLabel(badge: AchievementBadge): string {
   if (!challenge) return badge.challengeId
   const date = new Date(badge.awardedAt)
   const monthYear = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-  const tier = getTrophyTier(resolveBadgeTier(badge))
+  const tier = getTrophyTier(resolveBadgeTier(badge), challenge)
   return `${monthYear} — ${challenge.name} — ${tier.label}`
 }
 
@@ -42,7 +43,7 @@ export function BadgeGrid({ badges, onSelect }: BadgeGridProps) {
     <div className="grid grid-cols-3 gap-3">
       {badges.map((badge) => {
         const challenge = getChallengeById(badge.challengeId)
-        const tier = getTrophyTier(resolveBadgeTier(badge))
+        const tier = getTrophyTier(resolveBadgeTier(badge), challenge)
         const label = badgeLabel(badge)
         const monthYear = challengeMonthYear(badge)
 
@@ -61,7 +62,7 @@ export function BadgeGrid({ badges, onSelect }: BadgeGridProps) {
                 TROPHY_TIER_STYLES[tier.tier].tile
               )}
             >
-              {tier.emoji}
+              <TrophyIcon tier={tier} size={44} />
             </div>
             <div className="text-center">
               <p className={cn('text-[10px] font-semibold leading-tight', TROPHY_TIER_STYLES[tier.tier].text)}>

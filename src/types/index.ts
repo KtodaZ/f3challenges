@@ -3,9 +3,12 @@
 // from '@/types' continues to work unchanged.
 
 export type {
+  Region,
   ExerciseUnit, Exercise, ChallengeTemplate, DailyTarget, WeekTier, ConditionalRestDate,
   ChallengeTemplateCopy, FeedPostVars, NotificationVars, NotificationTemplatePair,
   BonusChallenge, BonusChallengeWeek,
+  ChallengeWeek, ResolvedWeek, WeekProgress, ExerciseLoad,
+  TrophyUnit, TrophyUnitInfo,
   AchievementLogInput, AchievementContext, EarnedAchievement,
   AchievementCategory, CelebrationTheme, AchievementProgress,
   AchievementDefinition, AchievementEvaluation,
@@ -17,6 +20,8 @@ export type {
 export interface BonusLog {
   id: string            // `{challengeId}_{weekStartDate}_{userId}`
   challengeId: string
+  /** Denormalized — see the note on DailyLog.regionId. */
+  regionId?: string
   weekStartDate: string // YYYY-MM-DD — the bonus week's startDate, acts as week key
   userId: string
   completedAt: string   // ISO timestamp
@@ -69,6 +74,11 @@ export interface AchievementBadge {
 export interface User {
   id: string
   displayName: string // F3 name
+  /** Which F3 region this PAX belongs to (see shared/src/regions.ts). Optional
+   *  on the type so docs written before the backfill still parse; every read
+   *  path funnels through resolveRegion()/DEFAULT_REGION_ID, and every write
+   *  path sets it. */
+  regionId?: string
   createdAt: string   // ISO
   fcmTokens?: string[]
   notificationPreferences: NotificationPreferences
@@ -77,6 +87,10 @@ export interface User {
   achievements?: import('@f3-bedrock/shared').EarnedAchievement[]
   currentStreak: number
   longestStreak: number
+  /** ISO timestamp of when this PAX claimed their account on the new domain.
+   *  Set by the claim link; the old origin reads it as the signal to retire its
+   *  own push registration so both installs don't notify. See lib/migration.ts. */
+  migratedAt?: string
   pendingCelebration?: {
     challengeId: string
     badgeType?: 'completed' | 'participant'
@@ -103,9 +117,20 @@ export interface DailyLog {
   id: string              // Firestore doc id: {userId}_{YYYY-MM-DD}
   userId: string
   challengeId: string
+  /** Denormalized from the author. Not queried today — challengeId already
+   *  partitions logs by region while regions run separate challenges — but
+   *  written now so a shared inter-regional challenge doesn't need a migration. */
+  regionId?: string
   date: string            // YYYY-MM-DD
+  /** On day-based challenges: share of today's target completed.
+   *  On 'weekly-cumulative' challenges there is no daily target, so this is
+   *  simply 1 when any reps were logged and 0 otherwise — "did you train
+   *  today". Week completion lives in WeekProgress, derived from these logs. */
   completionFraction: CompletionFraction
   exerciseLogs: ExerciseLog[]
+  /** Optional weight used for this session. Purely for bragging rights —
+   *  never affects scoring. See ExerciseLoad. */
+  load?: import('@f3-bedrock/shared').ExerciseLoad
   modificationNote?: string
   isMakeUp: boolean
   notes?: string
@@ -123,6 +148,8 @@ export interface ChallengeParticipation {
   id: string              // {userId}_{challengeId}
   userId: string
   challengeId: string
+  /** Denormalized — see the note on DailyLog.regionId. */
+  regionId?: string
   status: ParticipationStatus
   optOutReason?: string
   modificationNote?: string
@@ -138,6 +165,10 @@ export interface FeedPost {
   id: string
   type: FeedPostType
   authorId: string
+  /** Region whose feed this post belongs to. Unlike logs, the feed has no
+   *  challenge filter — this is what actually keeps the two regions' feeds
+   *  apart, so it is queried. */
+  regionId?: string
   content: string
   hashtags: string[]
   mentions: string[]      // user ids
@@ -205,12 +236,19 @@ export interface LeaderboardEntry {
   /** ISO timestamp of the most recent shoutout this PAX *received*, if any.
    *  Lets the push queue spread the love — recently celebrated PAX rank lower. */
   lastShoutoutAt?: string
+  /** Most recent weight this PAX logged — rendered as the load badge. */
+  load?: import('@f3-bedrock/shared').ExerciseLoad
+  /** Set on 'weekly-cumulative' challenges: where they stand in the current
+   *  week. The row shows this instead of a "done today" badge, because on
+   *  these challenges a skipped day is allowed and a short week is not. */
+  week?: import('@f3-bedrock/shared').WeekProgress
 }
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
 
 export type OnboardingStep =
   | 'welcome'
+  | 'region'
   | 'disclaimer'
   | 'profile'
   | 'notifications'
