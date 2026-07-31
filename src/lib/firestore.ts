@@ -133,6 +133,26 @@ export async function getLogsForDate(challengeId: string, date: string): Promise
 }
 
 /**
+ * All logs for a challenge across a date range, inclusive. Powers the "who has
+ * hit this week's target" count on weekly-cumulative challenges, where a single
+ * day's logs can't tell you who's done.
+ */
+export async function getLogsForDateRange(
+  challengeId: string,
+  startDate: string,
+  endDate: string,
+): Promise<DailyLog[]> {
+  const q = query(
+    dailyLogsCol(),
+    where('challengeId', '==', challengeId),
+    where('date', '>=', startDate),
+    where('date', '<=', endDate),
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => d.data() as DailyLog)
+}
+
+/**
  * IDs of users with at least one log in this challenge.
  * One limit(1) query per user — 1 doc read each — instead of fetching every log.
  */

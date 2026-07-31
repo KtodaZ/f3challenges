@@ -16,7 +16,7 @@ function badgeLabel(badge: AchievementBadge): string {
   if (!challenge) return badge.challengeId
   const date = new Date(badge.awardedAt)
   const monthYear = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-  const tier = getTrophyTier(resolveBadgeTier(badge))
+  const tier = getTrophyTier(resolveBadgeTier(badge), challenge)
   return `${monthYear} — ${challenge.name} — ${tier.label}`
 }
 
@@ -42,7 +42,7 @@ export function BadgeGrid({ badges, onSelect }: BadgeGridProps) {
     <div className="grid grid-cols-3 gap-3">
       {badges.map((badge) => {
         const challenge = getChallengeById(badge.challengeId)
-        const tier = getTrophyTier(resolveBadgeTier(badge))
+        const tier = getTrophyTier(resolveBadgeTier(badge), challenge)
         const label = badgeLabel(badge)
         const monthYear = challengeMonthYear(badge)
 

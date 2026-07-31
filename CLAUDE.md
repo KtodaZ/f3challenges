@@ -71,6 +71,30 @@ Adding a new challenge = append one object to `CHALLENGES` in that file. Nothing
   endDate: '2026-05-31',
 }
 ```
+
+### Challenge types (`ChallengeTemplate.type`)
+| Type | Scoring | Target shape |
+|------|---------|--------------|
+| `escalating` (default) | completed days | day N = N × `dailyMultiplier`, split across exercises |
+| `weekly-tiers` | completed days | fixed per-exercise daily amounts per `weeklyTiers` range |
+| `weekly-cumulative` | **reps banked** | one pooled rep target per week (`weeks[]`), no daily quota |
+
+**`weekly-cumulative` (August 2026 — The Bedrock Bicep Challenge) is the one that breaks the daily model.**
+- `getDailyTarget()` returns `isOpenEnded: true` with `totalReps: 0`. Any UI showing daily progress **must** branch on that flag — otherwise it renders "0 reps".
+- `DailyLog.completionFraction` means "did you train today" (1 or 0), **not** share of a target. Week completion is derived via `getWeekProgress()`; it is never stored on a day.
+- Weeks are declared explicitly in `weeks[]` so a month can open/close mid-week with a prorated target. `weekStartsOn` (0=Sun) keeps the app, leaderboard, and Cloud Functions slicing the calendar identically.
+- Cloud Function pushes route to `buildWeeklyNotification()` — the day-based copy talks about a daily target that doesn't exist.
+- Feed posts fire on **week completion** (`weekCompleteFeedPost`), not day completion, since every logged day would otherwise "complete".
+
+### Trophies are unit-agnostic
+`shared/src/trophies.ts` scores in whatever `getTrophyUnit(challenge)` returns — days normally, **reps** on weekly-cumulative (whole weeks are too coarse a rung). Rungs: 🥉 50% / 🥈 **75%** / 🥇 100%.
+`ChallengeTemplate.trophyStyle` re-skins tier emoji/labels per challenge (August: Bronze/Silver/Gold **Bicep**) without touching thresholds or who earned what. Use `getTrophyTier(tier, challenge)` — passing the challenge is what applies the theme.
+
+### Challenge badges are data
+`ChallengeBadgeDef.criteria` supports `complete-challenge`, `complete-days`, `challenge-reps`, `exercise-reps`, `single-day-reps`, `weeks-completed`, `week-variety`, `week-early`. Add a case in `criteriaRule()` (achievements.ts) and every future challenge gets it for free.
+
+### Optional weight (`DailyLog.load`)
+One weight per log, not per exercise — deliberately coarse. `formatLoad()` renders the leaderboard badge (`2×25`, `1×35`, `65 lb`, `BW`). Never affects scoring.
 `src/lib/challenges.ts` and `src/types/index.ts` re-export everything from `@f3-bedrock/shared`.
 `functions/src/index.ts` imports directly from `@f3-bedrock/shared` (bundled by esbuild at build time).
 

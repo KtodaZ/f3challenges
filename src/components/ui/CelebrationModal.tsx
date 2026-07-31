@@ -89,9 +89,10 @@ interface CelebrationModalProps {
 
 export function CelebrationModal({ challenge, badgeType = 'completed', tier, onClose }: CelebrationModalProps) {
   const days = getRequiredDays(challenge)
-  const earned = getTrophyTier(tier ?? resolveBadgeTier({ type: badgeType }))
+  const earned = getTrophyTier(tier ?? resolveBadgeTier({ type: badgeType }), challenge)
   const isCompleted = earned.tier === 'gold'
-  const next = nextTrophyTier(earned.tier)
+  const nextBase = nextTrophyTier(earned.tier)
+  const next = nextBase ? getTrophyTier(nextBase.tier, challenge) : null
 
   if (typeof document === 'undefined') return null
 

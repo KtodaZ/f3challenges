@@ -15,6 +15,8 @@ import {
   paxPassed,
   AWAY_THRESHOLD,
   getDailyTarget,
+  getWeekProgress,
+  isWeeklyCumulative,
   getNotificationTemplates,
   renderNotification,
   getRemainingExercises,
@@ -25,7 +27,7 @@ import {
   legacyBadgeType,
   trophyNotification,
 } from "@f3-bedrock/shared";
-import type { ChallengeTemplate, DailyTarget, NotificationVars, TrophyTier } from "@f3-bedrock/shared";
+import type { ChallengeTemplate, DailyTarget, NotificationVars, TrophyTier, WeekProgress } from "@f3-bedrock/shared";
 
 admin.initializeApp()
 
@@ -486,7 +488,115 @@ type NotificationCtx = {
   // Required days skipped since their last completed day. 0 if they've never
   // logged this challenge — "welcome back" only makes sense if they left.
   daysAway: number;
+  // Set only on weekly-cumulative challenges: where this PAX stands against
+  // the week's rep target. Its presence is what routes to the weekly copy.
+  week?: WeekProgress;
 };
+
+/**
+ * Push copy for a weekly-cumulative challenge.
+ *
+ * The whole shape of the nudge changes here. On a day-scored challenge the
+ * question is "did you do today's reps"; here it's "are you on pace for the
+ * week", and the two numbers that move people are what's left and how many
+ * days are left to do it in. Missing a day is allowed — the copy never scolds
+ * for it, only for drifting off pace.
+ */
+function buildWeeklyNotification(
+  ctx: NotificationCtx,
+  week: WeekProgress,
+  fn: string,
+  seed: number,
+): { title: string; body: string } {
+  const { challengeName, notificationType, userStreak, completedNames, notDoneNames } = ctx;
+  const left = week.remaining.toLocaleString();
+  const target = week.target.toLocaleString();
+  const done = week.reps.toLocaleString();
+  const perDay = week.perDayNeeded;
+  const peers = completedNames.length;
+
+  // --- Weekly recap: the week just turned over ---
+  if (notificationType === "weekly_recap") {
+    if (week.isComplete) {
+      return {
+        title: `Week ${week.week.index} Banked, ${fn} 💪`,
+        body: pick([
+          `${done} reps, target cleared. That's the Bedrock Bicep — see you next week.`,
+          `Week ${week.week.index} done and dusted at ${done}. Reset and run it back.`,
+        ], seed),
+      };
+    }
+    return {
+      title: `New Week, ${fn} 💪`,
+      body: pick([
+        `${target} curls up for grabs. Break it up however you want — you've got all week.`,
+        `Fresh week, fresh ${target}. ${userStreak > 1 ? `${userStreak}-day streak riding on it.` : "Start today and the rest is easy."}`,
+        `Week ${week.week.index}: ${target} reps. About ${Math.ceil(week.target / Math.max(1, week.week.dayCount - 1))}/day with a rest day built in.`,
+      ], seed),
+    };
+  }
+
+  // --- Week already complete ---
+  if (week.isComplete) {
+    const over = week.reps - week.target;
+    return {
+      title: `Week ${week.week.index} Is Yours 💪`,
+      body: pick([
+        over > 0
+          ? `${done} banked — ${over.toLocaleString()} past the line. Everything from here is interest, ${fn}.`
+          : `${done} banked, target cleared. Nothing owed, ${fn} — anything else is a bonus.`,
+        `Week ${week.week.index} is done. ${peers > 0 ? `${fmtNames(completedNames)} got there too.` : "You're setting the pace."} 💪`,
+      ], seed),
+    };
+  }
+
+  // --- Last day of the week ---
+  if (week.daysLeft <= 1) {
+    return {
+      title: `Last Day, ${fn} — ${left} To Go`,
+      body: pick([
+        `${done} of ${target} banked. ${left} between you and a clean week. 💪`,
+        `Week ${week.week.index} closes today. ${left} left — that's it, that's the whole ask.`,
+        `${left} reps stand between you and the week. Don't leave it on the table, ${fn}.`,
+      ], seed),
+    };
+  }
+
+  // --- Nothing logged yet this week ---
+  if (week.reps === 0) {
+    return {
+      title: `Week ${week.week.index} Is Open, ${fn}`,
+      body: pick([
+        `${target} curls, ${week.daysLeft} days. About ${perDay}/day and it's handled. 💪`,
+        `Nothing on the board yet this week. ${perDay}/day gets you there — start with one set.`,
+        `${target} to go. ${peers > 0 ? `${fmtNames(completedNames)} already ${completedNames.length === 1 ? "has" : "have"} theirs.` : "Be first on the board."} 💪`,
+      ], seed),
+    };
+  }
+
+  // --- Behind pace: needs more per day than a flat split would ask ---
+  const flatPace = Math.ceil(week.target / week.week.dayCount);
+  if (perDay > flatPace * 1.5) {
+    return {
+      title: `${left} Left, ${fn} 💪`,
+      body: pick([
+        `${done} of ${target} with ${week.daysLeft} days to go — that's ${perDay}/day now. Chip at it today.`,
+        `The week's getting short. ${left} to go, ${perDay}/day. One set right now makes tomorrow easier.`,
+        `${left} reps in ${week.daysLeft} days. Still very doable, ${fn} — but not if you wait.`,
+      ], seed),
+    };
+  }
+
+  // --- On pace ---
+  return {
+    title: `${left} To Go This Week 💪`,
+    body: pick([
+      `${done} of ${target} banked. ${perDay}/day across the ${week.daysLeft} days left — right on pace, ${fn}.`,
+      `You're ${Math.round(week.fraction * 100)}% through Week ${week.week.index}. ${left} to go. Keep stacking sets. 💪`,
+      `${done} down. ${perDay}/day finishes ${challengeName} week ${week.week.index}. ${notDoneNames.length > 0 ? `${fmtNames(notDoneNames)} still ${notDoneNames.length === 1 ? "needs" : "need"} theirs too.` : ""}`.trim(),
+    ], seed),
+  };
+}
 
 /** Picks the copy for one push, then cleans up sentence casing. */
 function generateNotification(ctx: NotificationCtx): { title: string; body: string } {
@@ -507,6 +617,13 @@ function buildNotification(ctx: NotificationCtx): { title: string; body: string 
 
   const fn = firstName(userName);
   const seed = notifSeed(dayNumber, notificationType);
+
+  // Weekly-cumulative challenges get their own copy entirely. Everything below
+  // is written around a daily target — "150 reps left today", "Day 15 of 31" —
+  // and none of that exists here, where the week is what's owed.
+  if (ctx.week) {
+    return buildWeeklyNotification(ctx, ctx.week, fn, seed);
+  }
   const daysRemaining = totalDays - dayNumber;
 
   // Exercise-aware "what's left" copy: "20 incline merkins and 20 decline
@@ -1442,6 +1559,11 @@ export const sendScheduledNotifications = onSchedule(
             notDoneNames:   activeUsers.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
             stackedDays,
             daysAway,
+            // Weekly-cumulative challenges route to entirely different copy —
+            // there's no daily target for the standard nudges to talk about.
+            week: isWeeklyCumulative(challenge)
+              ? getWeekProgress(challenge, today, logsByUser.get(user.id) ?? [], today) ?? undefined
+              : undefined,
           });
 
           // Competitive nudges (opt-in): for morning/afternoon/evening, replace
@@ -1649,7 +1771,7 @@ async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: st
       continue;
     }
 
-    // Trophies only climb: 🎖️ → 🥉 50% → 🥈 80% → 🥇 100%. A user who already
+    // Trophies only climb: 🎖️ → 🥉 50% → 🥈 75% → 🥇 100%. A user who already
     // holds this (or a higher) tier is left untouched, which is what makes this
     // safe to re-run and safe against badges awarded live during the month.
     const tier = trophyUpgrade(existing, tierForCompletedDays(challenge, completedDays));
@@ -1667,7 +1789,7 @@ async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: st
 
     const notifId = nanoid();
     const { title: notifTitle, body: notifBody } = trophyNotification({
-      challenge, tier, completedDays,
+      challenge, tier, completed: completedDays,
     });
     await db.doc(`notifications/${userId}/items/${notifId}`).set({
       id: notifId, userId, type: "system", title: notifTitle, body: notifBody,

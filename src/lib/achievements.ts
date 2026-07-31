@@ -41,6 +41,11 @@ export function toAchievementLog(log: DailyLog): AchievementLogInput {
     loggedAt: log.completedAt ?? log.updatedAt ?? log.loggedAt,
     completedReps: log.exerciseLogs.reduce((s, e) => s + e.completedReps, 0),
     targetReps: log.exerciseLogs.reduce((s, e) => s + e.targetReps, 0),
+    // Per-movement breakdown for badges that care which curl it was
+    // ("100 chin-ups", "all four variations in one week").
+    exerciseReps: Object.fromEntries(
+      log.exerciseLogs.map(e => [e.exerciseId, e.completedReps]),
+    ),
   }
 }
 

@@ -35,6 +35,10 @@ export interface WeeklyRecapContext {
   groupWeeklyRank?: number
   groupSize?: number
   participationStatus: string // 'active' | 'modifying: …'
+  /** Set on weekly-cumulative challenges: the week's pooled rep target and how
+   *  much of it this PAX banked. On these, days completed is just "days
+   *  trained" — the week's total is what actually counts. */
+  weeklyTarget?: number
 }
 
 export async function generateWeeklyRecap(
@@ -79,7 +83,9 @@ Rules:
   } catch {
     return {
       title: `Week in Review, ${ctx.userName}`,
-      body: `Day ${ctx.dayNumber} of ${ctx.totalDays} in ${ctx.challengeName}. ${ctx.weeklyCompletedDays}/${ctx.daysPossibleThisWeek} days this week — keep showing up.`,
+      body: ctx.weeklyTarget
+        ? `${ctx.weeklyReps.toLocaleString()} of ${ctx.weeklyTarget.toLocaleString()} reps this week in ${ctx.challengeName}. 💪`
+        : `Day ${ctx.dayNumber} of ${ctx.totalDays} in ${ctx.challengeName}. ${ctx.weeklyCompletedDays}/${ctx.daysPossibleThisWeek} days this week — keep showing up.`,
     }
   }
 }
