@@ -477,6 +477,37 @@ function sentenceCase(text: string): string {
 // "Alice"              → "Alice"
 // "Alice, Bob"         → "Alice and Bob"
 // "Alice, Bob, Charlie, Dave" → "Alice, Bob, and 2 others"
+/** Minutes either side of a preferred time that still count as "now". The
+ *  scheduler runs every 10 minutes, so max drift is 5. */
+const NOTIFY_WINDOW_MINS = 5;
+
+type NotifType = "morning" | "afternoon" | "evening" | "weekly_recap";
+
+/** The four configurable send windows, with the same defaults the client uses. */
+function notificationWindows(
+  prefs: NotifPrefs
+): Array<{ type: NotifType; enabled: boolean; time: string }> {
+  return [
+    { type: "morning",      enabled: prefs.morning?.enabled ?? false,     time: prefs.morning?.time ?? "08:00" },
+    { type: "afternoon",    enabled: prefs.afternoon?.enabled ?? false,    time: prefs.afternoon?.time ?? "17:00" },
+    { type: "evening",      enabled: prefs.evening?.enabled ?? false,      time: prefs.evening?.time ?? "20:00" },
+    { type: "weekly_recap", enabled: prefs.weeklyRecap?.enabled ?? false,  time: prefs.weeklyRecap?.time ?? "20:00" },
+  ];
+}
+
+/** True when `nowTotal` (minutes since midnight PT) falls inside this window. */
+function isWindowDue(
+  w: { type: NotifType; enabled: boolean; time: string },
+  prefs: NotifPrefs,
+  nowDate: Date,
+  nowTotal: number
+): boolean {
+  if (!w.enabled) return false;
+  if (w.type === "weekly_recap" && nowDate.getDay() !== (prefs.weeklyRecap?.dayOfWeek ?? 0)) return false;
+  const [prefH, prefM] = w.time.split(":").map(Number);
+  return Math.abs(nowTotal - (prefH * 60 + prefM)) <= NOTIFY_WINDOW_MINS;
+}
+
 function fmtNames(names: string[]): string {
   if (names.length === 0) return "";
   if (names.length === 1) return names[0];
@@ -795,7 +826,28 @@ function buildNotification(ctx: NotificationCtx): { title: string; body: string 
 
   // --- User completed ---
   if (userCompleted) {
-    if (notDoneNames.length === 0) {
+    if (groupTotalCount === 0) {
+      // Nobody else in the region yet — a brand-new region, or everyone else
+      // opted out. `notDoneNames` is empty here for the same reason it is when
+      // the whole crew finished, so this has to be checked first: "Whole Crew
+      // Showed Up!" to an audience of one reads as a bug, and the counted copy
+      // below would render "All 0 PAX done."
+      const titles = [
+        `Day ${dayNumber} Done, ${fn}! 🔥`,
+        `Logged It, ${fn}`,
+        `That's Day ${dayNumber}`,
+        `Board's Yours, ${fn}`,
+        `Clean Day ${dayNumber}, ${fn}`,
+      ];
+      const bodies = [
+        `Day ${dayNumber} of ${challengeName} is in the books. First name on the board is yours.`,
+        `Day ${dayNumber} logged. You're setting the pace for ${regionName} — invite a PAX and make them chase it.`,
+        `Done and logged, ${fn}. Every day you stack now is the standard ${regionName} inherits.`,
+        `Day ${dayNumber} complete. Nobody to compare to yet — just you and the work. 💪`,
+        `${challengeName}, Day ${dayNumber}: done. Get another PAX on here and this gets a lot more fun.`,
+      ];
+      return { title: pick(titles, seed), body: pick(bodies, seed + 1) };
+    } else if (notDoneNames.length === 0) {
       // Whole crew done
       const titles = [
         "Whole Crew Showed Up! 💪",
@@ -1398,6 +1450,22 @@ async function notifyRegion(
   const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User & { notificationPreferences: NotifPrefs; currentStreak?: number }));
   console.log(`[notify] ${users.length} users in ${region.id}`);
 
+  // Nothing below this point matters unless somebody is actually due a push,
+  // and the queries below are the expensive ones — the challenge-wide log scan
+  // is every log every PAX has written this month. This runs 144 times a day
+  // per region and the vast majority of those ticks have no window open, so
+  // bail on the cheap check first. Windows are re-evaluated per user later;
+  // this is purely a "is anyone home" guard.
+  const anyoneDue = users.some(u => {
+    const prefs = u.notificationPreferences;
+    if (!prefs || !u.fcmTokens?.length) return false;
+    return notificationWindows(prefs).some(w => isWindowDue(w, prefs, nowDate, nowTotal));
+  });
+  if (!anyoneDue) {
+    console.log(`[notify] no send window open in ${region.id} at ${nowTotal}min — skipping the rest`);
+    return;
+  }
+
   // Fetch participation for all users to exclude opted-out PAX from stats
   const participationSnap = await admin.firestore().collection("participation")
     .where("challengeId", "==", challenge.id)
@@ -1478,37 +1546,21 @@ async function notifyRegion(
       continue;
     }
 
-    type NotifType = "morning" | "afternoon" | "evening" | "weekly_recap";
-    const windows: Array<{ type: NotifType; enabled: boolean; time: string }> = [
-      { type: "morning",      enabled: prefs.morning?.enabled ?? false,     time: prefs.morning?.time ?? "08:00" },
-      { type: "afternoon",    enabled: prefs.afternoon?.enabled ?? false,    time: prefs.afternoon?.time ?? "17:00" },
-      { type: "evening",      enabled: prefs.evening?.enabled ?? false,      time: prefs.evening?.time ?? "20:00" },
-      { type: "weekly_recap", enabled: prefs.weeklyRecap?.enabled ?? false,  time: prefs.weeklyRecap?.time ?? "20:00" },
-    ];
+    const windows = notificationWindows(prefs);
 
     console.log(`[notify] checking ${user.displayName} | windows: ${windows.filter(w => w.enabled).map(w => `${w.type}@${w.time}`).join(", ") || "none enabled"}`);
 
     for (const w of windows) {
       if (!w.enabled) continue;
 
-      if (w.type === "weekly_recap") {
-        const todayDay = nowDate.getDay();
-        const prefDay  = prefs.weeklyRecap?.dayOfWeek ?? 0;
-        if (todayDay !== prefDay) {
-          console.log(`[notify]   ${w.type} skipped — today is day ${todayDay}, pref is day ${prefDay}`);
-          continue;
-        }
-      }
-
       const [prefH, prefM] = w.time.split(":").map(Number);
       const prefTotal = prefH * 60 + prefM;
       const diffMins  = Math.abs(nowTotal - prefTotal);
-      const WINDOW    = 5; // minutes either side — scheduler runs every 10 min so max drift is 5 min
 
-      console.log(`[notify]   ${w.type}@${w.time} | now=${nowTotal}min pref=${prefTotal}min diff=${diffMins}min window=±${WINDOW}`);
+      console.log(`[notify]   ${w.type}@${w.time} | now=${nowTotal}min pref=${prefTotal}min diff=${diffMins}min window=±${NOTIFY_WINDOW_MINS}`);
 
-      if (diffMins > WINDOW) {
-        console.log(`[notify]   → outside window, skip`);
+      if (!isWindowDue(w, prefs, nowDate, nowTotal)) {
+        console.log(`[notify]   → outside window (or wrong day for recap), skip`);
         continue;
       }
 

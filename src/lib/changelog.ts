@@ -39,6 +39,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'New PAX pick their region when they sign up, or land straight in it from their region’s invite link.',
       'Two PAX in different regions can now share an F3 name without the app arguing about it.',
       'The app has a real address: f3challenges.com \u2014 that\u2019s the one to use from here on. Already got it on your home screen? Leave it exactly where it is: your existing icon keeps working, notifications and all. Nothing to reinstall, nothing to move.',
+      'Reminders now make sense on day one of a brand-new region \u2014 if you\u2019re the first PAX in, the app stops congratulating a crew that isn\u2019t there yet.',
     ],
   },
   {
