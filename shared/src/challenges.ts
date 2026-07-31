@@ -581,9 +581,9 @@ export const CHALLENGES: ChallengeTemplate[] = [
     // August. Flat target every day, so it's a single weekly tier spanning the
     // whole month rather than an escalating multiplier.
     id: 'aug-2026-sactown',
-    name: 'The Century Club',
-    hashtag: '#100ADay',
-    tagline: '100 merkins. Every day. All month.',
+    name: 'Sactown Century',
+    hashtag: '#SactownCentury',
+    tagline: 'A hundred a day, the Sactown way.',
     month: 8,
     year: 2026,
     regionIds: ['sactown'],
