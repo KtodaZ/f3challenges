@@ -181,7 +181,7 @@ function CurrentLeaderboard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
-  const { currentUser, allUsers, refreshCurrentUser } = useUser()
+  const { currentUser, roster, refreshCurrentUser } = useUser()
   const { regionId } = useRegion()
   const challenge = useCurrentChallenge()
 
@@ -198,13 +198,14 @@ export default function LeaderboardPage() {
   const [calloutTarget, setCalloutTarget] = useState<User | null>(null)
 
   const loadData = useCallback(async () => {
-    if (!challenge || allUsers.length === 0) { setLoading(false); return }
+    // Roster, not the directory: archived PAX don't get leaderboard rows.
+    if (!challenge || roster.length === 0) { setLoading(false); return }
 
     const today = getTodayPT()
 
     const [participations, allTodayLogs, shoutoutMap] = await Promise.all([
       getChallengeParticipants(challenge.id),
-      Promise.all(allUsers.map(u => getDailyLog(u.id, today))),
+      Promise.all(roster.map(u => getDailyLog(u.id, today))),
       getLatestShoutoutsByUser(regionId),
     ])
 
@@ -227,7 +228,7 @@ export default function LeaderboardPage() {
     const repCounts: Record<string, number> = {}
 
     const rawEntries = await Promise.all(
-      allUsers.map(async (user, idx) => {
+      roster.map(async (user, idx) => {
         const logs     = await getUserChallengeLogs(user.id, challenge.id)
         const todayLog = allTodayLogs[idx]
         const part     = participationMap.get(user.id)
@@ -321,7 +322,7 @@ export default function LeaderboardPage() {
     setDayRepCounts(repCounts)
     setLoading(false)
     setRefreshing(false)
-  }, [challenge, allUsers, regionId])
+  }, [challenge, roster, regionId])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadData() }, [loadData])

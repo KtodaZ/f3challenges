@@ -17,14 +17,16 @@ interface ProfileStepProps {
 }
 
 export function ProfileStep({ onNext }: ProfileStepProps) {
-  // allUsers is already scoped to the chosen region by UserContext, so both
-  // the picker and the duplicate-name check below are region-local.
-  const { allUsers, login } = useUser()
+  // The roster (active crew, archived PAX excluded) is already scoped to the
+  // chosen region by UserContext, so both the picker and the duplicate-name
+  // check below are region-local. Roster rather than the full directory: an
+  // archived PAX must not be claimable from the name picker.
+  const { roster, login } = useUser()
   const { regionId, region } = useRegion()
   // A brand-new region has nobody to pick from, so "New PAX" is the only
   // sensible landing mode — but an explicit tap always wins over the default.
   const [modeOverride, setModeOverride] = useState<'existing' | 'new' | null>(null)
-  const mode = modeOverride ?? (allUsers.length === 0 ? 'new' : 'existing')
+  const mode = modeOverride ?? (roster.length === 0 ? 'new' : 'existing')
   const setMode = setModeOverride
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [newName, setNewName] = useState('')
@@ -50,7 +52,7 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
 
     // Duplicate check is region-scoped on purpose: F3 names repeat across
     // regions constantly, and Sactown's Splice is not Bedrock's Splice.
-    const duplicate = allUsers.find(
+    const duplicate = roster.find(
       u => u.displayName.toLowerCase() === trimmed.toLowerCase()
     )
     if (duplicate) {
@@ -91,7 +93,7 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
 
       {mode === 'existing' ? (
         <>
-          {allUsers.length === 0 ? (
+          {roster.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
               <p className="text-zinc-500 text-sm">No crew members yet.</p>
               <button
@@ -116,7 +118,7 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
                       New PAX
                     </span>
                   </button>
-                  {allUsers.map(user => (
+                  {roster.map(user => (
                     <button
                       key={user.id}
                       onClick={() => setSelectedUser(user)}

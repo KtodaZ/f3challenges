@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from 'react'
 import {
   getCurrentUserId, setCurrentUserId, clearCurrentUserId,
   getCachedUser, setCachedUser, clearCachedUser,
@@ -8,12 +8,26 @@ import {
 } from '@/lib/storage'
 import { getUser, subscribeToUsers, updateUser } from '@/lib/firestore'
 import { consumeClaimParam } from '@/lib/migration'
+import { selectRoster } from '@/lib/roster'
 import { useRegion } from '@/contexts/RegionContext'
 import type { User } from '@/types'
 
 interface UserContextValue {
   currentUser: User | null
+  /** THE DIRECTORY — every PAX in the region, **archived included**.
+   *  Use this to *resolve* a user you already have an id or a name for:
+   *  feed authorship, comment authors, reaction names, mention parsing on an
+   *  existing post, profile pages, historical badge winners. Anything that
+   *  renders history must read from here, or archived PAX lose their name on
+   *  posts they wrote and disappear from results they legitimately earned. */
   allUsers: User[]
+  /** THE ROSTER — who is *currently in the crew* (`allUsers` minus archived).
+   *  Use this anywhere the app presents the active membership: leaderboard
+   *  rows, crew counts and participant lists, the onboarding name picker,
+   *  mention autocomplete suggestions, notification recipients.
+   *  Rule of thumb: picking/counting people → `roster`; looking a person up
+   *  → `allUsers`. */
+  roster: User[]
   loading: boolean
   login: (user: User) => void
   logout: () => void
@@ -28,10 +42,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [allUsers, setAllUsers]       = useState<User[]>([])
   const [loading, setLoading]         = useState(true)
 
-  // Subscribe to this region's roster (real-time). Scoping here is what keeps
-  // every downstream consumer of `allUsers` — mentions, the name picker, the
-  // callout modal, leaderboard rows, group-completion counts — region-correct
-  // without each of them knowing regions exist.
+  // Subscribe to this region's directory (real-time). Scoping here is what
+  // keeps every downstream consumer — mentions, the name picker, the callout
+  // modal, leaderboard rows, group-completion counts — region-correct without
+  // each of them knowing regions exist. The query deliberately returns
+  // archived PAX too (one equality filter, no extra index); the roster/
+  // directory split below is what decides who is *shown*.
   useEffect(() => {
     if (!regionReady) return
     const unsub = subscribeToUsers(regionId, users => {
@@ -39,6 +55,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     })
     return unsub
   }, [regionId, regionReady])
+
+  // Derived, not a second subscription — one snapshot feeds both views.
+  const roster = useMemo(() => selectRoster(allUsers), [allUsers])
 
   // Restore session — use cache for instant load, then refresh from Firestore in background
   useEffect(() => {
@@ -124,7 +143,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [currentUserId])
 
   return (
-    <UserContext.Provider value={{ currentUser, allUsers, loading, login, logout, refreshCurrentUser }}>
+    <UserContext.Provider value={{ currentUser, allUsers, roster, loading, login, logout, refreshCurrentUser }}>
       {children}
     </UserContext.Provider>
   )

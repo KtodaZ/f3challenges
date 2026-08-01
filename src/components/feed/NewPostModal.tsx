@@ -21,7 +21,10 @@ interface NewPostModalProps {
 }
 
 export function NewPostModal({ open, onClose }: NewPostModalProps) {
-  const { currentUser, allUsers } = useUser()
+  // `allUsers` (directory) resolves names already typed into the post — an
+  // archived PAX must keep resolving. `roster` only feeds the suggestion list,
+  // so nobody can newly @-mention someone who has left the crew.
+  const { currentUser, allUsers, roster } = useUser()
   const [content, setContent]           = useState('')
   const [submitting, setSubmitting]     = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
@@ -162,7 +165,7 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
           {mentionQuery !== null && (
             <MentionAutocomplete
               query={mentionQuery}
-              users={allUsers.filter(u => u.id !== currentUser?.id)}
+              users={roster.filter(u => u.id !== currentUser?.id)}
               onSelect={handleMentionSelect}
             />
           )}
