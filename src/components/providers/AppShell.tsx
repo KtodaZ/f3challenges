@@ -9,6 +9,7 @@ import { FCMInitializer } from '@/components/notifications/FCMInitializer'
 import { FirestoreConnectionGuard } from '@/components/providers/FirestoreConnectionGuard'
 import { UpdateChecker } from '@/components/providers/UpdateChecker'
 import { PendingCelebrationHandler } from '@/components/providers/PendingCelebrationHandler'
+import { ArchivedGate } from '@/components/providers/ArchivedGate'
 
 /**
  * Keeps the PAX app out of the admin panel.
@@ -37,15 +38,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <RegionProvider>
       <UserProvider>
-        <FCMInitializer />
-        <FirestoreConnectionGuard />
-        <UpdateChecker />
-        <PendingCelebrationHandler />
-        <TopBar />
-        <main className="pb-nav min-h-dvh">
-          {children}
-        </main>
-        <BottomNav />
+        <ArchivedGate>
+          <FCMInitializer />
+          <FirestoreConnectionGuard />
+          <UpdateChecker />
+          <PendingCelebrationHandler />
+          <TopBar />
+          <main className="pb-nav min-h-dvh">
+            {children}
+          </main>
+          <BottomNav />
+        </ArchivedGate>
       </UserProvider>
     </RegionProvider>
   )
