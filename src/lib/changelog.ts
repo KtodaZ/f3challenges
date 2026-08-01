@@ -20,6 +20,8 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-01',
     changes: [
+      '**Barbell curls are out, coupon curls are in.** Almost nobody has a bar in the garage; everybody has a cinder block. The four variations are now Dumbbell, Coupon, Hammer and Chin-Up — spelled out instead of “DB” and “BB”. Already logged barbell reps? They still count toward your week.',
+      'For anyone wondering what the difference is: dumbbell and hammer curls use the same weight, just a different grip — palms up for a dumbbell curl, palms facing each other for a hammer curl. Hammer puts more of it in your forearms.',
       'Inviting a new PAX is a lot easier to text: **f3challenges.com/bedrock** and **f3challenges.com/sactown** drop them straight into the right region. The old link still works if you’ve got it saved.',
     ],
   },

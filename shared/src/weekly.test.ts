@@ -193,7 +193,7 @@ describe('trophies on a weekly-cumulative challenge', () => {
 // ─── Load ─────────────────────────────────────────────────────────────────────
 
 describe('load badges', () => {
-  it('formats a pair, a single, a barbell and bodyweight', () => {
+  it('formats a pair, a single, a coupon and bodyweight', () => {
     expect(formatLoad({ lbs: 25, hands: 2 })).toBe('2×25')
     expect(formatLoad({ lbs: 35, hands: 1 })).toBe('1×35')
     expect(formatLoad({ lbs: 65 })).toBe('65 lb')
@@ -267,13 +267,13 @@ describe('Bedrock Bicep badges', () => {
 
   it('Four-Way Flex needs all four variations inside one week', () => {
     const spreadAcrossWeeks = ctx([
-      log('2026-08-03', { 'dumbbell-curl': 10, 'barbell-curl': 10 }),
+      log('2026-08-03', { 'dumbbell-curl': 10, 'coupon-curl': 10 }),
       log('2026-08-10', { 'hammer-curl': 10, 'chin-up': 10 }),
     ])
     expect(progressOf('aug-2026-four-way-flex', spreadAcrossWeeks).earned).toBe(false)
 
     const oneWeek = ctx([
-      log('2026-08-03', { 'dumbbell-curl': 10, 'barbell-curl': 10 }),
+      log('2026-08-03', { 'dumbbell-curl': 10, 'coupon-curl': 10 }),
       log('2026-08-05', { 'hammer-curl': 10, 'chin-up': 10 }),
     ])
     expect(progressOf('aug-2026-four-way-flex', oneWeek).earned).toBe(true)

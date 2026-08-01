@@ -261,9 +261,9 @@ export interface DailyTarget {
 // phone in the gym, and the point is bragging rights, not a training log.
 
 export interface ExerciseLoad {
-  /** Pounds per hand (or per bar for barbell). Omitted for bodyweight-only work. */
+  /** Pounds per hand (or total, for a coupon). Omitted for bodyweight-only work. */
   lbs?: number
-  /** 1 = single dumbbell / one arm at a time, 2 = a pair. Absent for a barbell. */
+  /** 1 = single dumbbell / one arm at a time, 2 = a pair. Absent for a coupon. */
   hands?: 1 | 2
   /** True when the work was bodyweight (chin-ups) — renders as "BW". */
   bodyweight?: boolean
