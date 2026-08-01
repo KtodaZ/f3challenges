@@ -29,8 +29,9 @@ import {
   trophyUpgrade,
   legacyBadgeType,
   trophyNotification,
+  isChallengeParticipant,
 } from "@f3-bedrock/shared";
-import type { ChallengeTemplate, DailyTarget, NotificationVars, Region, TrophyTier, WeekProgress } from "@f3-bedrock/shared";
+import type { ChallengeTemplate, DailyTarget, NotificationVars, ParticipationStatus, Region, TrophyTier, WeekProgress } from "@f3-bedrock/shared";
 
 admin.initializeApp()
 
@@ -58,6 +59,10 @@ interface User {
   /** Which F3 region this PAX belongs to. Absent on docs written before
    *  regions existed — resolveRegion() falls those back to Bedrock. */
   regionId?: string;
+  /** Set by an admin. Archived PAX drop out of rosters, crew counts and
+   *  notification recipients — but keep their history, so functions that award
+   *  earned badges must NOT filter on this. */
+  status?: "active" | "archived";
   fcmTokens?: string[];
   notificationPreferences: {
     mentions: boolean;
@@ -1466,51 +1471,78 @@ async function notifyRegion(
     return;
   }
 
-  // Fetch participation for all users to exclude opted-out PAX from stats
+  // Participation status per PAX — the explicit opt-in/opt-out signal.
   const participationSnap = await admin.firestore().collection("participation")
     .where("challengeId", "==", challenge.id)
     .get();
-  const optedOutIds = new Set(
-    participationSnap.docs
-      .filter(d => (d.data() as ChallengeParticipation).status === "opted-out")
-      .map(d => (d.data() as ChallengeParticipation).userId)
+  const participationByUserId = new Map<string, ChallengeParticipation>(
+    participationSnap.docs.map(d => {
+      const p = d.data() as ChallengeParticipation;
+      return [p.userId, p];
+    })
   );
-  const activeUsers = users.filter(u => !optedOutIds.has(u.id));
-  console.log(`[notify] ${optedOutIds.size} opted-out, ${activeUsers.length} active`);
 
-  // Group completion stats for today (active users only)
-  const todayLogsSnap = await admin.firestore().collection("dailyLogs")
+  // Every log in this challenge. Fetched before eligibility because "has this
+  // PAX logged anything this month" is one of the inputs to it — and because
+  // today's logs are a subset, so this replaces a second query that used to
+  // fetch them separately.
+  const allLogsSnap = await admin.firestore().collection("dailyLogs")
     .where("challengeId", "==", challenge.id)
-    .where("date", "==", today)
     .get();
-  const groupCompleted = todayLogsSnap.docs.filter(d => {
-    const log = d.data() as DailyLog;
-    return log.completionFraction >= 1 && !optedOutIds.has(log.userId);
-  }).length;
-  console.log(`[notify] group completion: ${groupCompleted}/${activeUsers.length} done today`);
+  const loggedUserIds = new Set(allLogsSnap.docs.map(d => (d.data() as DailyLog).userId));
 
-  // Build name lists for peer pressure messaging (active users only)
-  const userById = new Map(users.map(u => [u.id, u.displayName]));
+  // ── Who counts, exactly once ─────────────────────────────────────────────
+  // Everything below — denominators, numerators, name lists, standings and the
+  // recipient loop — reads from this one set. Deriving them independently is
+  // how you get "4/3 done" and copy that names a PAX who isn't in the count.
+  //
+  // Two exclusions:
+  //  - archived PAX (an admin removed them from the crew)
+  //  - dormant signups, via the same isChallengeParticipant rule the app uses:
+  //    accounts that never logged a rep stop counting once the grace window
+  //    closes. Without this the denominator is permanently short of a full
+  //    house, so the "whole crew finished" copy can never fire.
+  const eligibleUsers = users.filter(u =>
+    u.status !== "archived" &&
+    isChallengeParticipant(
+      participationByUserId.get(u.id)?.status as ParticipationStatus | undefined,
+      loggedUserIds.has(u.id),
+      dayNumber
+    )
+  );
+  const eligibleIds = new Set(eligibleUsers.map(u => u.id));
+  console.log(`[notify] ${eligibleUsers.length}/${users.length} eligible (excluded: ${users.filter(u => !eligibleIds.has(u.id)).map(u => u.displayName).join(", ") || "none"})`);
+
+  // Group completion stats for today, over eligible PAX only.
+  const todayLogDocs = allLogsSnap.docs.filter(d => (d.data() as DailyLog).date === today);
+  const todayLogByUser = new Map<string, DailyLog>(
+    todayLogDocs.map(d => {
+      const log = d.data() as DailyLog;
+      return [log.userId, log];
+    })
+  );
   const completedUserIds = new Set(
-    todayLogsSnap.docs
+    todayLogDocs
       .filter(d => {
         const log = d.data() as DailyLog;
-        return log.completionFraction >= 1 && !optedOutIds.has(log.userId);
+        return log.completionFraction >= 1 && eligibleIds.has(log.userId);
       })
       .map(d => (d.data() as DailyLog).userId)
   );
+  const groupCompleted = completedUserIds.size;
+  console.log(`[notify] group completion: ${groupCompleted}/${eligibleUsers.length} done today`);
+
+  // Name lists for peer-pressure copy, from the same set.
+  const userById = new Map(users.map(u => [u.id, u.displayName]));
   const allCompletedNames = [...completedUserIds].map(id => userById.get(id) ?? "").filter(Boolean);
-  const allNotDoneNames = activeUsers
+  const allNotDoneNames = eligibleUsers
     .filter(u => !completedUserIds.has(u.id))
     .map(u => u.displayName);
   console.log(`[notify] completed: [${allCompletedNames.join(", ")}] | not done: [${allNotDoneNames.join(", ")}]`);
 
   // ── Competitive standings (for opted-in PAX) ─────────────────────────────
-  // Total reps per active PAX across the whole challenge — matches the reps
+  // Total reps per eligible PAX across the whole challenge — matches the reps
   // ranking the leaderboard shows. Only computed once per run and reused.
-  const allLogsSnap = await admin.firestore().collection("dailyLogs")
-    .where("challengeId", "==", challenge.id)
-    .get();
   // Month-long reps + this-week reps per active PAX. Weekly totals reset each
   // Sunday, giving PAX who joined mid-month a board they can top today.
   const weekStart = getWeekStartPT(today);
@@ -1521,7 +1553,7 @@ async function notifyRegion(
   const logsByUser = new Map<string, DailyLog[]>();
   for (const doc of allLogsSnap.docs) {
     const log = doc.data() as DailyLog;
-    if (optedOutIds.has(log.userId)) continue;
+    if (!eligibleIds.has(log.userId)) continue;
     const reps = (log.exerciseLogs ?? []).reduce((s, el) => s + el.completedReps, 0);
     repsByUser.set(log.userId, (repsByUser.get(log.userId) ?? 0) + reps);
     if (log.date >= weekStart) {
@@ -1530,12 +1562,12 @@ async function notifyRegion(
     const forUser = logsByUser.get(log.userId);
     if (forUser) forUser.push(log); else logsByUser.set(log.userId, [log]);
   }
-  const activeRoster = activeUsers.map(u => ({ id: u.id, displayName: u.displayName }));
-  const rankByUser     = buildStandings(activeRoster, repsByUser);
-  const weeklyRankByUser = buildStandings(activeRoster, weeklyRepsByUser);
+  const eligibleRoster = eligibleUsers.map(u => ({ id: u.id, displayName: u.displayName }));
+  const rankByUser     = buildStandings(eligibleRoster, repsByUser);
+  const weeklyRankByUser = buildStandings(eligibleRoster, weeklyRepsByUser);
   console.log(`[notify] competitive standings built (week start ${weekStart})`);
 
-  for (const user of activeUsers) {
+  for (const user of eligibleUsers) {
     if (!user.fcmTokens?.length) {
       console.log(`[notify] skip ${user.displayName} — no fcmTokens`);
       continue;
@@ -1571,18 +1603,17 @@ async function notifyRegion(
         continue;
       }
 
-      const userLogSnap = await admin.firestore().collection("dailyLogs").doc(`${user.id}_${today}`).get();
-      const userLog = userLogSnap.exists ? (userLogSnap.data() as DailyLog) : null;
+      // Both of these came back in the batch reads above — re-fetching them per
+      // user would cost two reads each and could disagree with the counts the
+      // copy is built from.
+      const userLog = todayLogByUser.get(user.id) ?? null;
       const userCompleted = (userLog?.completionFraction ?? 0) >= 1;
       console.log(`[notify]   → user log: fraction=${userLog?.completionFraction ?? 0} completed=${userCompleted}`);
 
-      const partSnap = await admin.firestore().collection("participation").doc(`${user.id}_${challenge.id}`).get();
-      const part = partSnap.exists ? (partSnap.data() as ChallengeParticipation) : null;
+      // Opt-outs are already gone from eligibleUsers; this is only here to
+      // carry the "modifying" note into the copy.
+      const part = participationByUserId.get(user.id) ?? null;
       let statusStr = part?.status ?? "active";
-      if (statusStr === "opted-out") {
-        console.log(`[notify]   → opted out, skip`);
-        continue;
-      }
       if (statusStr === "modifying" && part?.modificationNote) statusStr = `modifying: ${part.modificationNote}`;
       console.log(`[notify]   → participation: ${statusStr}`);
 
@@ -1625,12 +1656,12 @@ async function notifyRegion(
           userCompleted,
           completionFraction:  fraction,
           groupCompletedCount: userCompleted ? groupCompleted - 1 : groupCompleted,
-          groupTotalCount:     activeUsers.length - 1,
+          groupTotalCount:     eligibleUsers.length - 1,
           userStreak:          (user as { currentStreak?: number }).currentStreak ?? 0,
           participationStatus: statusStr,
           notificationType:    w.type,
           completedNames: [...completedUserIds].filter(id => id !== user.id).map(id => userById.get(id) ?? "").filter(Boolean),
-          notDoneNames:   activeUsers.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
+          notDoneNames:   eligibleUsers.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
           stackedDays,
           daysAway,
           // Weekly-cumulative challenges route to entirely different copy —

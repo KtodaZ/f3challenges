@@ -21,6 +21,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-01',
     changes: [
       'Inviting a new PAX is a lot easier to text: **f3challenges.com/bedrock** and **f3challenges.com/sactown** drop them straight into the right region. The old link still works if you’ve got it saved.',
+      'Reminders now count the same crew the app does. PAX who signed up but never logged a rep no longer pad the “X of Y done” number or get named as someone still owing reps — so the counts in your notifications finally match what you see on the leaderboard.',
     ],
   },
   {

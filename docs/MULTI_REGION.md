@@ -30,7 +30,7 @@ In components, use the hooks in `src/hooks/useChallenge.ts` (`useCurrentChalleng
 
 ### Writes
 
-`src/lib/firestore.ts` holds an ambient `activeRegionId`, kept in sync by `RegionProvider`, and every create helper stamps it via `withRegion()`. This is deliberate: threading a `regionId` parameter through ~15 call sites means a missed one silently writes a region-less doc that never appears in its own feed. An explicit `regionId` already on the document always wins — that's how server-side callers (`/api/log`) stay correct, since the ambient value is browser-only.
+`src/lib/firestore.ts` holds an ambient `activeRegionId`, kept in sync by `RegionProvider`, and every create helper stamps it via `withRegion()`. This is deliberate: threading a `regionId` parameter through ~15 call sites means a missed one silently writes a region-less doc that never appears in its own feed. An explicit `regionId` already on the document always wins — that's how any server-side caller stays correct, since the ambient value is browser-only.
 
 ### Region resolution
 
@@ -66,7 +66,7 @@ No other changes. Empty states (no feed posts, no past challenges, no badges, no
 - **`getTodayPT()` is still hardcoded Pacific.** `Region.timezone` exists but nothing reads it. Fine while every region is PT; the first non-PT region needs the date helpers changed.
 - **Never seed component state from a region-derived list in a lazy initializer.** The region resolves a tick after mount, so the initializer sees Bedrock's data. `PastChallengesSettings` and `PastChallengesStep` re-seed via an effect keyed on the challenge-id list. Prefer deriving, or wait on `ready`.
 - **Logout goes through `clearRegion()`, not just `clearStoredRegionId()`.** Clearing only localStorage leaves the provider at `chosen: true`, so re-onboarding on a shared device silently inherits the previous PAX's region.
-- **Server routes resolve the region from the user doc, never the request body.** The ambient `activeRegionId` is browser-only and would stamp Bedrock on everything; taking it from the body would let a client write into another region. See `/api/log`.
+- **Server routes resolve the region from the user doc, never the request body.** The ambient `activeRegionId` is browser-only and would stamp Bedrock on everything; taking it from the body would let a client write into another region.
 
 ## Migration
 

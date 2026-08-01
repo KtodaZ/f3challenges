@@ -1,33 +1,14 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import type { ParticipationStatus } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/** First N days of a challenge where everyone (except opt-outs) is treated as
- *  participating — nobody has logs yet, so activity can't be the signal. */
-export const PARTICIPANT_GRACE_DAYS = 3
-
-/**
- * Whether a user counts as participating in the current challenge, for
- * crew lists (Push Your Crew, Call Out) and PAX totals.
- *
- * Participating = not opted out, AND any of:
- *  - explicitly opted in (participation doc with status active/modifying)
- *  - has logged at least one day of this challenge
- *  - it's still the grace window at the start of the challenge
- */
-export function isChallengeParticipant(
-  status: ParticipationStatus | undefined,
-  hasLoggedThisChallenge: boolean,
-  dayNumber: number,
-): boolean {
-  if (status === 'opted-out') return false
-  if (status === 'active' || status === 'modifying') return true
-  return hasLoggedThisChallenge || dayNumber <= PARTICIPANT_GRACE_DAYS
-}
+// Participation lives in shared/src/participation.ts — the notification Cloud
+// Function needs the identical rule, and two copies drift. Re-exported here so
+// existing `from '@/lib/utils'` imports keep working.
+export { PARTICIPANT_GRACE_DAYS, isChallengeParticipant } from '@f3-bedrock/shared'
 
 /** Strip undefined values from an object before passing to Firestore setDoc/updateDoc. */
 export function stripUndefined<T extends object>(obj: T): T {

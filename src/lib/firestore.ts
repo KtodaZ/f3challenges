@@ -42,8 +42,8 @@ import type {
  * Ambient rather than a parameter on ~15 call sites deliberately: a missed
  * parameter would silently write a region-less doc that then never appears in
  * its own region's feed. An explicit `regionId` already on the document always
- * wins, which is how server-side callers (see /api/log) stay correct — this
- * module-level value is only meaningful in the browser.
+ * wins, which is how any server-side caller stays correct — this module-level
+ * value is only meaningful in the browser.
  */
 let activeRegionId: string = DEFAULT_REGION_ID
 

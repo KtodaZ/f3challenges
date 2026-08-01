@@ -1,5 +1,6 @@
 export * from './types'
 export * from './regions'
+export * from './participation'
 export * from './challenges'
 export * from './copy'
 export * from './remaining'

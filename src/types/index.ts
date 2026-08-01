@@ -2,8 +2,13 @@
 // Defined in shared/src/types.ts — re-exported here so app code importing
 // from '@/types' continues to work unchanged.
 
+import type { ParticipationStatus } from '@f3-bedrock/shared'
+
 export type {
   Region,
+  // Defined in shared/src/participation.ts alongside isChallengeParticipant —
+  // the Cloud Function needs both, and a second copy of the union drifts.
+  ParticipationStatus,
   ExerciseUnit, Exercise, ChallengeTemplate, DailyTarget, WeekTier, ConditionalRestDate,
   ChallengeTemplateCopy, FeedPostVars, NotificationVars, NotificationTemplatePair,
   BonusChallenge, BonusChallengeWeek,
@@ -79,6 +84,15 @@ export interface User {
    *  path funnels through resolveRegion()/DEFAULT_REGION_ID, and every write
    *  path sets it. */
   regionId?: string
+  /** Set by an admin. Archived PAX are removed from rosters, crew counts,
+   *  pickers and notification recipients, and their installed app stops
+   *  working — but they keep every log, badge and post, so anything rendering
+   *  history (PastFinishers, feed authorship) must still resolve them.
+   *  Absent means active. Not a security control: PAX are unauthenticated, so
+   *  this is enforced by the app and server routes, not by Firestore rules. */
+  status?: 'active' | 'archived'
+  archivedAt?: string  // ISO
+  archivedBy?: string  // admin auth uid
   createdAt: string   // ISO
   fcmTokens?: string[]
   notificationPreferences: NotificationPreferences
@@ -142,7 +156,6 @@ export interface DailyLog {
 
 // ─── Challenge Participation ──────────────────────────────────────────────────
 
-export type ParticipationStatus = 'active' | 'opted-out' | 'modifying'
 
 export interface ChallengeParticipation {
   id: string              // {userId}_{challengeId}
