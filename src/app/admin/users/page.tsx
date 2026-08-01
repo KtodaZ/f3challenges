@@ -5,7 +5,7 @@ import { useAdmin } from '@/contexts/AdminContext'
 import { adminFetch } from '@/lib/admin-client'
 import type { AdminUserRow } from '@/app/api/admin/users/route'
 import { Button } from '@/components/ui/Button'
-import { REGIONS } from '@/lib/challenges'
+import { REGIONS, resolveRegion } from '@/lib/challenges'
 import { cn } from '@/lib/utils'
 
 export default function AdminUsersPage() {
@@ -132,7 +132,7 @@ export default function AdminUsersPage() {
                   )}
                 </div>
                 <p className="text-xs text-zinc-600 mt-0.5">
-                  {u.regionId} · {u.logCount} log{u.logCount === 1 ? '' : 's'} ·{' '}
+                  {resolveRegion(u.regionId).shortName} · {u.logCount} log{u.logCount === 1 ? '' : 's'} ·{' '}
                   {u.tokenCount > 0
                     ? `${u.tokenCount} device${u.tokenCount === 1 ? '' : 's'}`
                     : 'no push'}

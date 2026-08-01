@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAdmin } from '@/contexts/AdminContext'
+import { resolveRegion } from '@/lib/challenges'
 import { cn } from '@/lib/utils'
 
 const LINKS = [
@@ -32,7 +33,9 @@ export function AdminNav() {
                 isSuper ? 'bg-orange-500/15 text-orange-400' : 'bg-zinc-800 text-zinc-400'
               )}
             >
-              {isSuper ? 'Superadmin' : record.regionIds.join(', ') || 'No regions'}
+              {isSuper
+                ? 'Superadmin'
+                : record.regionIds.map(id => resolveRegion(id).shortName).join(', ') || 'No regions'}
             </span>
           </div>
           <div className="flex items-center gap-3 min-w-0">

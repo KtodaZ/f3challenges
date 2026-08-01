@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAdmin } from '@/contexts/AdminContext'
 import { adminFetch } from '@/lib/admin-client'
 import type { AdminPostRow } from '@/app/api/admin/feed/route'
-import { REGIONS } from '@/lib/challenges'
+import { REGIONS, resolveRegion } from '@/lib/challenges'
 import { Button } from '@/components/ui/Button'
 
 function when(iso: string): string {
@@ -89,7 +89,7 @@ export default function AdminFeedPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-zinc-500 mb-1">
                     <span className="text-zinc-300 font-medium">{post.authorName}</span>
-                    {' · '}{post.regionId}{' · '}{when(post.createdAt)}
+                    {' · '}{resolveRegion(post.regionId).shortName}{' · '}{when(post.createdAt)}
                     {post.type === 'system' && ' · system'}
                     {post.imageCount > 0 && ` · ${post.imageCount} attachment${post.imageCount === 1 ? '' : 's'}`}
                   </p>
