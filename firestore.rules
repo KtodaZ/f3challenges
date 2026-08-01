@@ -2,10 +2,59 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users: trust-based, no auth required
+    // Admin identity. There are NO custom claims by design: membership in
+    // /admins/{authUid} is the single source of truth, so revoking an admin is
+    // just deleting that doc and takes effect on the very next request.
+    // exists() (not get()) because we need a boolean, not a document.
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Fields only an admin may write. PAX are unauthenticated, so without this
+    // anyone could archive anyone.
+    function touchesAdminFields(keys) {
+      return keys.hasAny(['status', 'archivedAt', 'archivedBy']);
+    }
+
+    // Users: trust-based, no auth required. PAX writes (displayName, fcmTokens,
+    // badges, achievements, streaks, notificationPreferences,
+    // pendingCelebration, migratedAt, ...) stay wide open — create and update
+    // are split only because diff() has no meaning on a create, where there is
+    // no prior resource.data to diff against.
     match /users/{userId} {
       allow read: if true;
-      allow write: if true;
+
+      allow create: if isAdmin()
+        || !touchesAdminFields(request.resource.data.keys());
+
+      // affectedKeys() covers removal as well as setting/changing a field —
+      // intended: clearing `status` is just as privileged as setting it.
+      allow update: if isAdmin()
+        || !touchesAdminFields(
+             request.resource.data.diff(resource.data).affectedKeys()
+           );
+
+      // Unchanged from the blanket rule this replaced: deletes were allowed
+      // and the app has no delete path. Stated explicitly so it is a decision,
+      // not an accident of rule ordering.
+      allow delete: if true;
+    }
+
+    // Admin panel collections. No client access at all — the panel talks to
+    // these through server routes using the Admin SDK, which bypasses rules.
+    // Modeled on notificationLog below, but read is closed too: the admin
+    // roster and audit trail are not public.
+    match /admins/{uid} {
+      allow read, write: if false;
+    }
+
+    match /adminAudit/{auditId} {
+      allow read, write: if false;
+    }
+
+    match /adminBootstrap/{bootstrapId} {
+      allow read, write: if false;
     }
 
     // Daily logs: readable and writable by all (trust-based)
