@@ -17,11 +17,10 @@ interface ProfileStepProps {
 }
 
 export function ProfileStep({ onNext }: ProfileStepProps) {
-  // The roster (active crew, archived PAX excluded) is already scoped to the
-  // chosen region by UserContext, so both the picker and the duplicate-name
-  // check below are region-local. Roster rather than the full directory: an
-  // archived PAX must not be claimable from the name picker.
-  const { roster, login } = useUser()
+  // Both lists are already region-scoped by UserContext. The picker uses the
+  // roster, so an archived PAX can't be claimed; the duplicate-name check uses
+  // the directory, so their name stays reserved. See handleCreateNew.
+  const { roster, allUsers, login } = useUser()
   const { regionId, region } = useRegion()
   // A brand-new region has nobody to pick from, so "New PAX" is the only
   // sensible landing mode — but an explicit tap always wins over the default.
@@ -50,13 +49,23 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
       return
     }
 
-    // Duplicate check is region-scoped on purpose: F3 names repeat across
-    // regions constantly, and Sactown's Splice is not Bedrock's Splice.
-    const duplicate = roster.find(
+    // Region-scoped on purpose: F3 names repeat across regions constantly, and
+    // Sactown's Splice is not Bedrock's Splice.
+    //
+    // Checked against the full directory rather than the roster — an archived
+    // PAX keeps their name reserved. Mentions resolve by display name
+    // (highlightMentions, extractMentionNames), so letting a newcomer take an
+    // archived PAX's name makes every old @Splice in the feed ambiguous, and
+    // some of them would start pointing at the wrong person.
+    const duplicate = allUsers.find(
       u => u.displayName.toLowerCase() === trimmed.toLowerCase()
     )
     if (duplicate) {
-      setNameError(`That name is already taken in ${region.shortName} — are you them? Select from the list.`)
+      setNameError(
+        duplicate.status === 'archived'
+          ? `That name belonged to a past ${region.shortName} PAX — pick another so old posts don't get confused.`
+          : `That name is already taken in ${region.shortName} — are you them? Select from the list.`
+      )
       return
     }
 

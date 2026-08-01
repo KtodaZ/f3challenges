@@ -88,8 +88,14 @@ export interface User {
    *  pickers and notification recipients, and their installed app stops
    *  working — but they keep every log, badge and post, so anything rendering
    *  history (PastFinishers, feed authorship) must still resolve them.
-   *  Absent means active. Not a security control: PAX are unauthenticated, so
-   *  this is enforced by the app and server routes, not by Firestore rules. */
+   *  Absent means active.
+   *
+   *  Writes to this field ARE gated in firestore.rules — only an authenticated
+   *  admin may set, change or remove it, which also means un-archiving is
+   *  admin-only. But archiving is still not a security control: the PAX who
+   *  was archived remains unauthenticated and can write everything *else*
+   *  freely, so this removes them from the crew rather than locking them out.
+   *  See docs/MULTI_REGION.md. */
   status?: 'active' | 'archived'
   archivedAt?: string  // ISO
   archivedBy?: string  // admin auth uid
