@@ -1,4 +1,5 @@
 import { initializeApp, getApps, cert, type App } from 'firebase-admin/app'
+import { getAuth, type Auth } from 'firebase-admin/auth'
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 import { getMessaging, type Messaging } from 'firebase-admin/messaging'
 
@@ -22,6 +23,12 @@ export function getAdminMessaging(): Messaging {
   return getMessaging(getAdminApp())
 }
 
+/** Verifies admin ID tokens. Only the admin panel authenticates — PAX remain
+ *  trust-based, so nothing else in the app touches this. */
+export function getAdminAuth(): Auth {
+  return getAuth(getAdminApp())
+}
+
 // Named exports for convenience (lazy via getters).
 // Methods must be bound to the real instance so that internal `this` mutations
 // (e.g. FCM caching urlPath on `this`) write and read from the same object.
@@ -37,3 +44,4 @@ function proxyInstance<T extends object>(getInstance: () => T): T {
 
 export const adminDb        = proxyInstance(getAdminDb)
 export const adminMessaging = proxyInstance(getAdminMessaging)
+export const adminAuth      = proxyInstance(getAdminAuth)
