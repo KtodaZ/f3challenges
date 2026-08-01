@@ -451,11 +451,15 @@ export const CHALLENGES: ChallengeTemplate[] = [
     endDate: '2026-08-31',
     // Sunday → Saturday. August opens on a Saturday, so Week 1 is a single day.
     weekStartsOn: 0,
+    // Dumbbell and hammer are the same implement, different grip — palms up vs
+    // palms in. Coupon replaced barbell: hardly any PAX owns a bar, and every
+    // AO has cinder blocks. Spelled out rather than abbreviated so nobody has
+    // to decode "DB" mid-workout.
     exercises: [
-      { id: 'dumbbell-curl', name: 'Dumbbell Curl', shortName: 'DB',      plural: 'dumbbell curls' },
-      { id: 'barbell-curl',  name: 'Barbell Curl',  shortName: 'BB',      plural: 'barbell curls'  },
-      { id: 'hammer-curl',   name: 'Hammer Curl',   shortName: 'Hammer',  plural: 'hammer curls'   },
-      { id: 'chin-up',       name: 'Chin-Up',       shortName: 'Chin-Up', plural: 'chin-ups', bodyweight: true },
+      { id: 'dumbbell-curl', name: 'Dumbbell Curl', shortName: 'Dumbbell', plural: 'dumbbell curls' },
+      { id: 'coupon-curl',   name: 'Coupon Curl',   shortName: 'Coupon',   plural: 'coupon curls'   },
+      { id: 'hammer-curl',   name: 'Hammer Curl',   shortName: 'Hammer',   plural: 'hammer curls'   },
+      { id: 'chin-up',       name: 'Chin-Up',       shortName: 'Chin-Up',  plural: 'chin-ups', bodyweight: true },
     ],
     // 300 over a 7-day week is 50/day with a rest day built in — so the short
     // weeks at either end are priced at that same 50/day rather than prorated
@@ -470,6 +474,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
     ],
     guidance: [
       'Break it up however you want — the week is the only deadline.',
+      'Dumbbell and hammer are the same weight, different grip: palms up is a dumbbell curl, palms facing each other is a hammer curl. Hammer hits more forearm. No dumbbells? A coupon curls just fine.',
       'Quality reps. Use a weight that leaves 1–3 reps in reserve on most sets.',
       'Take at least one full rest day each week.',
       'If your elbows or forearms feel beat up, prioritize full range of motion. Don\'t swing the weight.',
@@ -534,7 +539,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
         id: 'aug-2026-four-way-flex',
         name: 'Four-Way Flex',
         emoji: '🔀',
-        description: 'Dumbbell, barbell, hammer, chin-up — every variation inside one week.',
+        description: 'Dumbbell, coupon, hammer, chin-up — every variation inside one week.',
         howTo: 'Log all four curl variations within a single week of the challenge.',
         criteria: { type: 'week-variety' },
       },
@@ -565,7 +570,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
     ],
     featuredBadgeId: 'aug-2026-bedrock-bicep',
     copy: {
-      welcomeTagline: 'The Bedrock Bicep, earned. 300 curls a week — dumbbell, barbell, hammer, chin-ups. Any mix, any day, your call. 💪',
+      welcomeTagline: 'The Bedrock Bicep, earned. 300 curls a week — dumbbell, coupon, hammer, chin-ups. Any mix, any day, your call. 💪',
       feedPost: {
         // Weekly-cumulative challenges post on the week, not the day (see
         // weekCompleteFeedPost) — these cover the trophy and badge moments.

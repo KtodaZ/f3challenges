@@ -26,7 +26,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-31',
     changes: [
-      'August is **The Bedrock Bicep Challenge** 💪 — 300 curls a week. Dumbbell, barbell, hammer, chin-ups: any mix, any day, however you want to break it up.',
+      'August is **The Bedrock Bicep Challenge** 💪 — 300 curls a week. Dumbbell, coupon, hammer, chin-ups: any mix, any day, however you want to break it up.',
       'This one is scored by the **week**, not the day. There’s no daily quota to hit and no “you missed a day” — you owe the week 300 reps and it’s on you how they get there. Weeks run Sunday to Saturday.',
       'August opens on a Saturday, so Week 1 is a single day worth 50, and the last stretch (Aug 30–31) is worth 100. Every short week is priced at the same 50/day as a full one.',
       'The home screen is rebuilt for it: one bar you fill across the week with 1/4, 1/2 and 3/4 marked on it, plus what’s left and roughly how many a day it’ll take to finish.',

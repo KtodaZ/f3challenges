@@ -44,14 +44,14 @@ export function LoadPicker({ open, onClose, value, onSave }: LoadPickerProps) {
       description="Optional — it just shows up as a badge next to your name."
     >
       <div className="space-y-4">
-        {/* One dumbbell or two */}
+        {/* One dumbbell, two, or a single implement held with both hands */}
         <div>
           <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium mb-2">How many</p>
           <div className="grid grid-cols-3 gap-2">
             {([
-              { v: 2 as const, label: 'Two', sub: 'a pair' },
-              { v: 1 as const, label: 'One',  sub: 'single arm' },
-              { v: undefined,  label: 'Bar',  sub: 'barbell' },
+              { v: 2 as const, label: 'Two',    sub: 'a pair' },
+              { v: 1 as const, label: 'One',    sub: 'single arm' },
+              { v: undefined,  label: 'Coupon', sub: 'both hands' },
             ]).map(opt => (
               <button
                 key={opt.label}
