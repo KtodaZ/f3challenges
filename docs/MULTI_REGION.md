@@ -44,15 +44,17 @@ Resolved in an effect, not a render-phase initializer — localStorage doesn't e
 
 ### Invite links
 
-`https://f3challenges.com/onboarding?region=sactown`
+`https://f3challenges.com/sactown` — one per region, generated from `REGIONS` by `src/app/[region]/page.tsx`.
 
-Preselects the region and skips the region step. Without the param, the picker shows.
+That route is a redirect to `https://f3challenges.com/onboarding?region=sactown`, which is still the real mechanism and still works if you have it written down somewhere. Either form preselects the region and skips the region step; without it, the picker shows.
+
+The segment is prerendered with `dynamicParams = false`, so unknown top-level paths 404 normally rather than bouncing through onboarding. Static routes (`/feed`, `/settings`, …) take precedence over it, so a region id must not collide with one.
 
 ## Adding a region
 
 1. Append to `REGIONS` in `shared/src/regions.ts`.
 2. Add a challenge with `regionIds: ['<new-id>']` in `shared/src/challenges.ts`.
-3. Send the Q the invite link.
+3. Send the Q the invite link — `f3challenges.com/<new-id>`, which exists as soon as step 1 ships.
 
 No other changes. Empty states (no feed posts, no past challenges, no badges, no leaderboard history) are already handled.
 
