@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -244,12 +245,12 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
               {!user.fcmTokens?.length && (
                 <div className="mt-1.5">
                   {isOwnProfile ? (
-                    <a
+                    <Link
                       href="/settings/notifications"
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-900/30 border border-amber-700/40 text-amber-400 text-xs"
                     >
                       🔕 Notifications off — set up
-                    </a>
+                    </Link>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-500 text-xs">
                       🔕 No push notifications
