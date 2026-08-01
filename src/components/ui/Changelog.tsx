@@ -1,9 +1,38 @@
 'use client'
 
 import { formatChangelogDate, type ChangelogEntry } from '@/lib/changelog'
+import { parseInline } from '@/lib/inline-markdown'
 
 interface ChangelogProps {
   entries: ChangelogEntry[]
+}
+
+/** Entries are written with `**bold**`, `*italic*` and `` `code` `` — turn
+ *  those into elements instead of printing the markers. */
+function Formatted({ text }: { text: string }) {
+  return (
+    <>
+      {parseInline(text).map((tok, i) => {
+        switch (tok.type) {
+          case 'bold':
+            return <strong key={i} className="font-semibold text-white">{tok.text}</strong>
+          case 'italic':
+            return <em key={i} className="italic">{tok.text}</em>
+          case 'code':
+            return (
+              <code
+                key={i}
+                className="px-1 py-0.5 rounded bg-zinc-800 text-orange-300 text-[0.85em] font-mono tabular-nums"
+              >
+                {tok.text}
+              </code>
+            )
+          default:
+            return <span key={i}>{tok.text}</span>
+        }
+      })}
+    </>
+  )
 }
 
 /** Renders a list of changelog entries — date heading + bulleted changes.
@@ -20,7 +49,7 @@ export function Changelog({ entries }: ChangelogProps) {
           <ul className="space-y-1.5">
             {entry.changes.map((change, i) => (
               <li key={i} className="text-sm text-zinc-300 leading-snug">
-                {change}
+                <Formatted text={change} />
               </li>
             ))}
           </ul>
