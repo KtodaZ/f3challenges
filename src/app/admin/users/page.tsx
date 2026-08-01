@@ -56,6 +56,11 @@ export default function AdminUsersPage() {
 
   if (state.status !== 'ready') return null
 
+  // The PAX account this admin is, if their invite linked one. Archiving
+  // yourself would drop you out of your own crew's leaderboard and reminders
+  // while you're the one holding the panel — always a mistake, never intent.
+  const ownPaxId = state.session.record.userId
+
   const visible = (users ?? []).filter(u =>
     (regionFilter === 'all' || u.regionId === regionFilter) &&
     (showArchived || u.status !== 'archived')
@@ -115,6 +120,11 @@ export default function AdminUsersPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-white font-medium truncate">{u.displayName}</p>
+                  {u.id === ownPaxId && (
+                    <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 shrink-0">
+                      You
+                    </span>
+                  )}
                   {u.status === 'archived' && (
                     <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 shrink-0">
                       Archived
@@ -154,6 +164,8 @@ export default function AdminUsersPage() {
                     size="sm"
                     onClick={() => handleArchive(u)}
                     loading={busyId === u.id}
+                    disabled={u.id === ownPaxId}
+                    title={u.id === ownPaxId ? "That's you" : undefined}
                   >
                     Archive
                   </Button>

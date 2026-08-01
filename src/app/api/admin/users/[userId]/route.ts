@@ -53,6 +53,12 @@ export async function PATCH(
 
     switch (body.action) {
       case 'archive': {
+        // Never the admin's own PAX account. Archiving yourself drops you out
+        // of the crew you're administering, and the UI's disabled button is
+        // only a hint — this is the part that actually holds.
+        if (principal.record.userId && principal.record.userId === userId) {
+          throw new AdminAuthError(409, "You can't archive your own PAX account")
+        }
         if (user.status === 'archived') {
           return NextResponse.json({ error: 'Already archived' }, { status: 409 })
         }

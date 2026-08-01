@@ -31,8 +31,34 @@ export interface AdminRecord {
   role: AdminRole
   /** Regions a `regionAdmin` may act on. Ignored for `superadmin`. */
   regionIds: string[]
+  /**
+   * The PAX account this admin is, when they're also in the app. Chosen when
+   * the invite is created — PAX records carry no email, so the two identities
+   * can never be matched automatically.
+   *
+   * Bookkeeping only: it grants nothing. It makes the audit log read "Babe
+   * archived Hot Keys" instead of an email address, and lets the panel stop an
+   * admin archiving their own PAX account by accident.
+   */
+  userId?: string
+  /** F3 name of the linked PAX, denormalized so the audit log doesn't need a
+   *  join to render a name. */
+  paxName?: string
   createdAt: string
   createdBy: string
+}
+
+export interface AdminInvite {
+  role: AdminRole
+  regionIds: string[]
+  userId?: string
+  paxName?: string
+  createdAt: string
+  createdBy: string
+  createdByEmail: string
+  expiresAt: string
+  claimedAt?: string
+  claimedBy?: string
 }
 
 export interface AdminPrincipal {
@@ -43,7 +69,20 @@ export interface AdminPrincipal {
 
 export const ADMINS_COLLECTION   = 'admins'
 export const AUDIT_COLLECTION    = 'adminAudit'
+export const INVITES_COLLECTION  = 'adminInvites'
 export const BOOTSTRAP_DOC       = 'adminBootstrap/marker'
+
+/** How long an unclaimed invite stays valid. Short enough that a forwarded or
+ *  screenshotted link goes stale on its own. */
+export const INVITE_TTL_DAYS = 7
+
+/** Requires the caller to be a superadmin regardless of region — used by the
+ *  endpoints that manage admins themselves. */
+export function assertSuperadmin(principal: AdminPrincipal): void {
+  if (principal.record.role !== 'superadmin') {
+    throw new AdminAuthError(403, 'Superadmin only')
+  }
+}
 
 /** Thrown by requireAdmin; carries the HTTP status the route should return. */
 export class AdminAuthError extends Error {
