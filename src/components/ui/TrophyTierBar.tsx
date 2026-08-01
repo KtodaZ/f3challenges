@@ -1,6 +1,6 @@
 'use client'
 
-import { getTrophyTiers, tierAmountRequired } from '@/lib/challenges'
+import { getTrophyTier, getTrophyTiers, tierAmountRequired } from '@/lib/challenges'
 import { TROPHY_TIER_STYLES } from '@/lib/trophyStyles'
 import { cn } from '@/lib/utils'
 import type { ChallengeTemplate, TrophyProgress } from '@/types'
@@ -13,11 +13,14 @@ interface TrophyTierBarProps {
   className?: string
 }
 
-/** Rung label, kept short enough that three chips fit a narrow phone: "14d",
+/** Rung amount, kept short enough that three chips fit a narrow phone: "14d",
  *  "675", "1.4k". The exact figures live in the summary line above the bar. */
 function unitShort(progress: TrophyProgress, amount: number): string {
   if (progress.unit.unit === 'day') return `${amount}d`
-  return amount >= 10_000 ? `${Math.round(amount / 1000)}k` : String(amount)
+  if (amount < 1000) return String(amount)
+  // 1350 → "1.4k", 2000 → "2k". Rep challenges cross 1,000 by Silver, so
+  // spelling the figure out is what pushed the row past the screen edge.
+  return `${(amount / 1000).toFixed(1).replace(/\.0$/, '')}k`
 }
 
 /**
@@ -53,16 +56,23 @@ export function TrophyTierBar({ challenge, progress, showRungs = true, className
       {showRungs && (
         // Exact positions live on the bar (the tick marks above); the labels
         // sit in fixed columns so they can never collide on a narrow phone.
-        <div className="flex items-center justify-between gap-1">
+        // overflow-hidden is the backstop: three nowrap chips that don't fit
+        // would otherwise widen the whole page, not just this row.
+        <div className="flex items-center justify-between gap-1 overflow-hidden">
           {rungs.map(rung => {
             const amount = tierAmountRequired(challenge, rung.tier)
             const earned = progress.completed >= amount
             const isNext = progress.next?.tier === rung.tier
+            // The plain tier word, not the themed one: "Bronze Bicep · 675"
+            // three times over is wider than a phone. The themed name is
+            // already in the headline above the bar, and the emoji stays
+            // themed, so the month still reads as its own.
+            const label = getTrophyTier(rung.tier).label
             return (
               <span
                 key={rung.tier}
                 className={cn(
-                  'whitespace-nowrap text-[10px] font-semibold px-1.5 py-0.5 rounded-full border leading-none flex items-center gap-1',
+                  'min-w-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border leading-none flex items-center gap-1',
                   earned
                     ? TROPHY_TIER_STYLES[rung.tier].chip
                     : isNext
@@ -70,8 +80,8 @@ export function TrophyTierBar({ challenge, progress, showRungs = true, className
                     : 'bg-transparent border-transparent text-zinc-600'
                 )}
               >
-                <span className={cn(!earned && 'grayscale opacity-60')}>{rung.emoji}</span>
-                {rung.label} · {unitShort(progress, amount)}
+                <span className={cn('shrink-0', !earned && 'grayscale opacity-60')}>{rung.emoji}</span>
+                <span className="truncate">{label} · {unitShort(progress, amount)}</span>
               </span>
             )
           })}
