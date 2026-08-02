@@ -53,8 +53,15 @@ let activeRegionId: string = DEFAULT_REGION_ID
  * log written in this state would be stamped with the region being *viewed*
  * and attributed to someone who isn't in it.
  *
- * The UI hides the controls too; this is the backstop that makes a missed one
- * fail loudly instead of quietly corrupting a leaderboard.
+ * The composer and log controls are hidden while previewing, and
+ * ReadOnlyRegionError is surfaced as a toast by CrashCapture, so a missed
+ * control tells the person rather than reverting on next refresh.
+ *
+ * Scope, precisely: this covers the **browser SDK path only**. Server routes
+ * using the Admin SDK (`/api/fcm/register`, the admin panel's own endpoints)
+ * never reach it. That's fine for the ones that exist — they target a specific
+ * document by id and stamp no region — but a future server route is not
+ * covered by this and must not assume it is.
  */
 let readOnly = false
 

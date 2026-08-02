@@ -1,5 +1,8 @@
 'use client'
 
+import { toast } from 'sonner'
+import { ReadOnlyRegionError } from '@/lib/firestore'
+
 import { useEffect } from 'react'
 
 const DBG = process.env.NEXT_PUBLIC_DEBUG_URL
@@ -33,6 +36,16 @@ export function CrashCapture() {
     }
 
     function onUnhandledRejection(event: PromiseRejectionEvent) {
+      // A write refused because an admin is previewing another region isn't a
+      // crash — it's the guard doing its job. Every write path in the app is
+      // fire-and-forget to some degree, so catching it centrally is what
+      // guarantees the person actually finds out instead of watching a rep
+      // count silently revert on the next refresh.
+      if (event.reason instanceof ReadOnlyRegionError) {
+        event.preventDefault()
+        toast.error(event.reason.message)
+        return
+      }
       post('unhandled-rejection', {
         reason: String(event.reason),
         stack: event.reason?.stack,

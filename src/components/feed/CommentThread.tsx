@@ -12,6 +12,7 @@ import {
 } from '@/lib/firestore'
 import { generateId, timeAgo, stripUndefined } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
+import { useRegion } from '@/contexts/RegionContext'
 import { useAdminMode } from '@/contexts/AdminModeContext'
 import type { FeedPost, FeedComment, User } from '@/types'
 
@@ -142,7 +143,10 @@ interface CommentThreadProps {
 
 export function CommentThread({ post, comments }: CommentThreadProps) {
   const { currentUser, allUsers } = useUser()
-  const { isAdmin, removeComment } = useAdminMode()
+  const { isAdmin, role, regionIds, removeComment } = useAdminMode()
+  const { regionId, readOnly } = useRegion()
+  // See the note in FeedPost — moderation only where this admin governs.
+  const canModerate = isAdmin && (role === 'superadmin' || regionIds.includes(regionId))
 
   // Removing a comment: the author's own goes straight to Firestore as before,
   // anyone else's goes through the audited admin route.
@@ -249,7 +253,7 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                   comment={comment}
                   allUsers={allUsers}
                   currentUserId={currentUser?.id}
-                  canModerate={isAdmin}
+                  canModerate={canModerate}
                   onReply={() => handleReply(comment)}
                   onDelete={() => deleteComment(comment.id, comment.authorId)}
                   onReactionToggle={emoji => {
@@ -266,7 +270,7 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                         comment={reply}
                         allUsers={allUsers}
                         currentUserId={currentUser?.id}
-                        canModerate={isAdmin}
+                        canModerate={canModerate}
                         onDelete={() => deleteComment(reply.id, reply.authorId)}
                         onReactionToggle={emoji => {
                           if (!currentUser) return
@@ -319,13 +323,14 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                     handleSubmit()
                   }
                 }}
-                placeholder="Add a comment…"
+                placeholder={readOnly ? 'Read-only while viewing another region' : 'Add a comment…'}
+                disabled={readOnly}
                 className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-500 outline-none"
               />
               {inputValue.trim() && (
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting}
+                  disabled={submitting || readOnly}
                   className="text-orange-400 hover:text-orange-300 text-xs font-semibold shrink-0 transition-colors disabled:opacity-50"
                 >
                   {submitting ? '…' : 'Post'}

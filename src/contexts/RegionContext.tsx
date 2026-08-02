@@ -31,6 +31,10 @@ interface RegionContextValue {
    */
   viewingAs: string | null
   setViewingAs: (regionId: string | null) => void
+  /** True while previewing another region. Controls that write should be
+   *  disabled on this — the write helpers refuse regardless, but a disabled
+   *  button explains itself and a rejected promise doesn't. */
+  readOnly: boolean
 }
 
 /** sessionStorage, not localStorage: previewing another region should end when
@@ -113,7 +117,9 @@ export function RegionProvider({ children }: { children: ReactNode }) {
   const setViewingAs = useCallback((next: string | null) => {
     if (next !== null && !isValidRegionId(next)) return
 
-    const own = getStoredRegionId() ?? DEFAULT_REGION_ID
+    // state.regionId is the provider's own answer for "my region"; deriving it
+    // from storage as well gave two sources that could disagree.
+    const own = state.regionId
     // Previewing your own region isn't a preview. Letting it through would show
     // the read-only banner while writes stayed enabled — the one combination
     // that actively misleads.
@@ -126,7 +132,7 @@ export function RegionProvider({ children }: { children: ReactNode }) {
     setActiveRegionId(active)
     setRegionReadOnly(next !== null && next !== own)
     setViewingAsState(next)
-  }, [])
+  }, [state.regionId])
 
   const clearRegion = useCallback(() => {
     clearStoredRegionId()
@@ -150,6 +156,7 @@ export function RegionProvider({ children }: { children: ReactNode }) {
         clearRegion,
         viewingAs,
         setViewingAs,
+        readOnly: viewingAs !== null,
       }}
     >
       {children}

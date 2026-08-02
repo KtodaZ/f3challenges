@@ -13,6 +13,7 @@ import { softDeletePost, togglePostReaction, subscribeToComments } from '@/lib/f
 import { useAdminMode } from '@/contexts/AdminModeContext'
 import { timeAgo, highlightMentions, cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
+import { useRegion } from '@/contexts/RegionContext'
 import type { FeedPost as FeedPostType, FeedComment } from '@/types'
 
 interface FeedPostProps {
@@ -184,11 +185,17 @@ export function FeedPost({ post }: FeedPostProps) {
   const commentCount = comments.length
 
   const isAuthor = currentUser?.id === post.authorId
-  const { isAdmin, removePost } = useAdminMode()
+  const { isAdmin, role, regionIds, removePost } = useAdminMode()
+  const { regionId } = useRegion()
   // Only offer moderation on other people's posts — the author already has a
   // delete, and routing their own through the admin API would log every PAX
   // tidying their own feed as a moderation action.
-  const canModerate = isAdmin && !isAuthor
+  //
+  // Also only in regions this admin actually governs. The server refuses
+  // anyway, but a region admin browsing another region would otherwise get a
+  // Remove button on every post that can only ever 403.
+  const governsRegion = role === 'superadmin' || regionIds.includes(regionId)
+  const canModerate = isAdmin && governsRegion && !isAuthor
   const author   = allUsers.find(u => u.id === post.authorId)
   const target   = post.targetUserId ? allUsers.find(u => u.id === post.targetUserId) : undefined
 

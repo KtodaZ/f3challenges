@@ -73,8 +73,14 @@ export function AdminModeProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       unsub = mod.onAdminAuthChanged(async user => {
         if (!user) {
-          // Signed out of Google entirely — no longer an admin on this device.
-          setKnownAdmin(false)
+          // No Firebase session. Deliberately does NOT clear the hint: this is
+          // the same signal for "signed out" and for "Safari evicted the auth
+          // IndexedDB", which it does after 7 days of not visiting — including
+          // for installed PWAs. Clearing here would silently remove the only
+          // in-app route to /admin from an admin who simply hadn't opened the
+          // app in a fortnight. The hint grants nothing; /admin re-verifies on
+          // arrival. It's cleared on explicit sign-out and on a refused
+          // session, which are the two unambiguous cases.
           if (!cancelled) { setIsAdmin(false); setRole(undefined); setRegionIds([]); setChecked(true) }
           return
         }
