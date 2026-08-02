@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { isKnownAdmin, setKnownAdmin } from '@/lib/storage'
+import { mightBeAdminDevice, setKnownAdmin } from '@/lib/storage'
 import { useRegion } from '@/contexts/RegionContext'
 
 /**
@@ -14,9 +14,10 @@ import { useRegion } from '@/contexts/RegionContext'
  *
  * Gated twice:
  *
- * 1. A localStorage hint (`isKnownAdmin`), written when a device successfully
- *    loads an admin session. Cheap, synchronous, and only decides whether we
- *    bother looking further.
+ * 1. A cheap local signal (`mightBeAdminDevice`): a localStorage hint written
+ *    after a successful admin session, or failing that the presence of
+ *    Firebase Auth's IndexedDB store, which only exists on a device that has
+ *    signed in at /admin. It only decides whether we bother looking further.
  * 2. If the hint is set, `firebase/auth` is **dynamically imported** and the
  *    session re-verified against the server. `isAdmin` flips true only after
  *    that succeeds.
@@ -61,16 +62,18 @@ export function AdminModeProvider({ children }: { children: ReactNode }) {
   const { viewingAs, setViewingAs } = useRegion()
 
   useEffect(() => {
-    if (!isKnownAdmin()) {
-      setChecked(true)
-      return
-    }
-
     let cancelled = false
     let unsub: (() => void) | undefined
 
-    import('@/lib/admin-client').then(mod => {
+    mightBeAdminDevice().then(maybe => {
       if (cancelled) return
+      if (!maybe) {
+        setChecked(true)
+        return
+      }
+      return import('@/lib/admin-client')
+    }).then(mod => {
+      if (cancelled || !mod) return
       unsub = mod.onAdminAuthChanged(async user => {
         if (!user) {
           // No Firebase session. Deliberately does NOT clear the hint: this is
@@ -86,6 +89,8 @@ export function AdminModeProvider({ children }: { children: ReactNode }) {
         }
         try {
           const session = await mod.fetchAdminSession()
+          // Record it so the next load skips the IndexedDB probe.
+          setKnownAdmin(true)
           if (!cancelled) {
             setIsAdmin(true)
             setRole(session.record.role)
@@ -101,7 +106,7 @@ export function AdminModeProvider({ children }: { children: ReactNode }) {
         }
       })
     }).catch(() => {
-      // Chunk failed to load — behave as a normal PAX and try again next load.
+      // Probe or chunk failed — behave as a normal PAX and retry next load.
       if (!cancelled) setChecked(true)
     })
 
