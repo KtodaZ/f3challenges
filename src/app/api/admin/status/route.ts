@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
-import { ADMINS_COLLECTION, type AdminRecord } from '@/lib/admin-auth'
+import {
+  ADMINS_COLLECTION, DESIGNATIONS_COLLECTION,
+  type AdminRecord, type AdminDesignation,
+} from '@/lib/admin-auth'
 
 export interface AdminStatusResponse {
   isAdmin: boolean
   role?: 'superadmin' | 'regionAdmin'
   regionIds: string[]
+  /** Designated but never signed in — the controls show, and the first one
+   *  they touch sends them to /admin to sign in with Google. */
+  pending?: boolean
 }
 
 /**
@@ -39,13 +45,33 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .get()
 
-    if (snap.empty) return NextResponse.json(none)
+    if (!snap.empty) {
+      const record = snap.docs[0].data() as AdminRecord
+      return NextResponse.json({
+        isAdmin: true,
+        role: record.role,
+        regionIds: record.regionIds ?? [],
+      } satisfies AdminStatusResponse)
+    }
 
-    const record = snap.docs[0].data() as AdminRecord
+    // Designated but not yet signed in. Showing the menu now is the point:
+    // it's how someone finds out they've been made an admin, without anyone
+    // having to send them anything. It still grants nothing — every action
+    // needs a Google ID token, and the first one they try routes them to
+    // /admin to get one.
+    const pending = await adminDb.collection(DESIGNATIONS_COLLECTION)
+      .where('userId', '==', userId)
+      .limit(1)
+      .get()
+
+    if (pending.empty) return NextResponse.json(none)
+
+    const designation = pending.docs[0].data() as AdminDesignation
     return NextResponse.json({
       isAdmin: true,
-      role: record.role,
-      regionIds: record.regionIds ?? [],
+      role: designation.role,
+      regionIds: designation.regionIds ?? [],
+      pending: true,
     } satisfies AdminStatusResponse)
   } catch (err) {
     console.error('[admin status]', err)

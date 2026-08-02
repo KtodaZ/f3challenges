@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import {
-  verifyCaller, tryBootstrap, adminErrorResponse,
+  verifyCaller, tryBootstrap, tryClaimDesignation, adminErrorResponse,
   ADMINS_COLLECTION, type AdminRecord,
 } from '@/lib/admin-auth'
 
@@ -28,6 +28,15 @@ export async function POST(req: NextRequest) {
     const bootstrapped = await tryBootstrap(uid, email, { displayName, photoUrl })
     if (bootstrapped) {
       return NextResponse.json({ uid, email, record: bootstrapped })
+    }
+
+    // Designated by a superadmin and signing in for the first time. This is
+    // the whole of "accepting" — there is no link to open and no step to
+    // explain, because a Google-verified address is proof enough of who this
+    // is. See `AdminDesignation`.
+    const claimed = await tryClaimDesignation(uid, email, { displayName, photoUrl })
+    if (claimed) {
+      return NextResponse.json({ uid, email, record: claimed })
     }
 
     return NextResponse.json({ error: 'Not an admin' }, { status: 403 })

@@ -19,7 +19,7 @@ import { PATCH as patchUser } from '@/app/api/admin/users/[userId]/route'
 import { GET as listFeed } from '@/app/api/admin/feed/route'
 import { DELETE as deletePost } from '@/app/api/admin/feed/[postId]/route'
 import { GET as listAdmins } from '@/app/api/admin/admins/route'
-import { GET as listInvites, POST as createInvite } from '@/app/api/admin/invites/route'
+import { GET as listDesignations, POST as designate } from '@/app/api/admin/designations/route'
 import {
   asCaller, clearDb, ctx, getPost, getUser, json, noValidTokens, req,
   seedAdmin, seedAdmins, seedPost, seedUser,
@@ -236,8 +236,8 @@ const guarded: [string, (token: string) => Promise<Response>][] = [
   ['GET /users',   t => listUsers(req('GET', '/api/admin/users', { token: t }))],
   ['GET /feed',    t => listFeed(req('GET', '/api/admin/feed', { token: t }))],
   ['GET /admins',  t => listAdmins(req('GET', '/api/admin/admins', { token: t }))],
-  ['GET /invites', t => listInvites(req('GET', '/api/admin/invites', { token: t }))],
-  ['POST /invites', t => createInvite(req('POST', '/api/admin/invites', { token: t, body: {} }))],
+  ['GET /designations', t => listDesignations(req('GET', '/api/admin/designations', { token: t }))],
+  ['POST /designations', t => designate(req('POST', '/api/admin/designations', { token: t, body: {} }))],
   ['PATCH /users/:id', t => patchUser(
     req('PATCH', '/api/admin/users/pax-bedrock', { token: t, body: { action: 'archive' } }),
     ctx({ userId: 'pax-bedrock' })
@@ -303,9 +303,10 @@ describe('authentication', () => {
 describe('superadmin-only endpoints', () => {
   it.each([
     ['GET /admins',   () => listAdmins(req('GET', '/api/admin/admins', { token: asCaller(BEDROCK_UID) }))],
-    ['GET /invites',  () => listInvites(req('GET', '/api/admin/invites', { token: asCaller(BEDROCK_UID) }))],
-    ['POST /invites', () => createInvite(req('POST', '/api/admin/invites', {
-      token: asCaller(BEDROCK_UID), body: { role: 'regionAdmin', regionIds: ['bedrock'] },
+    ['GET /designations',  () => listDesignations(req('GET', '/api/admin/designations', { token: asCaller(BEDROCK_UID) }))],
+    ['POST /designations', () => designate(req('POST', '/api/admin/designations', {
+      token: asCaller(BEDROCK_UID),
+      body: { email: 'new@example.com', role: 'regionAdmin', regionIds: ['bedrock'] },
     }))],
   ])('%s refuses a region admin', async (_name, call) => {
     const res = await call()

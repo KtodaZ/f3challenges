@@ -6,7 +6,7 @@
  * - **Firestore is real.** It's the actual `firebase-admin` Firestore client
  *   pointed at the emulator, so transactions, batches, `FieldValue.delete()`
  *   and query conflict sets all behave exactly as they do in production. The
- *   bugs these tests exist to catch (rename uniqueness, single-use invites,
+ *   bugs these tests exist to catch (rename uniqueness, single-use designations,
  *   last-superadmin) live in that machinery; a mocked `runTransaction` would
  *   assert nothing about it.
  * - **Auth is stubbed.** `verifyIdToken` is the one boundary a test can't

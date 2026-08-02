@@ -63,7 +63,7 @@ export default function AdminUsersPage() {
 
   if (state.status !== 'ready') return null
 
-  // The PAX account this admin is, if their invite linked one. Archiving
+  // The PAX account this admin is, if one is linked. Archiving
   // yourself would drop you out of your own crew's leaderboard and reminders
   // while you're the one holding the panel — always a mistake, never intent.
   const ownPaxId = state.session.record.userId

@@ -34,8 +34,8 @@ export interface AdminRecord {
   regionIds: string[]
   /**
    * The PAX account this admin is, when they're also in the app. Chosen when
-   * the invite is created — PAX records carry no email, so the two identities
-   * can never be matched automatically.
+   * they're designated, or by the admin themselves later — PAX records carry
+   * no email, so the two identities can never be matched automatically.
    *
    * Bookkeeping only: it grants nothing. It makes the audit log read "Babe
    * archived Hot Keys" instead of an email address, and lets the panel stop an
@@ -49,7 +49,30 @@ export interface AdminRecord {
   createdBy: string
 }
 
-export interface AdminInvite {
+/**
+ * An admin who has been designated but hasn't signed in yet.
+ *
+ * An admin record is keyed by Firebase Auth uid, and that uid doesn't exist
+ * until the person signs in with Google. Something has to bridge the gap
+ * between "Kyle decided Babe runs Sactown" and "a Google account showed up".
+ *
+ * That bridge is the **email address**, and the choice matters. The obvious
+ * alternative — designate a PAX, bind whoever signs in claiming to be that PAX
+ * — would be an escalation: PAX identity is a localStorage id with no
+ * authentication behind it, so impersonating a designated PAX would yield real
+ * admin. A Google-verified email can't be asserted by the client at all
+ * (`verifyCaller` rejects `email_verified !== true`), so the binding is only
+ * ever claimable by the person who controls that mailbox.
+ *
+ * This replaced single-use invite links. The link's whole job was proving the
+ * claimant was the intended recipient; a verified email proves it directly,
+ * with nothing to send, expire, forward or leak. Designations therefore have
+ * no TTL — an unclaimed one isn't a secret sitting around, it's a name on a
+ * list that only one person on earth can answer to.
+ */
+export interface AdminDesignation {
+  /** Normalized (lowercased, trimmed) — the claim compares against this. */
+  email: string
   role: AdminRole
   regionIds: string[]
   userId?: string
@@ -57,11 +80,6 @@ export interface AdminInvite {
   createdAt: string
   createdBy: string
   createdByEmail: string
-  expiresAt: string
-  /** Redeeming an invite deletes it, so these are only ever seen on documents
-   *  written before that changed. Kept so old rows still parse. */
-  claimedAt?: string
-  claimedBy?: string
 }
 
 export interface AdminPrincipal {
@@ -70,14 +88,23 @@ export interface AdminPrincipal {
   record: AdminRecord
 }
 
-export const ADMINS_COLLECTION   = 'admins'
-export const AUDIT_COLLECTION    = 'adminAudit'
-export const INVITES_COLLECTION  = 'adminInvites'
-export const BOOTSTRAP_DOC       = 'adminBootstrap/marker'
+export const ADMINS_COLLECTION       = 'admins'
+export const AUDIT_COLLECTION        = 'adminAudit'
+export const DESIGNATIONS_COLLECTION = 'adminDesignations'
+export const BOOTSTRAP_DOC           = 'adminBootstrap/marker'
 
-/** How long an unclaimed invite stays valid. Short enough that a forwarded or
- *  screenshotted link goes stale on its own. */
-export const INVITE_TTL_DAYS = 7
+/**
+ * Designations are keyed by a hash of the email rather than the email itself.
+ *
+ * A deterministic id is what makes "designate this address" idempotent —
+ * re-designating someone updates their pending row instead of creating a
+ * second one that a later claim would silently ignore. Hashing avoids the
+ * document-path rules an address can trip over (`..`, a leading `__`, length),
+ * and keeps the listing the only place addresses appear.
+ */
+export function designationId(email: string): string {
+  return createHash('sha256').update(normalizeEmail(email)).digest('hex').slice(0, 32)
+}
 
 /** Requires the caller to be a superadmin regardless of region — used by the
  *  endpoints that manage admins themselves. */
@@ -273,6 +300,76 @@ export async function tryBootstrap(
   })
 }
 
+/**
+ * Turns a pending designation into a real admin record, on the designee's
+ * first sign-in. Returns null when nothing is waiting for that address.
+ *
+ * Called from the session endpoint, so there is no separate step: the person
+ * signs in with Google and is simply an admin. The email is the one
+ * `verifyCaller` extracted from a verified ID token — never anything the
+ * client sent.
+ *
+ * Transactional, reads before writes, for the same reason bootstrap is: two
+ * tabs opening /admin at once must not both consume the designation, and the
+ * grant plus its audit entry have to land together or not at all.
+ */
+export async function tryClaimDesignation(
+  uid: string,
+  email: string,
+  profile: { displayName?: string; photoUrl?: string } = {}
+): Promise<AdminRecord | null> {
+  const designationRef = adminDb.collection(DESIGNATIONS_COLLECTION).doc(designationId(email))
+  const adminRef       = adminDb.collection(ADMINS_COLLECTION).doc(uid)
+  const auditRef       = adminDb.collection(AUDIT_COLLECTION).doc()
+
+  return adminDb.runTransaction(async tx => {
+    // ── reads ──
+    const snap     = await tx.get(designationRef)
+    const existing = await tx.get(adminRef)
+
+    if (!snap.exists) return null
+    const designation = snap.data() as AdminDesignation
+
+    // The id is derived from the address, so this can only differ if a row was
+    // written by hand. Fail closed rather than grant from a mismatched doc.
+    if (normalizeEmail(designation.email) !== email) return null
+
+    // Already an admin — most likely re-designated after being granted. Leave
+    // the existing record alone (it may have been edited since) and clear the
+    // pending row so it stops showing as outstanding.
+    if (existing.exists) {
+      tx.delete(designationRef)
+      return existing.data() as AdminRecord
+    }
+
+    // ── writes ──
+    const now = new Date().toISOString()
+    const record: AdminRecord = {
+      email,
+      role: designation.role,
+      regionIds: designation.regionIds,
+      createdAt: now,
+      createdBy: designation.createdBy,
+      ...(profile.displayName ? { displayName: profile.displayName } : {}),
+      ...(profile.photoUrl ? { photoUrl: profile.photoUrl } : {}),
+      ...(designation.userId ? { userId: designation.userId } : {}),
+      ...(designation.paxName ? { paxName: designation.paxName } : {}),
+    }
+    tx.set(adminRef, record)
+    tx.delete(designationRef)
+    tx.set(auditRef, {
+      at: now,
+      actorUid: uid,
+      actorEmail: email,
+      action: 'admin.designation.claim',
+      targetType: 'admin',
+      targetId: uid,
+      after: record,
+    })
+    return record
+  })
+}
+
 export interface AuditEntry {
   actor: AdminPrincipal
   action: string
@@ -294,7 +391,7 @@ export interface AuditEntry {
  * `stripUndefined()` rule in CLAUDE.md — but that helper only strips the top
  * level, and audit payloads are arbitrary nested snapshots of a document
  * before and after a change. An optional field that happens to be absent
- * (`paxName` on an invite with no linked PAX) sits one level down, so the
+ * (`paxName` on a designation with no linked PAX) sits one level down, so the
  * top-level guard passes and the write throws.
  */
 function stripUndefinedDeep<T>(value: T): T {
@@ -325,19 +422,6 @@ export function auditWrite(entry: AuditEntry) {
     ...(entry.after !== undefined ? { after: entry.after } : {}),
   })
   return { ref, data }
-}
-
-/**
- * A stable, non-secret handle for an invite, for use in the audit log.
- *
- * The invite token IS the credential — it's the document id and the whole
- * contents of the link. Writing it into an audit entry would mean any future
- * log export, support dump or admin-readable audit view hands out working
- * invite links. The hash still lets two audit entries about the same invite be
- * correlated.
- */
-export function inviteRef(token: string): string {
-  return createHash('sha256').update(token).digest('hex').slice(0, 16)
 }
 
 /** Region ids on an admin record must be real — a typo would otherwise create

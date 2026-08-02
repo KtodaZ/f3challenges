@@ -66,9 +66,9 @@ This was the gap that actually bit. The admin panel shipped with `requireAdmin`'
 
 The suite runs the exported route handlers directly against the Firestore emulator with only `adminAuth.verifyIdToken` stubbed, so transactions, batches and `FieldValue.delete()` are real. It asserts **non-empty response bodies** for a region admin, not just status codes — a status-only assertion would have missed the original bug's practical effect.
 
-Covered: region scoping on both list endpoints, cross-region mutation refusals, region-from-target-document (not from the body), archive/unarchive/rename including name uniqueness against archived and former names, invite create/revoke/claim (single-use, expiry, malformed tokens), admin revocation guards, bootstrap, and an audit entry for every successful mutation.
+Covered: region scoping on both list endpoints, cross-region mutation refusals, region-from-target-document (not from the body), archive/unarchive/rename including name uniqueness against archived and former names, designate/withdraw and the claim on first sign-in (single-use, wrong address, malformed ids), admin revocation guards, bootstrap, and an audit entry for every successful mutation.
 
-**It earned its keep immediately.** The suite found a live bug on its first run: `auditWrite` was handed `paxName: undefined` by both invite routes when no PAX was linked, Firestore rejects `undefined` outright, and creating or revoking an unlinked invite 500s while writing nothing at all. Every other case passed because they linked a PAX — which is also why the panel looked fine in manual testing. Fixed by stripping undefined recursively inside `auditWrite`, so no caller can reintroduce it; the audit payload is an arbitrary nested snapshot, and a top-level guard could never have caught a field one level down. Kept as regression cases in `tests/api/invites.test.ts`.
+**It earned its keep immediately.** The suite found a live bug on its first run: `auditWrite` was handed `paxName: undefined` by both admin-grant routes when no PAX was linked, Firestore rejects `undefined` outright, and creating or revoking an unlinked grant 500s while writing nothing at all. Every other case passed because they linked a PAX — which is also why the panel looked fine in manual testing. Fixed by stripping undefined recursively inside `auditWrite`, so no caller can reintroduce it; the audit payload is an arbitrary nested snapshot, and a top-level guard could never have caught a field one level down. Kept as regression cases in `tests/api/designations.test.ts`.
 
 ---
 
@@ -132,7 +132,7 @@ Acceptable at `PAGE_SIZE = 50`. **Don't raise that number** without restructurin
 
 **Where:** deliberately absent from the admin panel.
 
-Name resolution is scoped to one region's roster, so moving a PAX with history leaves their old posts, mentions, comments and reactions unresolvable in the origin region. Wrong-invite-link fixes are a hand-run script for now.
+Name resolution is scoped to one region's roster, so moving a PAX with history leaves their old posts, mentions, comments and reactions unresolvable in the origin region. Wrong-region fixes are a hand-run script for now.
 
 **The fix:** a shared id-keyed user resolver that hydrates any referenced id on screen. Largely subsumed by item 1 — fixing mention rendering removes most of the reason this is hard.
 

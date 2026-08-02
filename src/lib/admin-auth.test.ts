@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canActOnRegion, inviteRef, type AdminRecord } from './admin-auth'
+import { canActOnRegion, designationId, type AdminRecord } from './admin-auth'
 
 function record(over: Partial<AdminRecord> = {}): AdminRecord {
   return {
@@ -48,17 +48,18 @@ describe('canActOnRegion', () => {
   })
 })
 
-describe('inviteRef', () => {
-  it('never returns the token itself', () => {
-    // The token is the credential — the whole contents of the invite link.
-    // Audit entries must not become a source of working invites.
-    const token = 'super-secret-invite-token'
-    expect(inviteRef(token)).not.toContain(token)
-    expect(inviteRef(token)).toHaveLength(16)
+describe('designationId', () => {
+  it('is case- and whitespace-insensitive, so a designation matches at sign-in', () => {
+    expect(designationId('  Babe@Example.com ')).toBe(designationId('babe@example.com'))
   })
 
-  it('is stable, so two entries about one invite correlate', () => {
-    expect(inviteRef('abc')).toBe(inviteRef('abc'))
-    expect(inviteRef('abc')).not.toBe(inviteRef('abd'))
+  it('distinguishes different addresses', () => {
+    expect(designationId('a@example.com')).not.toBe(designationId('b@example.com'))
+  })
+
+  it('does not embed the address', () => {
+    const id = designationId('babe@example.com')
+    expect(id).not.toContain('babe')
+    expect(id).toMatch(/^[a-f0-9]{32}$/)
   })
 })

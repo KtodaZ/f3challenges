@@ -59,10 +59,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Unclaimed admin invites. Closed to clients like the rest — the invite
-    // token is the doc id, so a client read would hand out working invite
-    // links. Redemption goes through /api/admin/invites/claim.
-    match /adminInvites/{token} {
+    // Admins designated but not yet signed in. Closed to clients like the
+    // rest: these rows are pending grants, so a client write would be a way to
+    // make yourself an admin. Claiming happens server-side on the designee's
+    // first Google sign-in (/api/admin/session).
+    match /adminDesignations/{designationId} {
       allow read, write: if false;
     }
 
