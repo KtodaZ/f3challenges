@@ -34,6 +34,14 @@ export function onAdminAuthChanged(cb: (user: FirebaseUser | null) => void) {
   return onAuthStateChanged(adminAuthClient(), cb)
 }
 
+/** Thrown when the server says the caller is no longer an admin. */
+export class AdminRevokedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AdminRevokedError'
+  }
+}
+
 /** Authenticated fetch against /api/admin/*. */
 export async function adminFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const user = adminAuthClient().currentUser
@@ -50,7 +58,16 @@ export async function adminFetch<T>(path: string, init: RequestInit = {}): Promi
   })
 
   const body = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`)
+  if (!res.ok) {
+    // Authorization is re-read from admins/{uid} on every request, so a 401/403
+    // means access ended while the panel was open — revoked, or the account
+    // signed out elsewhere. The server already refuses everything; surfacing it
+    // as a distinct error lets the UI stop pretending to work.
+    if (res.status === 401 || res.status === 403) {
+      throw new AdminRevokedError(body.error ?? 'Your admin access has ended')
+    }
+    throw new Error(body.error ?? `Request failed (${res.status})`)
+  }
   return body as T
 }
 

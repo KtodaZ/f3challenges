@@ -47,3 +47,6 @@ functions/lib
 .firebase/
 firebase-debug.log
 firestore-debug.log
+
+# Agent worktrees (nested checkouts)
+.claude/worktrees/

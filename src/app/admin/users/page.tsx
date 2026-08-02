@@ -9,18 +9,25 @@ import { REGIONS, resolveRegion } from '@/lib/challenges'
 import { cn } from '@/lib/utils'
 
 export default function AdminUsersPage() {
-  const { state } = useAdmin()
+  const { state, reportFailure } = useAdmin()
   const [users, setUsers] = useState<AdminUserRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [regionFilter, setRegionFilter] = useState<string>('all')
   const [showArchived, setShowArchived] = useState(false)
 
+  // reportFailure drops the panel back to the sign-in wall if access ended
+  // while it was open; setError handles everything else.
+  const fail = useCallback((e: unknown) => {
+    reportFailure(e)
+    setError(e instanceof Error ? e.message : 'Failed')
+  }, [reportFailure])
+
   const load = useCallback(() => {
     adminFetch<{ users: AdminUserRow[] }>('/api/admin/users')
       .then(r => setUsers(r.users))
-      .catch(e => setError(e.message))
-  }, [])
+      .catch(fail)
+  }, [fail])
 
   useEffect(() => { if (state.status === 'ready') load() }, [state.status, load])
 
@@ -34,7 +41,7 @@ export default function AdminUsersPage() {
       })
       load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed')
+      fail(e)
     } finally {
       setBusyId(null)
     }
@@ -42,8 +49,8 @@ export default function AdminUsersPage() {
 
   function handleArchive(u: AdminUserRow) {
     const warning = u.logCount > 0
-      ? `${u.displayName} has ${u.logCount} logged day${u.logCount === 1 ? '' : 's'}. Archiving keeps all of it — they just leave the active crew. Continue?`
-      : `Archive ${u.displayName}? They'll drop out of the leaderboard, mentions and reminders.`
+      ? `${u.displayName} logged ${u.logCount} day${u.logCount === 1 ? '' : 's'} in the last ${u.activityWindowDays} days. Archiving keeps all their history — they just leave the active crew. Continue?`
+      : `Archive ${u.displayName}? They'll drop out of the leaderboard, mentions and reminders. Nothing they logged is deleted.`
     if (!confirm(warning)) return
     mutate(u.id, { action: 'archive' })
   }
@@ -132,11 +139,12 @@ export default function AdminUsersPage() {
                   )}
                 </div>
                 <p className="text-xs text-zinc-600 mt-0.5">
-                  {resolveRegion(u.regionId).shortName} · {u.logCount} log{u.logCount === 1 ? '' : 's'} ·{' '}
+                  {resolveRegion(u.regionId).shortName} ·{' '}
+                  {u.logCount} log{u.logCount === 1 ? '' : 's'} in {u.activityWindowDays}d ·{' '}
                   {u.tokenCount > 0
                     ? `${u.tokenCount} device${u.tokenCount === 1 ? '' : 's'}`
                     : 'no push'}
-                  {u.lastActiveDate ? ` · last ${u.lastActiveDate}` : ' · never logged'}
+                  {u.lastActiveDate ? ` · last ${u.lastActiveDate}` : ' · no recent activity'}
                 </p>
               </div>
 

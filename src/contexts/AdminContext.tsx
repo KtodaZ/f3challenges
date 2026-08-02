@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
-import { onAdminAuthChanged, fetchAdminSession, signOutAdmin, type SessionResponse } from '@/lib/admin-client'
+import { onAdminAuthChanged, fetchAdminSession, signOutAdmin, AdminRevokedError, type SessionResponse } from '@/lib/admin-client'
 
 type AdminState =
   | { status: 'loading' }
@@ -14,6 +14,12 @@ interface AdminContextValue {
   state: AdminState
   refresh: () => void
   signOut: () => Promise<void>
+  /**
+   * Report a failed admin call. A 401/403 means access ended while the panel
+   * was open, so the panel drops back to the sign-in wall instead of
+   * continuing to render as though the caller still has access.
+   */
+  reportFailure: (err: unknown) => void
 }
 
 const AdminContext = createContext<AdminContextValue | null>(null)
@@ -63,8 +69,18 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setState({ status: 'signed-out' })
   }, [])
 
+  const reportFailure = useCallback((err: unknown) => {
+    if (!(err instanceof AdminRevokedError)) return
+    setState(prev => {
+      const email = prev.status === 'ready' ? prev.session.email
+        : prev.status === 'denied' ? prev.email
+        : ''
+      return { status: 'denied', email, reason: err.message }
+    })
+  }, [])
+
   return (
-    <AdminContext.Provider value={{ state, refresh, signOut }}>
+    <AdminContext.Provider value={{ state, refresh, signOut, reportFailure }}>
       {children}
     </AdminContext.Provider>
   )

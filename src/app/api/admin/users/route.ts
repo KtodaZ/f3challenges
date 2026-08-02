@@ -4,6 +4,10 @@ import { requireAnyAdmin, adminErrorResponse } from '@/lib/admin-auth'
 import { REGIONS, resolveRegion } from '@/lib/challenges'
 import type { User } from '@/types'
 
+/** How far back the activity stats look. Bounds the dailyLogs read and matches
+ *  the question the screen is actually asking: is this PAX still showing up? */
+const ACTIVITY_WINDOW_DAYS = 90
+
 export interface AdminUserRow {
   id: string
   displayName: string
@@ -11,9 +15,12 @@ export interface AdminUserRow {
   status: 'active' | 'archived'
   createdAt: string
   tokenCount: number
+  /** Days logged within the activity window, not lifetime. */
   logCount: number
   lastActiveDate?: string
   archivedAt?: string
+  /** So the UI can say what the count actually covers. */
+  activityWindowDays: number
 }
 
 /**
@@ -38,11 +45,31 @@ export async function GET(req: NextRequest) {
     const usersSnap = await adminDb.collection('users').get()
     const users = usersSnap.docs
       .map(d => ({ id: d.id, ...(d.data() as Omit<User, 'id'>) }))
-      .filter(u => visibleRegionIds.includes(resolveRegion(u.regionId).id))
+      .filter(u => {
+        // A superadmin sees everyone. A region admin sees only documents whose
+        // region is explicitly theirs — resolveRegion() would silently map a
+        // region-less doc to Bedrock, quietly handing it to whoever administers
+        // Bedrock. Those belong to the superadmin to sort out.
+        if (record.role === 'superadmin') return true
+        return u.regionId !== undefined && visibleRegionIds.includes(u.regionId)
+      })
 
     // One pass over dailyLogs rather than a query per PAX — the roster is small
     // but this endpoint would otherwise be N+1 forever.
-    const logsSnap = await adminDb.collection('dailyLogs').get()
+    //
+    // Windowed, because dailyLogs grows ~750/month forever and is never pruned:
+    // an unbounded scan here would be ~10k reads per panel load within a year,
+    // and five loads would eat the daily free quota. ACTIVITY_WINDOW_DAYS is
+    // also the more useful question for this screen — "have they done anything
+    // lately" is what decides whether someone should be archived, not what they
+    // did last spring.
+    const cutoff = new Date(Date.now() - ACTIVITY_WINDOW_DAYS * 86400_000)
+      .toISOString()
+      .slice(0, 10)
+
+    const logsSnap = await adminDb.collection('dailyLogs')
+      .where('date', '>=', cutoff)
+      .get()
     const logCount = new Map<string, number>()
     const lastActive = new Map<string, string>()
     for (const doc of logsSnap.docs) {
@@ -65,6 +92,7 @@ export async function GET(req: NextRequest) {
         logCount: logCount.get(u.id) ?? 0,
         lastActiveDate: lastActive.get(u.id),
         archivedAt: u.archivedAt,
+        activityWindowDays: ACTIVITY_WINDOW_DAYS,
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName))
 

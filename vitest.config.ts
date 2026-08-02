@@ -13,6 +13,14 @@ export default defineConfig({
     },
   },
   test: {
-    exclude: ['**/node_modules/**', '**/dist/**', '**/.next/**', 'tests/rules/**'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.next/**',
+      'tests/rules/**',
+      // Agent worktrees are full checkouts nested inside the repo; without this
+      // every test runs twice and emulator-dependent suites run unconfigured.
+      '.claude/worktrees/**',
+    ],
   },
 })

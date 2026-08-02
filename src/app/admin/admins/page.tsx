@@ -11,12 +11,17 @@ import { Button } from '@/components/ui/Button'
 import { canonicalOrigin } from '@/lib/migration'
 
 export default function AdminAdminsPage() {
-  const { state } = useAdmin()
+  const { state, reportFailure } = useAdmin()
   const [admins, setAdmins] = useState<AdminRow[] | null>(null)
   const [invites, setInvites] = useState<AdminInviteRow[]>([])
   const [pax, setPax] = useState<AdminUserRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+
+  const fail = useCallback((e: unknown) => {
+    reportFailure(e)
+    setError(e instanceof Error ? e.message : 'Failed')
+  }, [reportFailure])
 
   // Invite form
   const [regionId, setRegionId] = useState(REGIONS[0]?.id ?? '')
@@ -35,8 +40,8 @@ export default function AdminAdminsPage() {
         setInvites(i.invites)
         setPax(u.users)
       })
-      .catch(e => setError(e.message))
-  }, [])
+      .catch(fail)
+  }, [fail])
 
   useEffect(() => { if (state.status === 'ready') load() }, [state.status, load])
 
@@ -57,7 +62,7 @@ export default function AdminAdminsPage() {
       setLinkedPax('')
       load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed')
+      fail(e)
     } finally {
       setBusy(null)
     }
@@ -69,7 +74,7 @@ export default function AdminAdminsPage() {
       await adminFetch(`/api/admin/invites/${token}`, { method: 'DELETE' })
       load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed')
+      fail(e)
     } finally { setBusy(null) }
   }
 
@@ -81,7 +86,7 @@ export default function AdminAdminsPage() {
       await adminFetch(`/api/admin/admins/${row.uid}`, { method: 'DELETE' })
       load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed')
+      fail(e)
     } finally { setBusy(null) }
   }
 

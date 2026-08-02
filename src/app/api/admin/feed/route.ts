@@ -45,11 +45,18 @@ export async function GET(req: NextRequest) {
     const requested = req.nextUrl.searchParams.get('regionId')
     const regionIds = requested && governed.includes(requested) ? [requested] : governed
 
+    // Firestore caps an `in` filter at 30 values. Fail loudly rather than
+    // slicing — silently dropping the tail would hide a whole region's feed
+    // from moderation with no indication anything was missing.
+    if (regionIds.length > 30) {
+      return NextResponse.json(
+        { error: 'Too many regions to query at once — filter to one region.' },
+        { status: 400 }
+      )
+    }
+
     const snap = await adminDb.collection('feed')
-      // Firestore caps an `in` filter at 30 values. Two regions today; if this
-      // ever truncates, the fix is to page per region rather than silently
-      // drop the tail.
-      .where('regionId', 'in', regionIds.slice(0, 30))
+      .where('regionId', 'in', regionIds)
       .where('deleted', '==', false)
       .orderBy('createdAt', 'desc')
       .limit(PAGE_SIZE)

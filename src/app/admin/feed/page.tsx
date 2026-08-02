@@ -15,18 +15,23 @@ function when(iso: string): string {
 }
 
 export default function AdminFeedPage() {
-  const { state } = useAdmin()
+  const { state, reportFailure } = useAdmin()
   const [posts, setPosts] = useState<AdminPostRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [regionFilter, setRegionFilter] = useState<string>('all')
 
+  const fail = useCallback((e: unknown) => {
+    reportFailure(e)
+    setError(e instanceof Error ? e.message : 'Failed')
+  }, [reportFailure])
+
   const load = useCallback(() => {
     const qs = regionFilter === 'all' ? '' : `?regionId=${regionFilter}`
     adminFetch<{ posts: AdminPostRow[] }>(`/api/admin/feed${qs}`)
       .then(r => setPosts(r.posts))
-      .catch(e => setError(e.message))
-  }, [regionFilter])
+      .catch(fail)
+  }, [regionFilter, fail])
 
   useEffect(() => { if (state.status === 'ready') load() }, [state.status, load])
 
@@ -44,7 +49,7 @@ export default function AdminFeedPage() {
       await adminFetch(`/api/admin/feed/${post.id}${qs}`, { method: 'DELETE' })
       load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed')
+      fail(e)
     } finally {
       setBusy(null)
     }
