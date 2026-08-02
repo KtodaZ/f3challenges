@@ -58,7 +58,31 @@ Fine at two regions. It is the hard ceiling on NorCal-wide adoption — five Qs 
 
 ---
 
-## 4. Leaderboard fires one query per PAX
+## 4. Admin API routes have no tests
+
+**Where:** `src/app/api/admin/**`. Only pure helpers are covered (`admin-auth.test.ts`, `roster.archive.test.ts`) plus the Firestore rules suite.
+
+This is the gap that actually bit. The admin panel shipped with `requireAdmin`'s `regionId` optional, which made `canActOnRegion` fail closed and returned 403 to **every region admin on every list endpoint** — the panel was completely non-functional for the one role it was built for. Typecheck passed, lint passed, 410 unit tests passed, and the build was clean. It took three adversarial reviews to catch, and a unit test had actually pinned the broken behavior in place.
+
+Nothing exercises the wiring between `requireAdmin` / `requireAnyAdmin` / `assertRegion` and the routes that call them, which is precisely where authorization bugs live.
+
+**The fix:** route-level tests against the Firestore emulator (already configured for the rules suite) with a stubbed `adminAuth.verifyIdToken`. At minimum: a region admin gets a non-empty list for their own region; a region admin is refused a mutation in another region; a superadmin passes both; an unauthenticated call 401s.
+
+**When it becomes urgent:** now, arguably. Every future admin endpoint inherits the same blind spot.
+
+---
+
+## 5. `/api/fcm/register` is validation, not authorization
+
+**Where:** `src/app/api/fcm/register/route.ts`.
+
+The route checks the target user exists and isn't archived, then attaches the supplied FCM token. It cannot check that the *caller* is that user, because PAX have no credential to check — so anyone can attach their own push token to another PAX's account and receive that person's notifications.
+
+Called out separately from item 2 because it's the one place where the unauthenticated model reaches beyond the app and onto someone's phone. The route's doc comment says so explicitly; the fix is PAX auth.
+
+---
+
+## 6. Leaderboard fires one query per PAX
 
 **Where:** `src/app/leaderboard/page.tsx:232` — `getUserChallengeLogs(user.id, challenge.id)` inside a `map` over the roster. Also `getUsersWithChallengeLogs` (`src/lib/firestore.ts:195`), which does the same shape.
 
@@ -70,7 +94,7 @@ Fine at two regions. It is the hard ceiling on NorCal-wide adoption — five Qs 
 
 ---
 
-## 5. `/api/admin/users` scans all of `dailyLogs`
+## 7. `/api/admin/users` scans all of `dailyLogs`
 
 **Where:** `src/app/api/admin/users/route.ts`.
 
@@ -84,7 +108,7 @@ Reads every user and **every daily log ever written** on each call, to compute `
 
 ---
 
-## 6. `/api/admin/feed` is N+1
+## 8. `/api/admin/feed` is N+1
 
 **Where:** `src/app/api/admin/feed/route.ts`.
 
@@ -94,7 +118,7 @@ Acceptable at `PAGE_SIZE = 50`. **Don't raise that number** without restructurin
 
 ---
 
-## 7. `getTodayPT()` is hardcoded Pacific
+## 9. `getTodayPT()` is hardcoded Pacific
 
 **Where:** `shared/src/challenges.ts` and every date helper.
 
@@ -104,7 +128,7 @@ Acceptable at `PAGE_SIZE = 50`. **Don't raise that number** without restructurin
 
 ---
 
-## 8. Region move isn't supported
+## 10. Region move isn't supported
 
 **Where:** deliberately absent from the admin panel.
 
@@ -114,7 +138,7 @@ Name resolution is scoped to one region's roster, so moving a PAX with history l
 
 ---
 
-## 9. Two origins serve the app
+## 11. Two origins serve the app
 
 **Where:** Vercel project aliases.
 
@@ -126,7 +150,7 @@ Existing Bedrock PAX are installed on `f3-bedrock-monthly-challenge.vercel.app`;
 
 ---
 
-## 10. Streaks contradict rest-day guidance on weekly-cumulative challenges
+## 12. Streaks contradict rest-day guidance on weekly-cumulative challenges
 
 **Where:** streak calculation vs. `shared/src/challenges.ts` copy for the Bicep challenge.
 
@@ -138,7 +162,7 @@ The 🔥 streak counts consecutive days with ≥1 rep, while the challenge's own
 
 ---
 
-## 11. Audit and notification logs have no retention
+## 13. Audit and notification logs have no retention
 
 **Where:** `adminAudit`, `notificationLog`.
 
@@ -146,7 +170,7 @@ Both are append-only and never pruned. Small and cheap, but unbounded. A schedul
 
 ---
 
-## 12. Local rules tests need JDK 21
+## 14. Local rules tests need JDK 21
 
 **Where:** `pnpm test:rules`.
 
@@ -160,7 +184,26 @@ CI pins Java 21, so this is a local-dev papercut only. The override isn't baked 
 
 ---
 
-## 13. `ADMIN_BOOTSTRAP_EMAILS` should be cleared once used
+## 15. A revoked admin's panel stays open until they act
+
+**Where:** `src/contexts/AdminContext.tsx`.
+
+Authorization is re-read from `admins/{uid}` on every request, so revocation takes effect immediately **server-side** — every action a revoked admin attempts fails. But the panel itself only checks membership on mount, so their browser keeps rendering the UI until they reload or click something.
+
+Harmless (they can't actually do anything) and slightly confusing. A periodic re-check, or treating a 403 from any admin call as "sign out", would close it.
+
+---
+
+## 16. Two small scoping edges in the admin panel
+
+**Where:** `src/app/api/admin/feed/route.ts`, `src/app/api/admin/users/route.ts`.
+
+- Firestore caps an `in` filter at 30 values, so the feed query does `regionIds.slice(0, 30)`. Two regions today; at 31 it would silently drop the tail rather than fail. Paging per region is the fix.
+- `resolveRegion()` maps an absent `regionId` to Bedrock, so a user document that somehow lacks one lists under Bedrock and becomes archivable by a Bedrock region admin. The 2026-07-30 backfill covered everything, so this only matters if a region-less document ever appears again.
+
+---
+
+## 17. `ADMIN_BOOTSTRAP_EMAILS` should be cleared once used
 
 **Where:** Vercel and `.env.local`.
 
