@@ -289,9 +289,31 @@ export interface AuditEntry {
  * written separately can succeed while the mutation fails, or vice versa, and
  * a log you can't trust is worse than none.
  */
+/**
+ * Recursively drops `undefined`. Firestore rejects it outright — see the
+ * `stripUndefined()` rule in CLAUDE.md — but that helper only strips the top
+ * level, and audit payloads are arbitrary nested snapshots of a document
+ * before and after a change. An optional field that happens to be absent
+ * (`paxName` on an invite with no linked PAX) sits one level down, so the
+ * top-level guard passes and the write throws.
+ */
+function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(stripUndefinedDeep) as unknown as T
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, stripUndefinedDeep(v)])
+    ) as T
+  }
+  return value
+}
+
 export function auditWrite(entry: AuditEntry) {
   const ref = adminDb.collection(AUDIT_COLLECTION).doc()
-  const data = {
+  const data = stripUndefinedDeep({
     at: new Date().toISOString(),
     actorUid: entry.actor.uid,
     actorEmail: entry.actor.email,
@@ -301,7 +323,7 @@ export function auditWrite(entry: AuditEntry) {
     ...(entry.regionId ? { regionId: entry.regionId } : {}),
     ...(entry.before !== undefined ? { before: entry.before } : {}),
     ...(entry.after !== undefined ? { after: entry.after } : {}),
-  }
+  })
   return { ref, data }
 }
 

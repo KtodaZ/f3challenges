@@ -32,30 +32,21 @@ beforeEach(async () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KNOWN BUG — found by this suite, deliberately NOT fixed here.
+// Regression: invites with no linked PAX used to 500.
 //
-// `auditWrite` copies `before` / `after` into the Firestore write verbatim, and
-// both invite routes hand it an object with `paxName` present-but-undefined
-// when the invite has no linked PAX:
+// `auditWrite` was handed `paxName` present-but-undefined by both invite routes
+// when nothing was linked. Firestore rejects `undefined` outright — the
+// `stripUndefined()` non-negotiable in CLAUDE.md exists for exactly this — so
+// the batch threw and NOTHING was written: no invite, no audit entry. Linking a
+// PAX made `paxName` a string, which is why every other case in this file
+// passed and the panel looked fine when tested with a PAX selected.
 //
-//   invites/route.ts:97          after:  { role, regionIds, paxName }
-//   invites/[token]/route.ts:30  before: { role, regionIds, paxName: … }
-//
-// Firestore rejects `undefined` outright — the `stripUndefined()`
-// non-negotiable in CLAUDE.md exists for exactly this — so the batch throws,
-// `adminErrorResponse` maps it to 500, and NOTHING is written: no invite, no
-// audit entry. Linking a PAX makes `paxName` a string and both routes work,
-// which is why every other case in this file passes.
-//
-// Effect: a superadmin cannot create an invite without linking a PAX, and
-// cannot revoke one that has no PAX linked.
-//
-// `it.fails` pins the current broken behaviour. When the routes are fixed
-// these two cases start failing, which is the signal to delete this block and
-// drop the `.fails` from the equivalents below.
+// Fixed by stripping undefined recursively inside `auditWrite`, so no caller
+// can reintroduce it — the audit payload is an arbitrary nested snapshot, and
+// the top-level guard could never have caught a field one level down.
 // ─────────────────────────────────────────────────────────────────────────────
-describe('KNOWN BUG: invites with no linked PAX 500 on the audit write', () => {
-  it.fails('creating an invite without a linked PAX', async () => {
+describe('invites with no linked PAX', () => {
+  it('creates an invite without a linked PAX', async () => {
     const res = await createInvite(req('POST', '/api/admin/invites', {
       token: asCaller(SUPER_UID),
       body: { role: 'regionAdmin', regionIds: ['bedrock'] },
@@ -63,7 +54,7 @@ describe('KNOWN BUG: invites with no linked PAX 500 on the audit write', () => {
     expect(res.status).toBe(200)
   })
 
-  it.fails('revoking an invite that has no linked PAX', async () => {
+  it('revokes an invite that has no linked PAX', async () => {
     await seedInvite(TOKEN)
     const res = await revokeInvite(
       req('DELETE', `/api/admin/invites/${TOKEN}`, { token: asCaller(SUPER_UID) }),
@@ -72,15 +63,16 @@ describe('KNOWN BUG: invites with no linked PAX 500 on the audit write', () => {
     expect(res.status).toBe(200)
   })
 
-  it('writes nothing at all when it fails — no orphan invite, no orphan audit', async () => {
-    const res = await createInvite(req('POST', '/api/admin/invites', {
+  it('writes an audit entry with no undefined field', async () => {
+    await createInvite(req('POST', '/api/admin/invites', {
       token: asCaller(SUPER_UID),
       body: { role: 'regionAdmin', regionIds: ['bedrock'] },
     }))
-
-    expect(res.status).toBe(500)
-    // The batch is atomic, so at least the failure is clean.
-    expect(await auditEntries()).toHaveLength(0)
+    const entries = await auditEntries()
+    expect(entries).toHaveLength(1)
+    const after = entries[0].after as Record<string, unknown>
+    expect(after).not.toHaveProperty('paxName')
+    expect(after.role).toBe('regionAdmin')
   })
 })
 
@@ -90,7 +82,6 @@ describe('POST /api/admin/invites', () => {
   it('mints a token and stores the grant server-side', async () => {
     const res = await createInvite(req('POST', '/api/admin/invites', {
       token: asCaller(SUPER_UID),
-      // A linked PAX is required to get past the known bug above.
       body: { role: 'regionAdmin', regionIds: ['sactown'], userId: 'pax-1' },
     }))
     expect(res.status).toBe(200)

@@ -68,7 +68,7 @@ The suite runs the exported route handlers directly against the Firestore emulat
 
 Covered: region scoping on both list endpoints, cross-region mutation refusals, region-from-target-document (not from the body), archive/unarchive/rename including name uniqueness against archived and former names, invite create/revoke/claim (single-use, expiry, malformed tokens), admin revocation guards, bootstrap, and an audit entry for every successful mutation.
 
-**Still open:** the suite immediately found a live bug — see the `KNOWN BUG` block in `tests/api/invites.test.ts`. `auditWrite` is handed `paxName: undefined` by both invite routes when no PAX is linked, Firestore rejects `undefined`, and creating or revoking an unlinked invite 500s. Two `it.fails` cases pin it; fixing the routes (spread `paxName` conditionally, or run `stripUndefined` inside `auditWrite`) makes those cases fail, which is the signal to unpin them.
+**It earned its keep immediately.** The suite found a live bug on its first run: `auditWrite` was handed `paxName: undefined` by both invite routes when no PAX was linked, Firestore rejects `undefined` outright, and creating or revoking an unlinked invite 500s while writing nothing at all. Every other case passed because they linked a PAX — which is also why the panel looked fine in manual testing. Fixed by stripping undefined recursively inside `auditWrite`, so no caller can reintroduce it; the audit payload is an arbitrary nested snapshot, and a top-level guard could never have caught a field one level down. Kept as regression cases in `tests/api/invites.test.ts`.
 
 ---
 
