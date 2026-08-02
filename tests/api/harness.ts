@@ -13,9 +13,11 @@ import {
   ADMINS_COLLECTION,
   AUDIT_COLLECTION,
   DESIGNATIONS_COLLECTION,
+  INVITES_COLLECTION,
   designationId,
   type AdminRecord,
   type AdminDesignation,
+  type AdminInvite,
 } from '@/lib/admin-auth'
 
 export const PROJECT_ID = 'f3-api-test'
@@ -216,6 +218,20 @@ export async function seedDesignation(email: string, over: Partial<AdminDesignat
   return designation
 }
 
+export async function seedInvite(token: string, over: Partial<AdminInvite> = {}) {
+  const invite: AdminInvite = {
+    role: 'regionAdmin',
+    regionIds: ['bedrock'],
+    createdAt: '2026-08-01T00:00:00.000Z',
+    createdBy: SUPER_UID,
+    createdByEmail: `${SUPER_UID}@example.com`,
+    expiresAt: new Date(Date.now() + 86400_000).toISOString(),
+    ...over,
+  }
+  await adminDb.collection(INVITES_COLLECTION).doc(token).set(invite)
+  return invite
+}
+
 // ── reads back ───────────────────────────────────────────────────────────────
 
 export async function getUser(id: string) {
@@ -236,6 +252,11 @@ export async function getAdminDoc(uid: string) {
 export async function getDesignation(email: string) {
   const snap = await adminDb.collection(DESIGNATIONS_COLLECTION).doc(designationId(email)).get()
   return snap.exists ? (snap.data() as AdminDesignation) : undefined
+}
+
+export async function getInvite(token: string) {
+  const snap = await adminDb.collection(INVITES_COLLECTION).doc(token).get()
+  return snap.exists ? (snap.data() as AdminInvite) : undefined
 }
 
 export interface AuditRow {

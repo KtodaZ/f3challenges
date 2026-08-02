@@ -5,14 +5,17 @@ import { useAdmin } from '@/contexts/AdminContext'
 import { adminFetch } from '@/lib/admin-client'
 import type { AdminRow } from '@/app/api/admin/admins/route'
 import type { AdminDesignationRow } from '@/app/api/admin/designations/route'
+import type { AdminInviteRow } from '@/app/api/admin/invites/route'
 import type { AdminUserRow } from '@/app/api/admin/users/route'
 import { REGIONS } from '@/lib/challenges'
 import { Button } from '@/components/ui/Button'
+import { canonicalOrigin } from '@/lib/migration'
 
 export default function AdminAdminsPage() {
   const { state, reportFailure } = useAdmin()
   const [admins, setAdmins] = useState<AdminRow[] | null>(null)
   const [designations, setDesignations] = useState<AdminDesignationRow[]>([])
+  const [invites, setInvites] = useState<AdminInviteRow[]>([])
   const [pax, setPax] = useState<AdminUserRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -22,20 +25,28 @@ export default function AdminAdminsPage() {
     setError(e instanceof Error ? e.message : 'Failed')
   }, [reportFailure])
 
-  // Designation form
+  // New-admin form. Both paths grant the same thing; they differ only in how
+  // the person is identified. Email is the default because a designation can't
+  // be forwarded to the wrong person — the link is for when you don't know the
+  // address they'd sign in with, which is often.
+  const [method, setMethod] = useState<'email' | 'link'>('email')
   const [email, setEmail] = useState('')
   const [regionId, setRegionId] = useState(REGIONS[0]?.id ?? '')
   const [linkedPax, setLinkedPax] = useState('')
+  const [created, setCreated] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const load = useCallback(() => {
     Promise.all([
       adminFetch<{ admins: AdminRow[] }>('/api/admin/admins'),
       adminFetch<{ designations: AdminDesignationRow[] }>('/api/admin/designations'),
+      adminFetch<{ invites: AdminInviteRow[] }>('/api/admin/invites'),
       adminFetch<{ users: AdminUserRow[] }>('/api/admin/users'),
     ])
-      .then(([a, d, u]) => {
+      .then(([a, d, i, u]) => {
         setAdmins(a.admins)
         setDesignations(d.designations)
+        setInvites(i.invites)
         setPax(u.users)
       })
       .catch(fail)
@@ -43,20 +54,29 @@ export default function AdminAdminsPage() {
 
   useEffect(() => { if (state.status === 'ready') load() }, [state.status, load])
 
-  async function designate() {
+  async function createAdmin() {
     setBusy('create')
     setError(null)
+    setCreated(null)
+    const grant = {
+      role: 'regionAdmin',
+      regionIds: [regionId],
+      ...(linkedPax ? { userId: linkedPax } : {}),
+    }
     try {
-      await adminFetch('/api/admin/designations', {
-        method: 'POST',
-        body: JSON.stringify({
-          email,
-          role: 'regionAdmin',
-          regionIds: [regionId],
-          ...(linkedPax ? { userId: linkedPax } : {}),
-        }),
-      })
-      setEmail('')
+      if (method === 'email') {
+        await adminFetch('/api/admin/designations', {
+          method: 'POST',
+          body: JSON.stringify({ ...grant, email }),
+        })
+        setEmail('')
+      } else {
+        const res = await adminFetch<{ token: string }>('/api/admin/invites', {
+          method: 'POST',
+          body: JSON.stringify(grant),
+        })
+        setCreated(`${canonicalOrigin()}/admin/claim?t=${res.token}`)
+      }
       setLinkedPax('')
       load()
     } catch (e) {
@@ -70,6 +90,16 @@ export default function AdminAdminsPage() {
     setBusy(id)
     try {
       await adminFetch(`/api/admin/designations/${id}`, { method: 'DELETE' })
+      load()
+    } catch (e) {
+      fail(e)
+    } finally { setBusy(null) }
+  }
+
+  async function revokeInvite(token: string) {
+    setBusy(token)
+    try {
+      await adminFetch(`/api/admin/invites/${token}`, { method: 'DELETE' })
       load()
     } catch (e) {
       fail(e)
@@ -107,13 +137,37 @@ export default function AdminAdminsPage() {
   const paxForRegion = pax.filter(p => p.regionId === regionId && p.status !== 'archived')
   const me = admins?.find(a => a.isSelf)
 
+  // Designations and invites read as one queue. An invite row deliberately
+  // shows no email — there isn't one yet, which is the reason it's an invite.
+  const pending = [
+    ...designations.map(d => ({
+      key: d.id,
+      title: d.paxName ?? d.email,
+      regions: d.regionIds.join(', ') || d.role,
+      detail: `${d.paxName ? `${d.email} · ` : ''}Becomes an admin when they sign in with this address`,
+      removeLabel: 'Withdraw',
+      remove: () => withdraw(d.id),
+    })),
+    ...invites.map(i => ({
+      key: i.token,
+      title: i.paxName ?? 'Invite link',
+      regions: i.regionIds.join(', ') || i.role,
+      detail: i.expired
+        ? 'Link expired — create a new one'
+        : `Link expires ${new Date(i.expiresAt).toLocaleDateString()}`,
+      removeLabel: 'Revoke',
+      remove: () => revokeInvite(i.token),
+    })),
+  ]
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white mb-1">Admins</h1>
         <p className="text-sm text-zinc-500">
-          Designate someone by their Google email address. They become an admin the first
-          time they sign in here — there&apos;s nothing to send them.
+          Two ways in, same access either way: designate them by Google email and they
+          become an admin the first time they sign in, or send a one-time link if you
+          don&apos;t know the address they&apos;d use.
         </p>
       </div>
 
@@ -150,21 +204,46 @@ export default function AdminAdminsPage() {
         </div>
       )}
 
-      {/* ── Designate an admin ────────────────────────────────────────── */}
+      {/* ── New admin: by email, or by link ───────────────────────────── */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-3">
         <p className="text-white font-semibold text-sm">New region admin</p>
 
-        <label className="block">
-          <span className="text-xs text-zinc-500 block mb-1">Google email address</span>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="them@gmail.com"
-            autoComplete="off"
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-white px-3 py-2 placeholder:text-zinc-700"
-          />
-        </label>
+        <div className="flex rounded-lg border border-zinc-800 p-0.5 bg-zinc-950 w-fit">
+          {([
+            ['email', 'By email'],
+            ['link', 'By link'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => { setMethod(value); setCreated(null) }}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                method === value ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {method === 'email' ? (
+          <label className="block">
+            <span className="text-xs text-zinc-500 block mb-1">Google email address</span>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="them@gmail.com"
+              autoComplete="off"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-white px-3 py-2 placeholder:text-zinc-700"
+            />
+          </label>
+        ) : (
+          <p className="text-xs text-zinc-500">
+            You&apos;ll get a link to send them. Whichever Google account opens it becomes
+            the admin, so treat it like a password — it works once and expires in 7 days.
+          </p>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
@@ -203,38 +282,61 @@ export default function AdminAdminsPage() {
         <Button
           variant="primary"
           size="sm"
-          onClick={designate}
+          onClick={createAdmin}
           loading={busy === 'create'}
-          disabled={!email.trim()}
+          disabled={method === 'email' && !email.trim()}
         >
-          Designate admin
+          {method === 'email' ? 'Designate admin' : 'Create invite link'}
         </Button>
+
+        {created && (
+          <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-3 space-y-2">
+            <p className="text-xs text-orange-300">
+              Send this to them. It works once and expires in 7 days.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-[11px] text-zinc-300 break-all bg-zinc-950 rounded px-2 py-1.5">
+                {created}
+              </code>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(created)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 1500)
+                }}
+              >
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ── Designated, not yet signed in ─────────────────────────────── */}
-      {designations.length > 0 && (
+      {/* ── Granted, not yet signed in ───────────────────────────────────
+          One list for both paths: from here on they're the same thing —
+          somebody who has access the moment they sign in. */}
+      {pending.length > 0 && (
         <div>
           <p className="text-sm text-zinc-400 mb-2">Waiting on first sign-in</p>
           <div className="divide-y divide-zinc-800 rounded-xl border border-zinc-800 overflow-hidden">
-            {designations.map(d => (
-              <div key={d.id} className="flex items-center gap-3 px-4 py-3 bg-zinc-900">
+            {pending.map(p => (
+              <div key={p.key} className="flex items-center gap-3 px-4 py-3 bg-zinc-900">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white truncate">
-                    {d.paxName ?? d.email}{' · '}
-                    <span className="text-zinc-500">{d.regionIds.join(', ') || d.role}</span>
+                    {p.title}{' · '}
+                    <span className="text-zinc-500">{p.regions}</span>
                   </p>
-                  <p className="text-xs text-zinc-600 truncate">
-                    {d.paxName ? `${d.email} · ` : ''}
-                    Becomes an admin when they sign in with this address
-                  </p>
+                  <p className="text-xs text-zinc-600 truncate">{p.detail}</p>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => withdraw(d.id)}
-                  loading={busy === d.id}
+                  onClick={p.remove}
+                  loading={busy === p.key}
                 >
-                  Withdraw
+                  {p.removeLabel}
                 </Button>
               </div>
             ))}

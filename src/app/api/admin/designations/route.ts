@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import {
   requireAnyAdmin, assertSuperadmin, auditWrite, adminErrorResponse,
-  validateRegionIds, designationId, AdminAuthError,
+  validateRegionIds, designationId, resolveLinkablePax, AdminAuthError,
   DESIGNATIONS_COLLECTION, ADMINS_COLLECTION,
   type AdminDesignation, type AdminRole,
 } from '@/lib/admin-auth'
-import type { User } from '@/types'
 
 export interface AdminDesignationRow extends AdminDesignation {
   id: string
@@ -85,24 +84,10 @@ export async function POST(req: NextRequest) {
 
     // Resolve the linked PAX now so a bad id fails here rather than at
     // sign-in, and so the audit log can show an F3 name without a join.
-    let paxName: string | undefined
-    if (body.userId) {
-      const userSnap = await adminDb.collection('users').doc(body.userId).get()
-      if (!userSnap.exists) throw new AdminAuthError(422, 'Unknown PAX')
-      paxName = (userSnap.data() as User).displayName
-
-      // One PAX per admin, pending or live: /api/admin/status matches on
-      // userId across both collections, and two rows claiming the same PAX
-      // would let it answer arbitrarily.
-      const [takenLive, takenPending] = await Promise.all([
-        adminDb.collection(ADMINS_COLLECTION).where('userId', '==', body.userId).limit(1).get(),
-        adminDb.collection(DESIGNATIONS_COLLECTION).where('userId', '==', body.userId).limit(2).get(),
-      ])
-      const pendingElsewhere = takenPending.docs.some(d => d.id !== designationId(email))
-      if (!takenLive.empty || pendingElsewhere) {
-        throw new AdminAuthError(409, `${paxName} is already linked to an admin`)
-      }
-    }
+    const id = designationId(email)
+    const paxName = body.userId
+      ? await resolveLinkablePax(body.userId, { exceptId: id })
+      : undefined
 
     const designation: AdminDesignation = {
       email,
@@ -115,7 +100,6 @@ export async function POST(req: NextRequest) {
       ...(paxName ? { paxName } : {}),
     }
 
-    const id = designationId(email)
     const batch = adminDb.batch()
     // set(), not create(): re-designating the same address corrects the
     // pending row rather than failing or duplicating it.

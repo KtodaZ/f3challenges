@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { useAdmin } from '@/contexts/AdminContext'
 import { signInWithGoogle } from '@/lib/admin-client'
 import { Button } from '@/components/ui/Button'
@@ -13,8 +14,15 @@ import { AdminNav } from '@/components/admin/AdminNav'
  */
 export function AdminGate({ children }: { children: React.ReactNode }) {
   const { state, signOut } = useAdmin()
+  const pathname = usePathname()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // The invite-claim page has to render for someone who is NOT yet an admin —
+  // that's its entire purpose — so it renders its own sign-in and skips this
+  // gate. It still needs AdminProvider above it, which is why it lives here
+  // rather than outside /admin.
+  if (pathname?.startsWith('/admin/claim')) return <>{children}</>
 
   // No `await` before signInWithPopup — the popup has to open inside the click
   // gesture or the browser blocks it, which looks like a dead button.

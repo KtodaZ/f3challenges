@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import {
-  ADMINS_COLLECTION, DESIGNATIONS_COLLECTION,
-  type AdminRecord, type AdminDesignation,
+  ADMINS_COLLECTION, DESIGNATIONS_COLLECTION, INVITES_COLLECTION,
+  type AdminRecord, type AdminDesignation, type AdminInvite,
 } from '@/lib/admin-auth'
 
 export interface AdminStatusResponse {
   isAdmin: boolean
   role?: 'superadmin' | 'regionAdmin'
   regionIds: string[]
-  /** Designated but never signed in — the controls show, and the first one
-   *  they touch sends them to /admin to sign in with Google. */
+  /** Designated or invited but never signed in — the controls show, and the
+   *  first one they touch sends them to /admin to sign in with Google. */
   pending?: boolean
 }
 
@@ -54,23 +54,34 @@ export async function GET(req: NextRequest) {
       } satisfies AdminStatusResponse)
     }
 
-    // Designated but not yet signed in. Showing the menu now is the point:
-    // it's how someone finds out they've been made an admin, without anyone
-    // having to send them anything. It still grants nothing — every action
-    // needs a Google ID token, and the first one they try routes them to
-    // /admin to get one.
-    const pending = await adminDb.collection(DESIGNATIONS_COLLECTION)
-      .where('userId', '==', userId)
-      .limit(1)
-      .get()
+    // Designated or invited, but not yet signed in. Showing the menu now is
+    // the point: it's how someone finds out they've been made an admin. It
+    // still grants nothing — every action needs a Google ID token, and the
+    // first one they try routes them to /admin to get one.
+    //
+    // `resolveLinkablePax` guarantees at most one row across both collections
+    // claims a given PAX, so these can't disagree.
+    const [designated, invited] = await Promise.all([
+      adminDb.collection(DESIGNATIONS_COLLECTION).where('userId', '==', userId).limit(1).get(),
+      adminDb.collection(INVITES_COLLECTION).where('userId', '==', userId).limit(1).get(),
+    ])
 
-    if (pending.empty) return NextResponse.json(none)
+    const pending = !designated.empty
+      ? (designated.docs[0].data() as AdminDesignation)
+      : !invited.empty
+        ? (invited.docs[0].data() as AdminInvite)
+        : null
 
-    const designation = pending.docs[0].data() as AdminDesignation
+    if (!pending) return NextResponse.json(none)
+    // An expired invite grants nothing on claim, so it must not show controls.
+    if ('expiresAt' in pending && new Date(pending.expiresAt).getTime() < Date.now()) {
+      return NextResponse.json(none)
+    }
+
     return NextResponse.json({
       isAdmin: true,
-      role: designation.role,
-      regionIds: designation.regionIds ?? [],
+      role: pending.role,
+      regionIds: pending.regionIds ?? [],
       pending: true,
     } satisfies AdminStatusResponse)
   } catch (err) {

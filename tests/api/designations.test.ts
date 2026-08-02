@@ -19,7 +19,7 @@ import { POST as session } from '@/app/api/admin/session/route'
 import { designationId, tryClaimDesignation } from '@/lib/admin-auth'
 import {
   asCaller, auditEntries, clearDb, ctx, getAdminDoc, getDesignation, json, req,
-  seedAdmins, seedDesignation, seedUser,
+  seedAdmins, seedDesignation, seedInvite, seedUser,
   BEDROCK_UID, STRANGER_UID, SUPER_UID,
 } from './harness'
 
@@ -154,6 +154,26 @@ describe('POST /api/admin/designations', () => {
 
     const res = await post({ email: 'second@example.com', role: 'regionAdmin', regionIds: ['bedrock'], userId: 'pax-1' })
     expect(res.status).toBe(409)
+  })
+
+  it('refuses a PAX already linked to an outstanding invite link', async () => {
+    // The two grant paths coexist, so the one-PAX-per-admin rule has to hold
+    // across both — otherwise /api/admin/status could match a designation and
+    // an invite claiming the same PAX and answer from whichever came back.
+    await seedInvite('aaaaaaaaaaaaaaaaaaaaaaaa', { userId: 'pax-1', paxName: 'Splice' })
+
+    const res = await post({ email: 'new@example.com', role: 'regionAdmin', regionIds: ['bedrock'], userId: 'pax-1' })
+    expect(res.status).toBe(409)
+  })
+
+  it('lets the same address be re-designated with the same PAX', async () => {
+    // Its own pending row must not block it, or correcting a region would be
+    // impossible without withdrawing first.
+    await post({ email: 'new@example.com', role: 'regionAdmin', regionIds: ['bedrock'], userId: 'pax-1' })
+
+    const res = await post({ email: 'new@example.com', role: 'regionAdmin', regionIds: ['sactown'], userId: 'pax-1' })
+    expect(res.status).toBe(200)
+    expect(await getDesignation('new@example.com')).toMatchObject({ regionIds: ['sactown'] })
   })
 })
 

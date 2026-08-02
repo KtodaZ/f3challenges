@@ -64,11 +64,16 @@ export interface AdminRecord {
  * (`verifyCaller` rejects `email_verified !== true`), so the binding is only
  * ever claimable by the person who controls that mailbox.
  *
- * This replaced single-use invite links. The link's whole job was proving the
- * claimant was the intended recipient; a verified email proves it directly,
- * with nothing to send, expire, forward or leak. Designations therefore have
- * no TTL — an unclaimed one isn't a secret sitting around, it's a name on a
- * list that only one person on earth can answer to.
+ * Designations have no TTL, which is what separates them from invite links: an
+ * unclaimed one isn't a secret sitting around, it's a name on a list that only
+ * one person on earth can answer to. Nothing is sent, so nothing can be
+ * forwarded, screenshotted or leaked.
+ *
+ * `AdminInvite` is the other half of the same job, for when you don't know the
+ * address they'd sign in with. The two are deliberately kept separate rather
+ * than merged: a token IS a credential and a designation is not, and the
+ * handling that follows from that — TTL, single use, keeping the raw value out
+ * of the audit log — applies to exactly one of them.
  */
 export interface AdminDesignation {
   /** Normalized (lowercased, trimmed) — the claim compares against this. */
@@ -82,6 +87,31 @@ export interface AdminDesignation {
   createdByEmail: string
 }
 
+/**
+ * A grant waiting behind a one-time link, for someone whose sign-in address
+ * you don't know — which is most people, since the address on their Google
+ * account often isn't the one you'd guess.
+ *
+ * Whoever opens the link first becomes the admin. That's the whole security
+ * model, and it's why this half has a TTL, is single-use, and never lets the
+ * raw token into the audit log: the token is the credential. Prefer a
+ * designation when you do know the address — it can't be forwarded.
+ */
+export interface AdminInvite {
+  role: AdminRole
+  regionIds: string[]
+  userId?: string
+  paxName?: string
+  createdAt: string
+  createdBy: string
+  createdByEmail: string
+  expiresAt: string
+  /** Redeeming an invite deletes it, so these are only ever seen on documents
+   *  written before that changed. Kept so old rows still parse. */
+  claimedAt?: string
+  claimedBy?: string
+}
+
 export interface AdminPrincipal {
   uid: string
   email: string
@@ -91,7 +121,26 @@ export interface AdminPrincipal {
 export const ADMINS_COLLECTION       = 'admins'
 export const AUDIT_COLLECTION        = 'adminAudit'
 export const DESIGNATIONS_COLLECTION = 'adminDesignations'
+export const INVITES_COLLECTION      = 'adminInvites'
 export const BOOTSTRAP_DOC           = 'adminBootstrap/marker'
+
+/** How long an unclaimed invite stays valid. Short enough that a forwarded or
+ *  screenshotted link goes stale on its own. Designations have no equivalent —
+ *  see `AdminDesignation`. */
+export const INVITE_TTL_DAYS = 7
+
+/**
+ * A stable, non-secret handle for an invite, for use in the audit log.
+ *
+ * The invite token IS the credential — it's the document id and the whole
+ * contents of the link. Writing it into an audit entry would mean any future
+ * log export, support dump or admin-readable audit view hands out working
+ * invite links. The hash still lets two audit entries about the same invite be
+ * correlated.
+ */
+export function inviteRef(token: string): string {
+  return createHash('sha256').update(token).digest('hex').slice(0, 16)
+}
 
 /**
  * Designations are keyed by a hash of the email rather than the email itself.
@@ -422,6 +471,41 @@ export function auditWrite(entry: AuditEntry) {
     ...(entry.after !== undefined ? { after: entry.after } : {}),
   })
   return { ref, data }
+}
+
+/**
+ * Resolves a PAX id to an F3 name, and refuses if that PAX is already spoken
+ * for by an admin — live, designated, or invited.
+ *
+ * One PAX per admin is not cosmetic. `/api/admin/status` answers "is this PAX
+ * an admin?" by matching `userId` across all three collections; two rows
+ * claiming the same PAX would let it answer arbitrarily, and which answer you
+ * got would depend on document ordering.
+ *
+ * `exceptId` lets a row exclude itself, so re-designating or re-inviting the
+ * same person isn't blocked by their own pending row.
+ */
+export async function resolveLinkablePax(
+  userId: string,
+  opts: { exceptId?: string } = {}
+): Promise<string> {
+  const [userSnap, live, designated, invited] = await Promise.all([
+    adminDb.collection('users').doc(userId).get(),
+    adminDb.collection(ADMINS_COLLECTION).where('userId', '==', userId).limit(1).get(),
+    adminDb.collection(DESIGNATIONS_COLLECTION).where('userId', '==', userId).limit(2).get(),
+    adminDb.collection(INVITES_COLLECTION).where('userId', '==', userId).limit(2).get(),
+  ])
+
+  if (!userSnap.exists) throw new AdminAuthError(422, 'Unknown PAX')
+  const paxName = (userSnap.data() as { displayName?: string }).displayName ?? userId
+
+  const pendingElsewhere = [...designated.docs, ...invited.docs]
+    .some(d => d.id !== opts.exceptId)
+  if (!live.empty || pendingElsewhere) {
+    throw new AdminAuthError(409, `${paxName} is already linked to an admin`)
+  }
+
+  return paxName
 }
 
 /** Region ids on an admin record must be real — a typo would otherwise create

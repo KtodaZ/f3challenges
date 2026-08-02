@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canActOnRegion, designationId, type AdminRecord } from './admin-auth'
+import { canActOnRegion, designationId, inviteRef, type AdminRecord } from './admin-auth'
 
 function record(over: Partial<AdminRecord> = {}): AdminRecord {
   return {
@@ -61,5 +61,20 @@ describe('designationId', () => {
     const id = designationId('babe@example.com')
     expect(id).not.toContain('babe')
     expect(id).toMatch(/^[a-f0-9]{32}$/)
+  })
+})
+
+describe('inviteRef', () => {
+  it('never embeds the raw token', () => {
+    // The token is the credential — the whole contents of the invite link.
+    // Audit entries must not become a source of working invites.
+    const token = 'super-secret-invite-token'
+    expect(inviteRef(token)).not.toContain(token)
+    expect(inviteRef(token)).toHaveLength(16)
+  })
+
+  it('is stable, so two entries about one invite correlate', () => {
+    expect(inviteRef('abc')).toBe(inviteRef('abc'))
+    expect(inviteRef('abc')).not.toBe(inviteRef('abd'))
   })
 })

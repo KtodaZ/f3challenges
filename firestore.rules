@@ -67,6 +67,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Unclaimed admin invites. Closed to clients like the rest — the invite
+    // token is the doc id, so a client read would hand out working invite
+    // links. Redemption goes through /api/admin/invites/claim.
+    match /adminInvites/{token} {
+      allow read, write: if false;
+    }
+
     // Daily logs: readable and writable by all (trust-based)
     match /dailyLogs/{logId} {
       allow read: if true;
