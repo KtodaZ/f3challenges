@@ -12,6 +12,7 @@ import {
 } from '@/lib/firestore'
 import { generateId, timeAgo, stripUndefined } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
+import { useAdminMode } from '@/hooks/useAdminMode'
 import type { FeedPost, FeedComment, User } from '@/types'
 
 // ─── Individual comment row ───────────────────────────────────────────────────
@@ -20,6 +21,8 @@ interface CommentRowProps {
   comment: FeedComment
   allUsers: User[]
   currentUserId: string | undefined
+  /** Lets an admin remove someone else's comment from the thread itself. */
+  canModerate?: boolean
   onReply?: () => void
   onDelete: () => void
   onReactionToggle: (emoji: string) => void
@@ -29,6 +32,7 @@ function CommentRow({
   comment,
   allUsers,
   currentUserId,
+  canModerate = false,
   onReply,
   onDelete,
   onReactionToggle,
@@ -36,6 +40,9 @@ function CommentRow({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const author   = allUsers.find(u => u.id === comment.authorId)
   const isAuthor = currentUserId === comment.authorId
+  // The author's own delete stays the plain client write; an admin removing
+  // someone else's goes through the audited route. Same control, different path.
+  const showDelete = isAuthor || canModerate
 
   return (
     <div className="flex items-start gap-2">
@@ -73,7 +80,7 @@ function CommentRow({
               Reply
             </button>
           )}
-          {isAuthor && !confirmDelete && (
+          {showDelete && !confirmDelete && (
             <button
               onClick={() => setConfirmDelete(true)}
               className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors"
@@ -114,6 +121,14 @@ interface CommentThreadProps {
 
 export function CommentThread({ post, comments }: CommentThreadProps) {
   const { currentUser, allUsers } = useUser()
+  const { isAdmin, removeComment } = useAdminMode()
+
+  // Removing a comment: the author's own goes straight to Firestore as before,
+  // anyone else's goes through the audited admin route.
+  function deleteComment(commentId: string, authorId: string) {
+    if (currentUser?.id === authorId) return softDeleteComment(post.id, commentId)
+    return removeComment(post.id, commentId)
+  }
   const [inputValue, setInputValue] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [replyingTo, setReplyingTo] = useState<FeedComment | null>(null)
@@ -213,8 +228,9 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                   comment={comment}
                   allUsers={allUsers}
                   currentUserId={currentUser?.id}
+                  canModerate={isAdmin}
                   onReply={() => handleReply(comment)}
-                  onDelete={() => softDeleteComment(post.id, comment.id)}
+                  onDelete={() => deleteComment(comment.id, comment.authorId)}
                   onReactionToggle={emoji => {
                     if (!currentUser) return
                     const hasReacted = comment.reactions?.[emoji]?.includes(currentUser.id) ?? false
@@ -229,7 +245,8 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                         comment={reply}
                         allUsers={allUsers}
                         currentUserId={currentUser?.id}
-                        onDelete={() => softDeleteComment(post.id, reply.id)}
+                        canModerate={isAdmin}
+                        onDelete={() => deleteComment(reply.id, reply.authorId)}
                         onReactionToggle={emoji => {
                           if (!currentUser) return
                           const hasReacted = reply.reactions?.[emoji]?.includes(currentUser.id) ?? false

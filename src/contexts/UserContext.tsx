@@ -37,7 +37,7 @@ interface UserContextValue {
 const UserContext = createContext<UserContextValue | null>(null)
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const { regionId, ready: regionReady, setRegion, clearRegion } = useRegion()
+  const { regionId, ready: regionReady, setRegion, clearRegion, viewingAs } = useRegion()
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [allUsers, setAllUsers]       = useState<User[]>([])
   const [loading, setLoading]         = useState(true)
@@ -107,10 +107,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // The user doc is the authority on which region they're in — an ?region=
   // link or a stale localStorage value loses to it. Guarded on inequality so
   // this can't ping-pong with the region provider.
+  //
+  // Suspended while an admin is previewing another region — that override is
+  // deliberate, and this effect would otherwise yank them straight back.
   const userRegionId = currentUser?.regionId
   useEffect(() => {
+    if (viewingAs) return
     if (regionReady && userRegionId && userRegionId !== regionId) setRegion(userRegionId)
-  }, [userRegionId, regionId, regionReady, setRegion])
+  }, [userRegionId, regionId, regionReady, setRegion, viewingAs])
 
   function login(user: User) {
     setCurrentUserId(user.id)

@@ -10,6 +10,7 @@ import { FeedImageGrid } from './FeedImageGrid'
 import { FeedVideoGrid } from './FeedVideoGrid'
 import { Lightbox } from './Lightbox'
 import { softDeletePost, togglePostReaction, subscribeToComments } from '@/lib/firestore'
+import { useAdminMode } from '@/hooks/useAdminMode'
 import { timeAgo, highlightMentions, cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import type { FeedPost as FeedPostType, FeedComment } from '@/types'
@@ -57,11 +58,14 @@ function PostBody({ post }: { post: FeedPostType }) {
 // ─── Kebab menu ───────────────────────────────────────────────────────────────
 
 interface KebabMenuProps {
-  onEdit: () => void
+  /** Omitted for admin moderation — removing someone else's post is one thing,
+   *  rewriting their words is another. */
+  onEdit?: () => void
   onDelete: () => void
+  deleteLabel?: string
 }
 
-function KebabMenu({ onEdit, onDelete }: KebabMenuProps) {
+function KebabMenu({ onEdit, onDelete, deleteLabel = 'Delete' }: KebabMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -90,15 +94,17 @@ function KebabMenu({ onEdit, onDelete }: KebabMenuProps) {
 
       {open && (
         <div className="absolute right-0 top-full mt-1 w-36 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-10 overflow-hidden">
-          <button
-            onClick={() => { setOpen(false); onEdit() }}
-            className="flex items-center gap-2 w-full px-4 py-3 text-sm text-left text-zinc-200 hover:bg-zinc-700 transition-colors"
-          >
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            Edit
-          </button>
+          {onEdit && (
+            <button
+              onClick={() => { setOpen(false); onEdit() }}
+              className="flex items-center gap-2 w-full px-4 py-3 text-sm text-left text-zinc-200 hover:bg-zinc-700 transition-colors"
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </button>
+          )}
           <button
             onClick={() => { setOpen(false); onDelete() }}
             className="flex items-center gap-2 w-full px-4 py-3 text-sm text-left text-red-400 hover:bg-zinc-700 transition-colors"
@@ -106,7 +112,7 @@ function KebabMenu({ onEdit, onDelete }: KebabMenuProps) {
             <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            Delete
+            {deleteLabel}
           </button>
         </div>
       )}
@@ -120,12 +126,14 @@ interface DeleteConfirmProps {
   onConfirm: () => void
   onCancel: () => void
   deleting: boolean
+  prompt?: string
+  verb?: string
 }
 
-function DeleteConfirm({ onConfirm, onCancel, deleting }: DeleteConfirmProps) {
+function DeleteConfirm({ onConfirm, onCancel, deleting, prompt = 'Delete this post?', verb = 'Delete' }: DeleteConfirmProps) {
   return (
     <div className="mt-3 flex items-center gap-3 bg-zinc-800 rounded-xl px-4 py-3">
-      <span className="text-xs text-zinc-400 flex-1">Delete this post?</span>
+      <span className="text-xs text-zinc-400 flex-1">{prompt}</span>
       <button
         onClick={onCancel}
         className="text-xs text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-700 transition-colors"
@@ -137,7 +145,7 @@ function DeleteConfirm({ onConfirm, onCancel, deleting }: DeleteConfirmProps) {
         disabled={deleting}
         className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-zinc-700 transition-colors disabled:opacity-50"
       >
-        {deleting ? 'Deleting…' : 'Delete'}
+        {deleting ? `${verb.replace(/e$/, '')}ing…` : verb}
       </button>
     </div>
   )
@@ -149,6 +157,10 @@ export function FeedPost({ post }: FeedPostProps) {
   const { currentUser, allUsers } = useUser()
   const [editOpen, setEditOpen]           = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Set when the removal is an admin acting on someone else's post, which takes
+  // the audited server route instead of the author's own client-side delete.
+  const [asAdmin, setAsAdmin] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, setDeleting]           = useState(false)
   const [threadOpen, setThreadOpen]       = useState(false)
   const [comments, setComments]           = useState<FeedComment[]>([])
@@ -172,18 +184,29 @@ export function FeedPost({ post }: FeedPostProps) {
   const commentCount = comments.length
 
   const isAuthor = currentUser?.id === post.authorId
+  const { isAdmin, removePost } = useAdminMode()
+  // Only offer moderation on other people's posts — the author already has a
+  // delete, and routing their own through the admin API would log every PAX
+  // tidying their own feed as a moderation action.
+  const canModerate = isAdmin && !isAuthor
   const author   = allUsers.find(u => u.id === post.authorId)
   const target   = post.targetUserId ? allUsers.find(u => u.id === post.targetUserId) : undefined
 
   const handleDelete = useCallback(async () => {
     setDeleting(true)
+    setDeleteError(null)
     try {
-      await softDeletePost(post.id)
+      if (asAdmin) await removePost(post.id)
+      else await softDeletePost(post.id)
+      setConfirmDelete(false)
+    } catch (err) {
+      // Server-side authorization can refuse even though the button rendered —
+      // the admin check in the client is a display hint, not a permission.
+      setDeleteError(err instanceof Error ? err.message : 'Could not remove that')
     } finally {
       setDeleting(false)
-      setConfirmDelete(false)
     }
-  }, [post.id])
+  }, [post.id, asAdmin, removePost])
 
   // ── System post ─────────────────────────────────────────────────────────────
   if (post.type === 'system') {
@@ -266,12 +289,17 @@ export function FeedPost({ post }: FeedPostProps) {
               </p>
               <span className="text-[10px] text-zinc-600">{timeAgo(post.createdAt)}</span>
             </div>
-            {isAuthor && (
+            {isAuthor ? (
               <KebabMenu
                 onEdit={() => setEditOpen(true)}
-                onDelete={() => setConfirmDelete(true)}
+                onDelete={() => { setAsAdmin(false); setConfirmDelete(true) }}
               />
-            )}
+            ) : canModerate ? (
+              <KebabMenu
+                onDelete={() => { setAsAdmin(true); setConfirmDelete(true) }}
+                deleteLabel="Remove"
+              />
+            ) : null}
           </div>
 
           {/* Content */}
@@ -314,8 +342,10 @@ export function FeedPost({ post }: FeedPostProps) {
           {confirmDelete && (
             <DeleteConfirm
               onConfirm={handleDelete}
-              onCancel={() => setConfirmDelete(false)}
+              onCancel={() => { setConfirmDelete(false); setDeleteError(null) }}
               deleting={deleting}
+              prompt={deleteError ?? (asAdmin ? `Remove ${author?.displayName ?? 'this PAX'}'s post? They won't be told.` : 'Delete this post?')}
+              verb={asAdmin ? 'Remove' : 'Delete'}
             />
           )}
         </article>
@@ -364,12 +394,17 @@ export function FeedPost({ post }: FeedPostProps) {
                   <span className="text-[10px] text-zinc-600 shrink-0">· edited</span>
                 )}
               </div>
-              {isAuthor && (
+              {isAuthor ? (
                 <KebabMenu
                   onEdit={() => setEditOpen(true)}
-                  onDelete={() => setConfirmDelete(true)}
+                  onDelete={() => { setAsAdmin(false); setConfirmDelete(true) }}
                 />
-              )}
+              ) : canModerate ? (
+                <KebabMenu
+                  onDelete={() => { setAsAdmin(true); setConfirmDelete(true) }}
+                  deleteLabel="Remove"
+                />
+              ) : null}
             </div>
 
             {/* Content */}
@@ -407,8 +442,10 @@ export function FeedPost({ post }: FeedPostProps) {
             {confirmDelete && (
               <DeleteConfirm
                 onConfirm={handleDelete}
-                onCancel={() => setConfirmDelete(false)}
+                onCancel={() => { setConfirmDelete(false); setDeleteError(null) }}
                 deleting={deleting}
+                prompt={deleteError ?? (asAdmin ? `Remove ${author?.displayName ?? 'this PAX'}'s post? They won't be told.` : 'Delete this post?')}
+                verb={asAdmin ? 'Remove' : 'Delete'}
               />
             )}
           </div>

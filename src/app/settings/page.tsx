@@ -4,9 +4,15 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/contexts/UserContext'
+import { useRegion } from '@/contexts/RegionContext'
+import { useAdminMode } from '@/hooks/useAdminMode'
+import { REGIONS } from '@/lib/challenges'
+import { cn } from '@/lib/utils'
 
 export default function SettingsPage() {
   const { currentUser, loading, logout } = useUser()
+  const { isAdmin, role } = useAdminMode()
+  const { regionId, viewingAs, setViewingAs } = useRegion()
   const router = useRouter()
 
   useEffect(() => {
@@ -115,26 +121,61 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      {/* Superadmin only: see another region's app exactly as its PAX do.
+          Region admins are excluded — running Sactown is no reason to browse
+          Bedrock. */}
+      {role === 'superadmin' && (
+        <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <p className="text-sm font-medium text-white mb-1">View another region</p>
+          <p className="text-xs text-zinc-500 mb-3">
+            Loads that region&apos;s challenge, leaderboard and feed as its PAX see them.
+            Read-only — you can&apos;t log or post while previewing.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {REGIONS.map(r => {
+              const active = viewingAs === r.id
+              const isOwn = !viewingAs && r.id === regionId
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => setViewingAs(active || isOwn ? null : r.id)}
+                  className={cn(
+                    'text-xs px-3 py-1.5 rounded-lg border transition-colors',
+                    active
+                      ? 'border-amber-500/50 bg-amber-500/15 text-amber-200'
+                      : isOwn
+                        ? 'border-zinc-700 bg-zinc-800 text-zinc-300'
+                        : 'border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300'
+                  )}
+                >
+                  {r.shortName}
+                  {isOwn && ' (yours)'}
+                  {active && ' — viewing'}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* App info */}
       <div className="mt-10 text-center space-y-1">
         <p className="text-xs text-zinc-600 font-medium tracking-wide uppercase">F3 Norcal Monthly Challenge</p>
         <Link href="/changelog" className="inline-block text-xs text-zinc-700 hover:text-zinc-500 transition-colors">
           v1.0.0 · What&apos;s new
         </Link>
-        {/* Deliberately quiet, and deliberately unconditional. The PAX app has
-            no idea who is an admin — admins authenticate with Firebase Auth,
-            which only /admin loads, and pulling that in here would put the
-            whole auth bundle in front of every PAX to hide one link. Anyone who
-            taps it meets the sign-in wall and gets nowhere. */}
-        <div>
-          <Link
-            href="/admin"
-            className="inline-block text-xs text-zinc-800 hover:text-zinc-600 transition-colors"
-          >
-            Admin
-          </Link>
-        </div>
+        {isAdmin && (
+          <div>
+            <Link
+              href="/admin"
+              className="inline-block text-xs text-zinc-700 hover:text-zinc-500 transition-colors"
+            >
+              Admin panel
+            </Link>
+          </div>
+        )}
       </div>
+
     </div>
   )
 }

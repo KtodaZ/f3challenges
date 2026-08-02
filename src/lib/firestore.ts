@@ -47,6 +47,32 @@ import type {
  */
 let activeRegionId: string = DEFAULT_REGION_ID
 
+/**
+ * Set while a superadmin is previewing another region's app. Every write helper
+ * below refuses, because the signed-in PAX belongs to a different region — a
+ * log written in this state would be stamped with the region being *viewed*
+ * and attributed to someone who isn't in it.
+ *
+ * The UI hides the controls too; this is the backstop that makes a missed one
+ * fail loudly instead of quietly corrupting a leaderboard.
+ */
+let readOnly = false
+
+export class ReadOnlyRegionError extends Error {
+  constructor() {
+    super("You're viewing another region — switch back to your own to log anything.")
+    this.name = 'ReadOnlyRegionError'
+  }
+}
+
+export function setRegionReadOnly(value: boolean): void {
+  readOnly = value
+}
+
+function assertWritable(): void {
+  if (readOnly) throw new ReadOnlyRegionError()
+}
+
 export function setActiveRegionId(regionId: string): void {
   activeRegionId = regionId
 }
@@ -98,10 +124,12 @@ export async function getAllUsers(regionId: string): Promise<User[]> {
 }
 
 export async function upsertUser(user: User): Promise<void> {
+  assertWritable()
   await setDoc(doc(usersCol(), user.id), withRegion(user), { merge: true })
 }
 
 export async function updateUser(userId: string, updates: Partial<User>): Promise<void> {
+  assertWritable()
   await updateDoc(doc(usersCol(), userId), updates as Record<string, unknown>)
 }
 
@@ -110,6 +138,7 @@ export async function setBadge(
   badge: import('@/types').AchievementBadge,
   currentBadges: import('@/types').AchievementBadge[]
 ): Promise<void> {
+  assertWritable()
   const filtered = currentBadges.filter(b => b.challengeId !== badge.challengeId)
   await updateDoc(doc(usersCol(), userId), { badges: [...filtered, badge] })
 }
@@ -132,6 +161,7 @@ export async function getDailyLog(userId: string, date: string): Promise<DailyLo
 }
 
 export async function upsertDailyLog(log: DailyLog): Promise<void> {
+  assertWritable()
   await setDoc(doc(dailyLogsCol(), log.id), withRegion(log), { merge: true })
 }
 
@@ -232,6 +262,7 @@ export async function getParticipation(
 }
 
 export async function upsertParticipation(p: ChallengeParticipation): Promise<void> {
+  assertWritable()
   await setDoc(doc(participationCol(), p.id), withRegion(p), { merge: true })
 }
 
@@ -250,11 +281,13 @@ export async function getUserParticipations(userId: string): Promise<ChallengePa
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 
 export async function createFeedPost(post: FeedPost): Promise<void> {
+  assertWritable()
   await setDoc(doc(feedCol(), post.id), stripUndefined(withRegion(post)))
 }
 
 /** Creates a feed post only if a doc with that ID doesn't already exist. */
 export async function createFeedPostOnce(post: FeedPost): Promise<void> {
+  assertWritable()
   const ref = doc(feedCol(), post.id)
   const snap = await getDoc(ref)
   if (snap.exists()) return
@@ -262,10 +295,12 @@ export async function createFeedPostOnce(post: FeedPost): Promise<void> {
 }
 
 export async function updateFeedPost(postId: string, updates: Partial<FeedPost>): Promise<void> {
+  assertWritable()
   await updateDoc(doc(feedCol(), postId), stripUndefined({ ...updates, updatedAt: new Date().toISOString() }))
 }
 
 export async function softDeletePost(postId: string): Promise<void> {
+  assertWritable()
   await updateDoc(doc(feedCol(), postId), { deleted: true })
 }
 
@@ -390,6 +425,7 @@ export async function togglePostReaction(
   userId: string,
   hasReacted: boolean
 ): Promise<void> {
+  assertWritable()
   await updateDoc(doc(feedCol(), postId), {
     [`reactions.${emoji}`]: hasReacted ? arrayRemove(userId) : arrayUnion(userId),
   })
@@ -402,6 +438,7 @@ export async function toggleCommentReaction(
   userId: string,
   hasReacted: boolean
 ): Promise<void> {
+  assertWritable()
   await updateDoc(doc(commentsCol(postId), commentId), {
     [`reactions.${emoji}`]: hasReacted ? arrayRemove(userId) : arrayUnion(userId),
   })
@@ -413,10 +450,12 @@ export const commentsCol = (postId: string) =>
   collection(db, 'feed', postId, 'comments')
 
 export async function createComment(comment: FeedComment): Promise<void> {
+  assertWritable()
   await setDoc(doc(commentsCol(comment.postId), comment.id), comment)
 }
 
 export async function softDeleteComment(postId: string, commentId: string): Promise<void> {
+  assertWritable()
   await updateDoc(doc(commentsCol(postId), commentId), { deleted: true })
 }
 
@@ -446,6 +485,7 @@ export async function getBonusLog(
 }
 
 export async function upsertBonusLog(log: BonusLog): Promise<void> {
+  assertWritable()
   await setDoc(doc(bonusLogsCol(), log.id), stripUndefined(withRegion(log)))
 }
 
