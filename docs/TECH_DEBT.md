@@ -58,17 +58,17 @@ Fine at two regions. It is the hard ceiling on NorCal-wide adoption — five Qs 
 
 ---
 
-## 4. Admin API routes have no tests
+## 4. Admin API routes have no tests — CLOSED
 
-**Where:** `src/app/api/admin/**`. Only pure helpers are covered (`admin-auth.test.ts`, `roster.archive.test.ts`) plus the Firestore rules suite.
+**Where:** `tests/api/**`, run by `pnpm test:api` (or `pnpm test:emulator` alongside the rules suite, which is what CI runs).
 
-This is the gap that actually bit. The admin panel shipped with `requireAdmin`'s `regionId` optional, which made `canActOnRegion` fail closed and returned 403 to **every region admin on every list endpoint** — the panel was completely non-functional for the one role it was built for. Typecheck passed, lint passed, 410 unit tests passed, and the build was clean. It took three adversarial reviews to catch, and a unit test had actually pinned the broken behavior in place.
+This was the gap that actually bit. The admin panel shipped with `requireAdmin`'s `regionId` optional, which made `canActOnRegion` fail closed and returned 403 to **every region admin on every list endpoint** — the panel was completely non-functional for the one role it was built for. Typecheck passed, lint passed, 410 unit tests passed, and the build was clean. It took three adversarial reviews to catch, and a unit test had actually pinned the broken behavior in place.
 
-Nothing exercises the wiring between `requireAdmin` / `requireAnyAdmin` / `assertRegion` and the routes that call them, which is precisely where authorization bugs live.
+The suite runs the exported route handlers directly against the Firestore emulator with only `adminAuth.verifyIdToken` stubbed, so transactions, batches and `FieldValue.delete()` are real. It asserts **non-empty response bodies** for a region admin, not just status codes — a status-only assertion would have missed the original bug's practical effect.
 
-**The fix:** route-level tests against the Firestore emulator (already configured for the rules suite) with a stubbed `adminAuth.verifyIdToken`. At minimum: a region admin gets a non-empty list for their own region; a region admin is refused a mutation in another region; a superadmin passes both; an unauthenticated call 401s.
+Covered: region scoping on both list endpoints, cross-region mutation refusals, region-from-target-document (not from the body), archive/unarchive/rename including name uniqueness against archived and former names, invite create/revoke/claim (single-use, expiry, malformed tokens), admin revocation guards, bootstrap, and an audit entry for every successful mutation.
 
-**When it becomes urgent:** now, arguably. Every future admin endpoint inherits the same blind spot.
+**Still open:** the suite immediately found a live bug — see the `KNOWN BUG` block in `tests/api/invites.test.ts`. `auditWrite` is handed `paxName: undefined` by both invite routes when no PAX is linked, Firestore rejects `undefined`, and creating or revoking an unlinked invite 500s. Two `it.fails` cases pin it; fixing the routes (spread `paxName` conditionally, or run `stripUndefined` inside `auditWrite`) makes those cases fail, which is the signal to unpin them.
 
 ---
 

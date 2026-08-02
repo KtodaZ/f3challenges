@@ -44,11 +44,19 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-      # Guards the rules that gate admin-only user fields. Without this the
-      # suite is opt-in and rots — and a mistake here breaks writes for every
-      # live PAX, which is the worst failure this repo has.
-      - name: Firestore rules tests
-        run: pnpm test:rules
+      # Both emulator suites in one emulator, because booting it twice costs
+      # more than the suites do.
+      #
+      # Rules: guards the rules that gate admin-only user fields. Without this
+      # the suite is opt-in and rots — and a mistake here breaks writes for
+      # every live PAX, which is the worst failure this repo has.
+      #
+      # API: exercises the admin routes end to end. The panel once shipped
+      # 403ing every region admin on every list endpoint with typecheck, lint,
+      # the unit suite and the build all green — nothing covered the wiring
+      # between the auth helpers and the routes calling them. See TECH_DEBT #4.
+      - name: Emulator tests (rules + admin API)
+        run: pnpm test:emulator
 
       - name: Build
         run: pnpm build
