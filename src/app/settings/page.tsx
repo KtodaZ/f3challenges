@@ -121,6 +121,19 @@ export default function SettingsPage() {
         <Link href="/changelog" className="inline-block text-xs text-zinc-700 hover:text-zinc-500 transition-colors">
           v1.0.0 · What&apos;s new
         </Link>
+        {/* Deliberately quiet, and deliberately unconditional. The PAX app has
+            no idea who is an admin — admins authenticate with Firebase Auth,
+            which only /admin loads, and pulling that in here would put the
+            whole auth bundle in front of every PAX to hide one link. Anyone who
+            taps it meets the sign-in wall and gets nowhere. */}
+        <div>
+          <Link
+            href="/admin"
+            className="inline-block text-xs text-zinc-800 hover:text-zinc-600 transition-colors"
+          >
+            Admin
+          </Link>
+        </div>
       </div>
     </div>
   )
