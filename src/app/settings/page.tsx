@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/contexts/UserContext'
 import { useRegion } from '@/contexts/RegionContext'
-import { useAdminMode } from '@/hooks/useAdminMode'
+import { useAdminMode } from '@/contexts/AdminModeContext'
 import { REGIONS } from '@/lib/challenges'
 import { cn } from '@/lib/utils'
 

@@ -12,7 +12,7 @@ import {
 } from '@/lib/firestore'
 import { generateId, timeAgo, stripUndefined } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
-import { useAdminMode } from '@/hooks/useAdminMode'
+import { useAdminMode } from '@/contexts/AdminModeContext'
 import type { FeedPost, FeedComment, User } from '@/types'
 
 // ─── Individual comment row ───────────────────────────────────────────────────
@@ -24,7 +24,7 @@ interface CommentRowProps {
   /** Lets an admin remove someone else's comment from the thread itself. */
   canModerate?: boolean
   onReply?: () => void
-  onDelete: () => void
+  onDelete: () => void | Promise<void>
   onReactionToggle: (emoji: string) => void
 }
 
@@ -43,6 +43,25 @@ function CommentRow({
   // The author's own delete stays the plain client write; an admin removing
   // someone else's goes through the audited route. Same control, different path.
   const showDelete = isAuthor || canModerate
+  // Moderating says "Remove", so it never reads as though you wrote this.
+  const verb = isAuthor ? 'Delete' : 'Remove'
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleDelete() {
+    setBusy(true)
+    setError(null)
+    try {
+      // onDelete is async and can reject — the admin check that revealed this
+      // control is a display hint, so the server can still refuse.
+      await onDelete()
+      setConfirmDelete(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove that')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="flex items-start gap-2">
@@ -82,28 +101,30 @@ function CommentRow({
           )}
           {showDelete && !confirmDelete && (
             <button
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => { setError(null); setConfirmDelete(true) }}
               className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors"
             >
-              Delete
+              {verb}
             </button>
           )}
           {confirmDelete && (
             <>
               <button
-                onClick={onDelete}
-                className="text-[11px] text-red-400 font-medium transition-colors"
+                onClick={handleDelete}
+                disabled={busy}
+                className="text-[11px] text-red-400 font-medium transition-colors disabled:opacity-50"
               >
-                Confirm
+                {busy ? `${verb.slice(0, -1)}ing…` : 'Confirm'}
               </button>
               <button
-                onClick={() => setConfirmDelete(false)}
+                onClick={() => { setConfirmDelete(false); setError(null) }}
                 className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 Cancel
               </button>
             </>
           )}
+          {error && <span className="text-[11px] text-red-400">{error}</span>}
         </div>
       </div>
     </div>

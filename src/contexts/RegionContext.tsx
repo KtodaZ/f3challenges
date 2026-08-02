@@ -89,6 +89,13 @@ export function RegionProvider({ children }: { children: ReactNode }) {
   const setRegion = useCallback((regionId: string) => {
     if (!isValidRegionId(regionId)) return
     setStoredRegionId(regionId)
+    // Changing your actual region ends any preview. Without this, `setRegion`
+    // (from login, or a ?claim= handover) would move the ambient write region
+    // while `viewingAs` still drove reads and `readOnly` stayed stuck on —
+    // reads showing one region, writes stamping another.
+    sessionStorage.removeItem(VIEW_AS_KEY)
+    setViewingAsState(null)
+    setRegionReadOnly(false)
     // Keep the write path in lock step with the read path, so a doc created
     // right after a region switch lands in the region the user is looking at.
     setActiveRegionId(regionId)
@@ -107,6 +114,10 @@ export function RegionProvider({ children }: { children: ReactNode }) {
     if (next !== null && !isValidRegionId(next)) return
 
     const own = getStoredRegionId() ?? DEFAULT_REGION_ID
+    // Previewing your own region isn't a preview. Letting it through would show
+    // the read-only banner while writes stayed enabled — the one combination
+    // that actively misleads.
+    if (next === own) next = null
     const active = next ?? own
 
     if (next) sessionStorage.setItem(VIEW_AS_KEY, next)

@@ -11,6 +11,7 @@ import { UpdateChecker } from '@/components/providers/UpdateChecker'
 import { PendingCelebrationHandler } from '@/components/providers/PendingCelebrationHandler'
 import { ArchivedGate } from '@/components/providers/ArchivedGate'
 import { ViewingAsBanner } from '@/components/providers/ViewingAsBanner'
+import { AdminModeProvider } from '@/contexts/AdminModeContext'
 
 /**
  * Keeps the PAX app out of the admin panel.
@@ -39,6 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <RegionProvider>
       <UserProvider>
+        <AdminModeProvider>
         <ArchivedGate>
           <FCMInitializer />
           <FirestoreConnectionGuard />
@@ -51,6 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </main>
           <BottomNav />
         </ArchivedGate>
+        </AdminModeProvider>
       </UserProvider>
     </RegionProvider>
   )

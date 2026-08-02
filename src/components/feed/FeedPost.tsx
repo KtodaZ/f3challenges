@@ -10,7 +10,7 @@ import { FeedImageGrid } from './FeedImageGrid'
 import { FeedVideoGrid } from './FeedVideoGrid'
 import { Lightbox } from './Lightbox'
 import { softDeletePost, togglePostReaction, subscribeToComments } from '@/lib/firestore'
-import { useAdminMode } from '@/hooks/useAdminMode'
+import { useAdminMode } from '@/contexts/AdminModeContext'
 import { timeAgo, highlightMentions, cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import type { FeedPost as FeedPostType, FeedComment } from '@/types'
@@ -292,11 +292,11 @@ export function FeedPost({ post }: FeedPostProps) {
             {isAuthor ? (
               <KebabMenu
                 onEdit={() => setEditOpen(true)}
-                onDelete={() => { setAsAdmin(false); setConfirmDelete(true) }}
+                onDelete={() => { setDeleteError(null); setAsAdmin(false); setConfirmDelete(true) }}
               />
             ) : canModerate ? (
               <KebabMenu
-                onDelete={() => { setAsAdmin(true); setConfirmDelete(true) }}
+                onDelete={() => { setDeleteError(null); setAsAdmin(true); setConfirmDelete(true) }}
                 deleteLabel="Remove"
               />
             ) : null}
@@ -397,11 +397,11 @@ export function FeedPost({ post }: FeedPostProps) {
               {isAuthor ? (
                 <KebabMenu
                   onEdit={() => setEditOpen(true)}
-                  onDelete={() => { setAsAdmin(false); setConfirmDelete(true) }}
+                  onDelete={() => { setDeleteError(null); setAsAdmin(false); setConfirmDelete(true) }}
                 />
               ) : canModerate ? (
                 <KebabMenu
-                  onDelete={() => { setAsAdmin(true); setConfirmDelete(true) }}
+                  onDelete={() => { setDeleteError(null); setAsAdmin(true); setConfirmDelete(true) }}
                   deleteLabel="Remove"
                 />
               ) : null}
