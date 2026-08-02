@@ -1,8 +1,9 @@
 import { defineConfig } from 'vitest/config'
 import { fileURLToPath } from 'node:url'
 
-// Default unit suite (`pnpm test`). tests/rules is excluded because it needs
-// the Firestore emulator — see vitest.rules.config.ts / `pnpm test:rules`.
+// Default unit suite (`pnpm test`). tests/rules and tests/api are excluded
+// because they need the Firestore emulator — see vitest.rules.config.ts /
+// vitest.api.config.ts, run together by `pnpm test:emulator`.
 export default defineConfig({
   resolve: {
     // Mirrors the `@/*` path in tsconfig.json. Without it, any test that
@@ -18,6 +19,7 @@ export default defineConfig({
       '**/dist/**',
       '**/.next/**',
       'tests/rules/**',
+      'tests/api/**',
       // Agent worktrees are full checkouts nested inside the repo; without this
       // every test runs twice and emulator-dependent suites run unconfigured.
       '.claude/worktrees/**',

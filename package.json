@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:rules": "firebase emulators:exec --only firestore \"vitest run --config vitest.rules.config.ts\"",
+    "test:api": "firebase emulators:exec --only firestore \"vitest run --config vitest.api.config.ts\"",
+    "test:emulator": "firebase emulators:exec --only firestore \"vitest run --config vitest.rules.config.ts && vitest run --config vitest.api.config.ts\"",
     "prepare": "husky"
   },
   "dependencies": {
