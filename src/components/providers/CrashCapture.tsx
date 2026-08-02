@@ -2,6 +2,7 @@
 
 import { toast } from 'sonner'
 import { ReadOnlyRegionError } from '@/lib/firestore'
+import { AdminSignInRequiredError } from '@/contexts/AdminModeContext'
 
 import { useEffect } from 'react'
 
@@ -42,6 +43,14 @@ export function CrashCapture() {
       // guarantees the person actually finds out instead of watching a rep
       // count silently revert on the next refresh.
       if (event.reason instanceof ReadOnlyRegionError) {
+        event.preventDefault()
+        toast.error(event.reason.message)
+        return
+      }
+      // An admin who hasn't signed in on THIS device — the controls are shown
+      // from a server check, so they can legitimately appear before there's a
+      // token to act with.
+      if (event.reason instanceof AdminSignInRequiredError) {
         event.preventDefault()
         toast.error(event.reason.message)
         return

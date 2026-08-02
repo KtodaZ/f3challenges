@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { onAdminAuthChanged, fetchAdminSession, signOutAdmin, AdminRevokedError, type SessionResponse } from '@/lib/admin-client'
-import { setKnownAdmin } from '@/lib/storage'
 
 type AdminState =
   | { status: 'loading' }
@@ -44,19 +43,14 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     const unsub = onAdminAuthChanged(async user => {
       if (cancelled) return
       if (!user) {
-        setKnownAdmin(false)
         setState({ status: 'signed-out' })
         return
       }
       setState({ status: 'loading' })
       try {
         const session = await fetchAdminSession()
-        // Lets Settings show the Admin link on this device. See storage.ts —
-        // it's a display hint, never a permission.
-        setKnownAdmin(true)
         if (!cancelled) setState({ status: 'ready', session })
       } catch (err) {
-        setKnownAdmin(false)
         if (!cancelled) {
           setState({
             status: 'denied',
@@ -72,14 +66,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await signOutAdmin()
-    setKnownAdmin(false)
     setState({ status: 'signed-out' })
   }, [])
 
   const reportFailure = useCallback((err: unknown) => {
     if (!(err instanceof AdminRevokedError)) return
-    // Revoked mid-session: stop advertising the link too.
-    setKnownAdmin(false)
     setState(prev => {
       const email = prev.status === 'ready' ? prev.session.email
         : prev.status === 'denied' ? prev.email

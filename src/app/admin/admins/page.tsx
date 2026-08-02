@@ -78,6 +78,20 @@ export default function AdminAdminsPage() {
     } finally { setBusy(null) }
   }
 
+  async function linkSelf(userId: string | null) {
+    setBusy('link')
+    setError(null)
+    try {
+      await adminFetch('/api/admin/admins/link', {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+      })
+      load()
+    } catch (e) {
+      fail(e)
+    } finally { setBusy(null) }
+  }
+
   async function revokeAdmin(row: AdminRow) {
     const who = row.paxName ?? row.email
     if (!confirm(`Revoke admin access for ${who}?\n\nThey lose access immediately — no waiting for a session to expire.`)) return
@@ -93,6 +107,7 @@ export default function AdminAdminsPage() {
   if (state.status !== 'ready') return null
 
   const paxForRegion = pax.filter(p => p.regionId === regionId && p.status !== 'archived')
+  const me = admins?.find(a => a.isSelf)
 
   return (
     <div className="space-y-6">
@@ -107,6 +122,33 @@ export default function AdminAdminsPage() {
       {error && (
         <div className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300">
           {error}
+        </div>
+      )}
+
+      {/* ── Link your own PAX account ──────────────────────────────────── */}
+      {me && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-3">
+          <p className="text-white font-semibold text-sm">Your PAX account</p>
+          <p className="text-xs text-zinc-500">
+            Linking tells the app you&apos;re an admin without signing in on every device —
+            the admin menu and moderation controls then show up wherever you&apos;re signed
+            in as a PAX. It also makes the audit log read your F3 name instead of your
+            email. Bootstrap can&apos;t work this out on its own: a Google account says
+            nothing about which F3 name you post under.
+          </p>
+          <select
+            value={me.userId ?? ''}
+            onChange={e => linkSelf(e.target.value || null)}
+            disabled={busy === 'link'}
+            className="w-full sm:w-72 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-white px-3 py-2"
+          >
+            <option value="">Not linked</option>
+            {pax.filter(p => p.status !== 'archived').map(p => (
+              <option key={p.id} value={p.id}>
+                {p.displayName} · {p.regionId}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 

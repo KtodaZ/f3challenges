@@ -1,48 +1,46 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { mightBeAdminDevice, setKnownAdmin } from '@/lib/storage'
 import { useRegion } from '@/contexts/RegionContext'
+import { useUser } from '@/contexts/UserContext'
+import type { AdminStatusResponse } from '@/app/api/admin/status/route'
 
 /**
  * Admin powers inside the normal PAX app.
  *
  * Moderating from the feed you're already reading beats navigating to a
- * separate page — you notice a problem where it happens. The catch is that the
- * PAX app is unauthenticated and knows nothing about admins, while every admin
- * action needs a Firebase ID token.
+ * separate page — you notice a problem where it happens.
  *
- * Gated twice:
+ * **How the app knows.** It asks the server: `/api/admin/status?userId=` looks
+ * up whether the signed-in PAX is linked to an admin record. That's it. No
+ * Firebase Auth, no bundle, nothing device-local.
  *
- * 1. A cheap local signal (`mightBeAdminDevice`): a localStorage hint written
- *    after a successful admin session, or failing that the presence of
- *    Firebase Auth's IndexedDB store, which only exists on a device that has
- *    signed in at /admin. It only decides whether we bother looking further.
- * 2. If the hint is set, `firebase/auth` is **dynamically imported** and the
- *    session re-verified against the server. `isAdmin` flips true only after
- *    that succeeds.
+ * The device-local approach this replaced was a dead end. It keyed off a
+ * localStorage flag written after a successful /admin session, so the controls
+ * only appeared on a device that had already been to /admin — which a phone
+ * never had, and which iOS wipes after a week of not opening the app. Asking
+ * the server works on any device, immediately.
  *
- * The dynamic import is the point: without it, adding moderation to the feed
- * would ship the whole auth bundle to every PAX so that one or two could use
- * it. This way nobody downloads it unless they've actually signed in as an
- * admin on this device.
+ * **Signing in is deferred to the moment it's needed.** Showing the controls
+ * costs nothing; performing an action needs a Google ID token. If there isn't
+ * one, the action throws `AdminSignInRequiredError` and the UI points at
+ * /admin. `firebase/auth` is still only pulled in by dynamic import, at that
+ * point, so no PAX ever downloads it.
  *
- * **This is a provider rather than a plain hook for a reason.** It was a hook,
- * and `FeedPost` calls it once per post — a 30-post feed opened 30 auth
- * listeners and fired 30 `/api/admin/session` requests on every render, more
- * once comment threads mounted. Hoisting it means one listener and one request
- * per session no matter how long the feed gets.
- *
- * None of this is a permission check. The controls it reveals call server
- * routes that re-read `admins/{uid}` on every request; a PAX who forges the
- * flag gets buttons that return 403.
+ * None of this is a permission check. Every endpoint re-reads `admins/{uid}`
+ * on every request; a PAX who fakes this gets buttons that return 403.
  */
 
+export class AdminSignInRequiredError extends Error {
+  constructor() {
+    super('Sign in with Google at /admin on this device to make changes.')
+    this.name = 'AdminSignInRequiredError'
+  }
+}
+
 interface AdminModeValue {
-  /** Verified against the server, not just the localStorage hint. */
   isAdmin: boolean
-  /** Superadmin gates things a region admin has no business doing — notably
-   *  previewing another region. Absent until verification completes. */
+  /** Superadmin gates previewing another region. */
   role?: 'superadmin' | 'regionAdmin'
   /** Regions a regionAdmin governs; empty for a superadmin, who governs all. */
   regionIds: string[]
@@ -53,91 +51,67 @@ interface AdminModeValue {
 const AdminModeContext = createContext<AdminModeValue | null>(null)
 
 export function AdminModeProvider({ children }: { children: ReactNode }) {
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [role, setRole] = useState<'superadmin' | 'regionAdmin' | undefined>()
-  const [regionIds, setRegionIds] = useState<string[]>([])
-  // Whether verification has finished, either way. Distinguishes "not a
-  // superadmin" from "we don't know yet", which matters below.
-  const [checked, setChecked] = useState(false)
+  const { currentUser } = useUser()
   const { viewingAs, setViewingAs } = useRegion()
+  const [status, setStatus] = useState<AdminStatusResponse>({ isAdmin: false, regionIds: [] })
+  // Distinguishes "not an admin" from "haven't asked yet", which the preview
+  // guard below depends on.
+  const [checked, setChecked] = useState(false)
 
+  const userId = currentUser?.id
   useEffect(() => {
+    if (!userId) return
     let cancelled = false
-    let unsub: (() => void) | undefined
 
-    mightBeAdminDevice().then(maybe => {
-      if (cancelled) return
-      if (!maybe) {
-        setChecked(true)
-        return
-      }
-      return import('@/lib/admin-client')
-    }).then(mod => {
-      if (cancelled || !mod) return
-      unsub = mod.onAdminAuthChanged(async user => {
-        if (!user) {
-          // No Firebase session. Deliberately does NOT clear the hint: this is
-          // the same signal for "signed out" and for "Safari evicted the auth
-          // IndexedDB", which it does after 7 days of not visiting — including
-          // for installed PWAs. Clearing here would silently remove the only
-          // in-app route to /admin from an admin who simply hadn't opened the
-          // app in a fortnight. The hint grants nothing; /admin re-verifies on
-          // arrival. It's cleared on explicit sign-out and on a refused
-          // session, which are the two unambiguous cases.
-          if (!cancelled) { setIsAdmin(false); setRole(undefined); setRegionIds([]); setChecked(true) }
-          return
-        }
-        try {
-          const session = await mod.fetchAdminSession()
-          // Record it so the next load skips the IndexedDB probe.
-          setKnownAdmin(true)
-          if (!cancelled) {
-            setIsAdmin(true)
-            setRole(session.record.role)
-            setRegionIds(session.record.regionIds ?? [])
-            setChecked(true)
-          }
-        } catch (err) {
-          // Only a definitive "you are not an admin" clears the hint. A network
-          // blip or a 500 must not, or one bad request permanently hides the
-          // controls until the next visit to /admin.
-          if (err instanceof mod.AdminRevokedError) setKnownAdmin(false)
-          if (!cancelled) { setIsAdmin(false); setRole(undefined); setRegionIds([]); setChecked(true) }
-        }
-      })
-    }).catch(() => {
-      // Probe or chunk failed — behave as a normal PAX and retry next load.
-      if (!cancelled) setChecked(true)
-    })
+    fetch(`/api/admin/status?userId=${encodeURIComponent(userId)}`)
+      .then(r => r.json() as Promise<AdminStatusResponse>)
+      .then(s => { if (!cancelled) { setStatus(s); setChecked(true) } })
+      .catch(() => { if (!cancelled) setChecked(true) })
 
-    return () => { cancelled = true; unsub?.() }
-  }, [])
+    return () => { cancelled = true }
+  }, [userId])
 
   // Region preview restores itself from sessionStorage before anyone has been
-  // verified, so it has to be revoked here once we know. Otherwise a revoked
-  // superadmin — or anyone who set the key by hand — stays parked in another
-  // region's app after a reload. Reads there are no more privileged than any
-  // PAX's, and writes are already blocked, but the app shouldn't present a
-  // region as yours when it isn't.
+  // checked, so revoke it once we know. Otherwise a former superadmin stays
+  // parked in another region's app across a reload.
   useEffect(() => {
     if (!checked || !viewingAs) return
-    if (role !== 'superadmin') setViewingAs(null)
-  }, [checked, viewingAs, role, setViewingAs])
+    if (status.role !== 'superadmin') setViewingAs(null)
+  }, [checked, viewingAs, status.role, setViewingAs])
+
+  /**
+   * Every admin mutation needs a Google ID token. Loading `firebase/auth` is
+   * deferred to here so it never reaches a PAX who isn't acting as an admin.
+   */
+  const runAsAdmin = useCallback(async (path: string): Promise<void> => {
+    const mod = await import('@/lib/admin-client')
+    if (!mod.adminAuthClient().currentUser) throw new AdminSignInRequiredError()
+    await mod.adminFetch(path, { method: 'DELETE' })
+  }, [])
 
   /** Soft-delete any post. Audited server-side, unlike an author's own delete. */
-  const removePost = useCallback(async (postId: string) => {
-    const { adminFetch } = await import('@/lib/admin-client')
-    await adminFetch(`/api/admin/feed/${postId}`, { method: 'DELETE' })
-  }, [])
+  const removePost = useCallback(
+    (postId: string) => runAsAdmin(`/api/admin/feed/${postId}`),
+    [runAsAdmin]
+  )
 
   /** Soft-delete any comment on a post. */
-  const removeComment = useCallback(async (postId: string, commentId: string) => {
-    const { adminFetch } = await import('@/lib/admin-client')
-    await adminFetch(`/api/admin/feed/${postId}?commentId=${commentId}`, { method: 'DELETE' })
-  }, [])
+  const removeComment = useCallback(
+    (postId: string, commentId: string) =>
+      runAsAdmin(`/api/admin/feed/${postId}?commentId=${commentId}`),
+    [runAsAdmin]
+  )
 
   return (
-    <AdminModeContext.Provider value={{ isAdmin, role, regionIds, removePost, removeComment }}>
+    <AdminModeContext.Provider
+      value={{
+        isAdmin: status.isAdmin,
+        role: status.role,
+        regionIds: status.regionIds,
+        removePost,
+        removeComment,
+      }}
+    >
       {children}
     </AdminModeContext.Provider>
   )
@@ -149,7 +123,7 @@ export function AdminModeProvider({ children }: { children: ReactNode }) {
  *
  * Returns a dormant value outside the provider (e.g. under /admin, which
  * doesn't mount the PAX shell) rather than throwing, so a shared component can
- * be rendered in both trees.
+ * render in both trees.
  */
 export function useAdminMode(): AdminModeValue {
   const ctx = useContext(AdminModeContext)
