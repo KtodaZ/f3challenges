@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import {
-  requireAdmin, assertSuperadmin, auditWrite, adminErrorResponse,
-  INVITES_COLLECTION, type AdminInvite,
+  requireAnyAdmin, assertSuperadmin, auditWrite, adminErrorResponse,
+  inviteRef, INVITES_COLLECTION, type AdminInvite,
 } from '@/lib/admin-auth'
 
 /** DELETE — revoke an unclaimed invite so the link stops working. */
@@ -12,7 +12,7 @@ export async function DELETE(
 ) {
   try {
     const { token } = await params
-    const principal = await requireAdmin(req)
+    const principal = await requireAnyAdmin(req)
     assertSuperadmin(principal)
 
     const ref = adminDb.collection(INVITES_COLLECTION).doc(token)
@@ -26,7 +26,7 @@ export async function DELETE(
       actor: principal,
       action: 'admin.invite.revoke',
       targetType: 'admin',
-      targetId: token,
+      targetId: inviteRef(token),
       before: { role: invite.role, regionIds: invite.regionIds, paxName: invite.paxName },
     })
     batch.set(audit.ref, audit.data)

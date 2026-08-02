@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import {
-  requireAdmin, assertSuperadmin, auditWrite, adminErrorResponse, AdminAuthError,
+  requireAnyAdmin, assertSuperadmin, auditWrite, adminErrorResponse, AdminAuthError,
   ADMINS_COLLECTION, type AdminRecord,
 } from '@/lib/admin-auth'
 
@@ -20,7 +20,7 @@ export async function DELETE(
 ) {
   try {
     const { uid } = await params
-    const principal = await requireAdmin(req)
+    const principal = await requireAnyAdmin(req)
     assertSuperadmin(principal)
 
     // Revoking yourself is how you end up locked out of your own panel with
@@ -30,32 +30,36 @@ export async function DELETE(
     }
 
     const ref = adminDb.collection(ADMINS_COLLECTION).doc(uid)
-    const snap = await ref.get()
-    if (!snap.exists) return NextResponse.json({ error: 'Unknown admin' }, { status: 404 })
-    const record = snap.data() as AdminRecord
 
-    // The last superadmin leaving means no one can ever grant access again —
-    // bootstrap is one-time and stays closed once used.
-    if (record.role === 'superadmin') {
-      const supers = await adminDb.collection(ADMINS_COLLECTION)
-        .where('role', '==', 'superadmin')
-        .get()
-      if (supers.size <= 1) {
-        throw new AdminAuthError(409, 'That is the only superadmin — promote someone else first')
+    // In a transaction, because the guard below is a count. Two superadmins
+    // revoking each other in overlapping requests would each read "there are
+    // 2" outside one, both proceed, and empty the collection — and bootstrap is
+    // permanently closed by its marker, so there is no way back in short of
+    // editing Firestore by hand.
+    await adminDb.runTransaction(async tx => {
+      const snap = await tx.get(ref)
+      if (!snap.exists) throw new AdminAuthError(404, 'Unknown admin')
+      const record = snap.data() as AdminRecord
+
+      if (record.role === 'superadmin') {
+        const supers = await tx.get(
+          adminDb.collection(ADMINS_COLLECTION).where('role', '==', 'superadmin')
+        )
+        if (supers.size <= 1) {
+          throw new AdminAuthError(409, 'That is the only superadmin — promote someone else first')
+        }
       }
-    }
 
-    const batch = adminDb.batch()
-    batch.delete(ref)
-    const audit = auditWrite({
-      actor: principal,
-      action: 'admin.revoke',
-      targetType: 'admin',
-      targetId: uid,
-      before: record,
+      const audit = auditWrite({
+        actor: principal,
+        action: 'admin.revoke',
+        targetType: 'admin',
+        targetId: uid,
+        before: record,
+      })
+      tx.delete(ref)
+      tx.set(audit.ref, audit.data)
     })
-    batch.set(audit.ref, audit.data)
-    await batch.commit()
 
     return NextResponse.json({ ok: true })
   } catch (err) {

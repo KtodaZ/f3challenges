@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canActOnRegion, type AdminRecord } from './admin-auth'
+import { canActOnRegion, inviteRef, type AdminRecord } from './admin-auth'
 
 function record(over: Partial<AdminRecord> = {}): AdminRecord {
   return {
@@ -29,9 +29,13 @@ describe('canActOnRegion', () => {
   })
 
   it('refuses a region admin when no region was resolved', () => {
-    // Callers must resolve the target region from Firestore. If they couldn't,
-    // failing closed is the only safe answer — a missing region must never
-    // read as "any region".
+    // Fail closed: a missing region must never read as "any region".
+    //
+    // This is why requireAdmin() takes a REQUIRED regionId. It used to be
+    // optional, and the list endpoints called requireAdmin(req) meaning "any
+    // region, I'll filter myself" — which landed here and 403'd every region
+    // admin out of the PAX and Feed screens. Endpoints that genuinely span
+    // regions use requireAnyAdmin() and filter on record.regionIds.
     expect(canActOnRegion(record(), undefined)).toBe(false)
   })
 
@@ -41,5 +45,20 @@ describe('canActOnRegion', () => {
 
   it('refuses a region admin with an empty region list', () => {
     expect(canActOnRegion(record({ regionIds: [] }), 'sactown')).toBe(false)
+  })
+})
+
+describe('inviteRef', () => {
+  it('never returns the token itself', () => {
+    // The token is the credential — the whole contents of the invite link.
+    // Audit entries must not become a source of working invites.
+    const token = 'super-secret-invite-token'
+    expect(inviteRef(token)).not.toContain(token)
+    expect(inviteRef(token)).toHaveLength(16)
+  })
+
+  it('is stable, so two entries about one invite correlate', () => {
+    expect(inviteRef('abc')).toBe(inviteRef('abc'))
+    expect(inviteRef('abc')).not.toBe(inviteRef('abd'))
   })
 })

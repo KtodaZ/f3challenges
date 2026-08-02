@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # The Firestore emulator is a Java process. Ubuntu runners ship a JDK, but
+      # pin it — the emulator needs 21+ and fails with an unhelpful error on 17.
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (app)
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+      # Guards the rules that gate admin-only user fields. Without this the
+      # suite is opt-in and rots — and a mistake here breaks writes for every
+      # live PAX, which is the worst failure this repo has.
+      - name: Firestore rules tests
+        run: pnpm test:rules
+
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-placeholder
+
+      - name: Install functions dependencies
+        working-directory: functions
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (functions)
+        working-directory: functions
+        run: npx tsc --noEmit

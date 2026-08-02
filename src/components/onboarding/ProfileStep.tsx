@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useUser } from '@/contexts/UserContext'
 import { useRegion } from '@/contexts/RegionContext'
 import { upsertUser } from '@/lib/firestore'
+import { isNameTaken } from '@/lib/roster'
 import { generateId } from '@/lib/utils'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 import type { User } from '@/types'
@@ -52,19 +53,20 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
     // Region-scoped on purpose: F3 names repeat across regions constantly, and
     // Sactown's Splice is not Bedrock's Splice.
     //
-    // Checked against the full directory rather than the roster — an archived
-    // PAX keeps their name reserved. Mentions resolve by display name
-    // (highlightMentions, extractMentionNames), so letting a newcomer take an
-    // archived PAX's name makes every old @Splice in the feed ambiguous, and
-    // some of them would start pointing at the wrong person.
-    const duplicate = allUsers.find(
-      u => u.displayName.toLowerCase() === trimmed.toLowerCase()
-    )
-    if (duplicate) {
+    // Checked against the full directory, and against names PAX used to hold —
+    // see isNameTaken. Mentions render by matching text against displayName, so
+    // a reused name doesn't just collide going forward, it retroactively
+    // re-points every old @Splice at whoever takes it.
+    if (isNameTaken(allUsers, trimmed)) {
+      const current = allUsers.find(
+        u => u.displayName.toLowerCase() === trimmed.toLowerCase()
+      )
       setNameError(
-        duplicate.status === 'archived'
-          ? `That name belonged to a past ${region.shortName} PAX — pick another so old posts don't get confused.`
-          : `That name is already taken in ${region.shortName} — are you them? Select from the list.`
+        !current
+          ? `A ${region.shortName} PAX used that name before — pick another so old posts don't get confused.`
+          : current.status === 'archived'
+            ? `That name belonged to a past ${region.shortName} PAX — pick another so old posts don't get confused.`
+            : `That name is already taken in ${region.shortName} — are you them? Select from the list.`
       )
       return
     }

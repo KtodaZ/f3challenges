@@ -26,3 +26,36 @@ export function isArchived(user: { status?: string }): boolean {
 export function selectRoster<T extends { status?: string }>(users: T[]): T[] {
   return users.filter(u => !isArchived(u))
 }
+
+interface NameHolder {
+  id?: string
+  displayName?: string
+  formerNames?: string[]
+}
+
+/**
+ * Whether an F3 name is already spoken for in this region's directory.
+ *
+ * Checks current names, names of ARCHIVED PAX, and names anyone has previously
+ * been renamed away from. All three matter for the same reason: mentions are
+ * stored as raw `@Name` text and resolved at render time by matching
+ * `displayName`. A name that gets reused doesn't just collide going forward —
+ * it retroactively re-points every historical mention of the previous holder
+ * at whoever took it.
+ *
+ * Pass the DIRECTORY, not the roster.
+ */
+export function isNameTaken(
+  directory: NameHolder[],
+  name: string,
+  exceptUserId?: string
+): boolean {
+  const wanted = name.trim().toLowerCase()
+  if (!wanted) return false
+
+  return directory.some(u => {
+    if (exceptUserId && u.id === exceptUserId) return false
+    if ((u.displayName ?? '').toLowerCase() === wanted) return true
+    return (u.formerNames ?? []).includes(wanted)
+  })
+}

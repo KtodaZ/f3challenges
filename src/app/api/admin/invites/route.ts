@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'node:crypto'
 import { adminDb } from '@/lib/firebase-admin'
 import {
-  requireAdmin, assertSuperadmin, auditWrite, adminErrorResponse,
+  requireAnyAdmin, assertSuperadmin, auditWrite, adminErrorResponse,
   validateRegionIds, AdminAuthError,
-  INVITES_COLLECTION, INVITE_TTL_DAYS,
+  inviteRef, INVITES_COLLECTION, INVITE_TTL_DAYS,
   type AdminInvite, type AdminRole,
 } from '@/lib/admin-auth'
 import type { User } from '@/types'
@@ -17,17 +17,19 @@ export interface AdminInviteRow extends AdminInvite {
 /** GET — pending invites, newest first. Superadmin only. */
 export async function GET(req: NextRequest) {
   try {
-    assertSuperadmin(await requireAdmin(req))
+    assertSuperadmin(await requireAnyAdmin(req))
 
     const snap = await adminDb.collection(INVITES_COLLECTION)
       .orderBy('createdAt', 'desc')
       .limit(50)
       .get()
 
+    // Claimed invites are deleted on redemption, so everything here is
+    // genuinely outstanding — nothing is filtered out after the limit, which
+    // would otherwise let dead rows hide live ones.
     const now = Date.now()
     const invites: AdminInviteRow[] = snap.docs
       .map(d => ({ token: d.id, ...(d.data() as AdminInvite) }))
-      .filter(i => !i.claimedAt)
       .map(i => ({ ...i, expired: new Date(i.expiresAt).getTime() < now }))
 
     return NextResponse.json({ invites })
@@ -48,7 +50,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const principal = await requireAdmin(req)
+    const principal = await requireAnyAdmin(req)
     assertSuperadmin(principal)
 
     const body = await req.json().catch(() => ({})) as {
@@ -91,7 +93,7 @@ export async function POST(req: NextRequest) {
       actor: principal,
       action: 'admin.invite',
       targetType: 'admin',
-      targetId: token,
+      targetId: inviteRef(token),
       after: { role, regionIds, paxName },
     })
     batch.set(audit.ref, audit.data)

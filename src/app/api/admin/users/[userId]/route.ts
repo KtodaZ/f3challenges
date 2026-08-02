@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { FieldValue } from 'firebase-admin/firestore'
 import { adminDb } from '@/lib/firebase-admin'
-import { requireAdmin, auditWrite, adminErrorResponse, AdminAuthError } from '@/lib/admin-auth'
+import { requireAnyAdmin, assertRegion, auditWrite, adminErrorResponse, AdminAuthError } from '@/lib/admin-auth'
+import { isNameTaken } from '@/lib/roster'
 import { resolveRegion } from '@/lib/challenges'
 import type { User } from '@/types'
 
@@ -33,6 +34,11 @@ export async function PATCH(
     const { userId } = await params
     const body = (await req.json().catch(() => ({}))) as Body
 
+    // Authenticate before touching Firestore: an unauthenticated caller
+    // shouldn't be able to make the server do work, or learn from a 404
+    // whether a given user id exists.
+    const principal = await requireAnyAdmin(req)
+
     const ref = adminDb.collection('users').doc(userId)
     const snap = await ref.get()
     if (!snap.exists) {
@@ -43,7 +49,61 @@ export async function PATCH(
     // Region comes from the target document, never the request — this is the
     // check that actually scopes a region admin.
     const regionId = resolveRegion(user.regionId).id
-    const principal = await requireAdmin(req, { regionId })
+    assertRegion(principal, regionId)
+
+    // Rename runs in a transaction rather than a batch, because its
+    // precondition is a QUERY: "no other PAX in this region holds this name".
+    // Checking that outside a transaction lets two admins rename two different
+    // PAX to the same name at the same time — both queries see no clash, both
+    // writes succeed, and mentions for that name become ambiguous forever.
+    // tx.get(query) puts the query in the transaction's conflict set, so the
+    // second one retries and then fails the check properly.
+    if (body.action === 'rename') {
+      const name = (body.displayName ?? '').trim()
+      if (name.length < 2) throw new AdminAuthError(422, 'Name must be at least 2 characters')
+
+      await adminDb.runTransaction(async tx => {
+        // Read every user, not `where('regionId','==',regionId)`: a doc written
+        // before regions existed has no regionId field and is invisible to an
+        // equality filter, but resolveRegion() counts it as Bedrock — so the
+        // query would miss exactly the legacy PAX whose name is most likely to
+        // appear in old posts.
+        const allUsers = await tx.get(adminDb.collection('users'))
+        const targetSnap = await tx.get(ref)
+        if (!targetSnap.exists) throw new AdminAuthError(404, 'Unknown user')
+
+        const target = targetSnap.data() as User
+        const sameRegion = allUsers.docs
+          .map(d => ({ id: d.id, ...(d.data() as Omit<User, 'id'>) }))
+          .filter(u => resolveRegion(u.regionId).id === regionId)
+
+        if (isNameTaken(sameRegion, name, userId)) {
+          throw new AdminAuthError(409, `"${name}" is already taken in ${regionId}`)
+        }
+
+        // The old name stays reserved. Mentions render by matching text against
+        // displayName, so releasing it would let a future PAX claim it and
+        // silently inherit every historical @mention of this person.
+        const formerNames = Array.from(new Set([
+          ...(target.formerNames ?? []),
+          (target.displayName ?? '').toLowerCase(),
+        ].filter(Boolean)))
+
+        const audit = auditWrite({
+          actor: principal,
+          action: 'user.rename',
+          targetType: 'user',
+          targetId: userId,
+          regionId,
+          before: { displayName: target.displayName },
+          after: { displayName: name, formerNames },
+        })
+        tx.update(ref, { displayName: name, formerNames })
+        tx.set(audit.ref, audit.data)
+      })
+
+      return NextResponse.json({ ok: true })
+    }
 
     const batch = adminDb.batch()
     const now = new Date().toISOString()
@@ -82,28 +142,6 @@ export async function PATCH(
           archivedBy: FieldValue.delete(),
         })
         action = 'user.unarchive'
-        break
-      }
-      case 'rename': {
-        const name = (body.displayName ?? '').trim()
-        if (name.length < 2) {
-          throw new AdminAuthError(422, 'Name must be at least 2 characters')
-        }
-        // Names are reserved region-wide including archived PAX: mentions
-        // resolve by display name, so a duplicate makes old posts ambiguous.
-        const clash = await adminDb.collection('users')
-          .where('regionId', '==', regionId)
-          .get()
-        const taken = clash.docs.some(d =>
-          d.id !== userId &&
-          ((d.data() as User).displayName ?? '').toLowerCase() === name.toLowerCase()
-        )
-        if (taken) throw new AdminAuthError(409, `"${name}" is already taken in ${regionId}`)
-
-        before = { displayName: user.displayName }
-        after = { displayName: name }
-        batch.update(ref, { displayName: name })
-        action = 'user.rename'
         break
       }
       default:

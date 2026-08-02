@@ -21,7 +21,12 @@ export async function POST(req: NextRequest) {
   try {
     const { uid, email } = await verifyCaller(req)
     const { token } = (await req.json().catch(() => ({}))) as { token?: string }
-    if (!token) return NextResponse.json({ error: 'Missing invite' }, { status: 400 })
+    // Validated before it reaches .doc(): a token containing "/" is an invalid
+    // document path and throws inside Firestore, surfacing as a confusing 500
+    // instead of "that link isn't valid". base64url is the alphabet we mint.
+    if (!token || !/^[A-Za-z0-9_-]{16,128}$/.test(token)) {
+      return NextResponse.json({ error: 'This invite link is not valid.' }, { status: 403 })
+    }
 
     const inviteRef = adminDb.collection(INVITES_COLLECTION).doc(token)
     const adminRef  = adminDb.collection(ADMINS_COLLECTION).doc(uid)
@@ -40,9 +45,11 @@ export async function POST(req: NextRequest) {
         return { error: 'This invite has expired. Ask for a new one.' }
       }
       if (existing.exists) {
-        // Already an admin — consume the invite rather than leaving it live,
-        // but don't overwrite whatever access they already have.
-        tx.update(inviteRef, { claimedAt: new Date().toISOString(), claimedBy: uid })
+        // Already an admin. Leave the invite alone: it was almost certainly
+        // meant for someone else, and consuming it here would silently destroy
+        // a link the superadmin has already sent out — with nothing in the
+        // audit trail to explain where it went. Their existing access is
+        // returned unchanged; the intended recipient can still claim.
         return { record: existing.data() as AdminRecord, alreadyAdmin: true }
       }
 
@@ -58,7 +65,12 @@ export async function POST(req: NextRequest) {
         ...(invite.paxName ? { paxName: invite.paxName } : {}),
       }
       tx.set(adminRef, record)
-      tx.update(inviteRef, { claimedAt: now, claimedBy: uid })
+      // Deleted rather than flagged claimed. A missing invite is rejected by
+      // the same check as an invalid one, so replay protection is unchanged —
+      // and it avoids claimed invites piling up invisibly behind the listing's
+      // limit, where enough of them would hide every genuinely pending invite.
+      // The audit entry below is the durable record that it was used.
+      tx.delete(inviteRef)
       tx.set(auditRef, {
         at: now,
         actorUid: uid,

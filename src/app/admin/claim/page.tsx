@@ -1,7 +1,7 @@
 'use client'
 
-import { Suspense, useEffect, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAdmin } from '@/contexts/AdminContext'
 import { signInWithGoogle, adminFetch } from '@/lib/admin-client'
 import { Button } from '@/components/ui/Button'
@@ -13,15 +13,33 @@ import { Button } from '@/components/ui/Button'
  * an admin yet. They sign in with Google, the token is redeemed server-side,
  * and whichever account they used becomes the admin.
  */
-function ClaimInner() {
+function ClaimPageInner() {
   const router = useRouter()
-  const token = useSearchParams().get('t')
   const { state, refresh } = useAdmin()
+
+  const [token, setToken] = useState<string | null>(null)
+  const [tokenRead, setTokenRead] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // A ref, not state: this only guards against redeeming twice and must never
-  // itself trigger a render (the effect would then be setting state directly).
+  // itself trigger a render.
   const claimed = useRef(false)
+
+  // Read the token from the URL and strip it immediately. Signing in navigates
+  // cross-origin to accounts.google.com, and a URL that grants admin access has
+  // no business sitting in browser history, in server access logs, or in a
+  // Referer header while that happens.
+  //
+  // Read from window rather than useSearchParams: this has to happen in an
+  // effect anyway (there's no URL during prerender), and going direct means the
+  // page needs no Suspense boundary.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('t')
+    if (t) window.history.replaceState({}, '', '/admin/claim')
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setToken(t)
+    setTokenRead(true)
+  }, [])
 
   const signedIn = state.status === 'denied' || state.status === 'ready'
 
@@ -50,11 +68,20 @@ function ClaimInner() {
       .finally(() => setBusy(false))
   }
 
-  if (!token) {
-    return <Message title="Invite link is incomplete" body="That link is missing its code. Ask for a fresh one." />
-  }
   if (error) {
     return <Message title="This invite didn't work" body={error} />
+  }
+  // Don't judge the token until the effect has actually looked for it —
+  // otherwise the first paint accuses a perfectly good link of being broken.
+  if (!tokenRead) {
+    return (
+      <div className="flex items-center justify-center min-h-dvh">
+        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+  if (!token) {
+    return <Message title="Invite link is incomplete" body="That link is missing its code. Ask for a fresh one." />
   }
   // Signed in with no error means the redemption is in flight.
   if (state.status === 'loading' || signedIn) {
@@ -96,9 +123,7 @@ function Message({ title, body }: { title: string; body: string }) {
 }
 
 export default function ClaimPage() {
-  return (
-    <Suspense>
-      <ClaimInner />
-    </Suspense>
-  )
+  // No Suspense boundary needed: the token is read from window.location in an
+  // effect rather than via useSearchParams.
+  return <ClaimPageInner />
 }

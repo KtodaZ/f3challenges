@@ -18,14 +18,14 @@ import {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { uid, email } = await verifyCaller(req)
+    const { uid, email, displayName, photoUrl } = await verifyCaller(req)
 
     const snap = await adminDb.collection(ADMINS_COLLECTION).doc(uid).get()
     if (snap.exists) {
       return NextResponse.json({ uid, email, record: snap.data() as AdminRecord })
     }
 
-    const bootstrapped = await tryBootstrap(uid, email)
+    const bootstrapped = await tryBootstrap(uid, email, { displayName, photoUrl })
     if (bootstrapped) {
       return NextResponse.json({ uid, email, record: bootstrapped })
     }

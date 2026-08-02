@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import {
-  requireAdmin, assertSuperadmin, adminErrorResponse,
+  requireAnyAdmin, assertSuperadmin, adminErrorResponse,
   ADMINS_COLLECTION, type AdminRecord,
 } from '@/lib/admin-auth'
 
@@ -16,7 +16,7 @@ export interface AdminRow extends AdminRecord {
  *  who else holds access. */
 export async function GET(req: NextRequest) {
   try {
-    const principal = await requireAdmin(req)
+    const principal = await requireAnyAdmin(req)
     assertSuperadmin(principal)
 
     const snap = await adminDb.collection(ADMINS_COLLECTION).get()

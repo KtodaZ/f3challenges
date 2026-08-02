@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server'
+import { createHash } from 'node:crypto'
 import { FieldValue } from 'firebase-admin/firestore'
 import { adminAuth, adminDb } from '@/lib/firebase-admin'
 import { isValidRegionId } from '@/lib/challenges'
@@ -57,6 +58,8 @@ export interface AdminInvite {
   createdBy: string
   createdByEmail: string
   expiresAt: string
+  /** Redeeming an invite deletes it, so these are only ever seen on documents
+   *  written before that changed. Kept so old rows still parse. */
   claimedAt?: string
   claimedBy?: string
 }
@@ -117,7 +120,9 @@ function bearerToken(req: NextRequest): string {
 
 /** Verifies the caller's Google sign-in and returns their identity. Says
  *  nothing about whether they're an admin. */
-export async function verifyCaller(req: NextRequest): Promise<{ uid: string; email: string }> {
+export async function verifyCaller(
+  req: NextRequest
+): Promise<{ uid: string; email: string; displayName?: string; photoUrl?: string }> {
   const token = bearerToken(req)
   let decoded
   try {
@@ -130,7 +135,12 @@ export async function verifyCaller(req: NextRequest): Promise<{ uid: string; ema
   if (!decoded.email || decoded.email_verified !== true) {
     throw new AdminAuthError(401, 'Unverified email')
   }
-  return { uid: decoded.uid, email: normalizeEmail(decoded.email) }
+  return {
+    uid: decoded.uid,
+    email: normalizeEmail(decoded.email),
+    displayName: decoded.name,
+    photoUrl: decoded.picture,
+  }
 }
 
 export function canActOnRegion(record: AdminRecord, regionId: string | undefined): boolean {
@@ -140,29 +150,60 @@ export function canActOnRegion(record: AdminRecord, regionId: string | undefined
 }
 
 /**
- * The gate every admin route calls first.
+ * Authenticates the caller and confirms they hold admin access somewhere.
+ * Says nothing about *which* region.
  *
- * `regionId` must be resolved from Firestore by the caller — from the target
- * document, never from the request body. Taking it from the body would let a
- * region admin name any region they like and pass their own check.
+ * This is what list endpoints use — they return data across everything the
+ * caller governs, so there is no single region to check up front; they filter
+ * by `record.regionIds` themselves. Mutations must use `requireAdmin` (or call
+ * `assertRegion` once they know the target's region) instead.
  */
-export async function requireAdmin(
-  req: NextRequest,
-  opts: { regionId?: string } = {}
-): Promise<AdminPrincipal> {
+export async function requireAnyAdmin(req: NextRequest): Promise<AdminPrincipal> {
   const { uid, email } = await verifyCaller(req)
 
   const snap = await adminDb.collection(ADMINS_COLLECTION).doc(uid).get()
   if (!snap.exists) {
     throw new AdminAuthError(403, 'Not an admin')
   }
-  const record = snap.data() as AdminRecord
 
-  if (!canActOnRegion(record, opts.regionId)) {
-    throw new AdminAuthError(403, `Not an admin for region ${opts.regionId ?? '(unspecified)'}`)
+  return { uid, email, record: snap.data() as AdminRecord }
+}
+
+/**
+ * Narrows an already-authenticated admin to one region.
+ *
+ * Split out from `requireAnyAdmin` so a mutation can authenticate *before*
+ * reading its target — the target's region isn't known until it's been read,
+ * and an unauthenticated caller shouldn't be able to make the server do work
+ * or learn whether a document exists.
+ */
+export function assertRegion(principal: AdminPrincipal, regionId: string): void {
+  if (!canActOnRegion(principal.record, regionId)) {
+    throw new AdminAuthError(403, `Not an admin for region ${regionId}`)
   }
+}
 
-  return { uid, email, record }
+/**
+ * The gate for anything scoped to a single region.
+ *
+ * `regionId` is REQUIRED, deliberately. It was previously optional, and
+ * omitting it made `canActOnRegion` fail closed — which meant every list
+ * endpoint that called `requireAdmin(req)` intending to filter afterwards
+ * returned 403 to every region admin. Making it required moves that mistake
+ * from a runtime lockout to a compile error; use `requireAnyAdmin` when there
+ * genuinely is no single region in play.
+ *
+ * The value must be resolved from Firestore by the caller — from the target
+ * document, never from the request body. Taking it from the body would let a
+ * region admin name any region they like and pass their own check.
+ */
+export async function requireAdmin(
+  req: NextRequest,
+  opts: { regionId: string }
+): Promise<AdminPrincipal> {
+  const principal = await requireAnyAdmin(req)
+  assertRegion(principal, opts.regionId)
+  return principal
 }
 
 /**
@@ -262,6 +303,19 @@ export function auditWrite(entry: AuditEntry) {
     ...(entry.after !== undefined ? { after: entry.after } : {}),
   }
   return { ref, data }
+}
+
+/**
+ * A stable, non-secret handle for an invite, for use in the audit log.
+ *
+ * The invite token IS the credential — it's the document id and the whole
+ * contents of the link. Writing it into an audit entry would mean any future
+ * log export, support dump or admin-readable audit view hands out working
+ * invite links. The hash still lets two audit entries about the same invite be
+ * correlated.
+ */
+export function inviteRef(token: string): string {
+  return createHash('sha256').update(token).digest('hex').slice(0, 16)
 }
 
 /** Region ids on an admin record must be real — a typo would otherwise create

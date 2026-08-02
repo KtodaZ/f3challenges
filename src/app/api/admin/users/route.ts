@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
-import { requireAdmin, adminErrorResponse } from '@/lib/admin-auth'
+import { requireAnyAdmin, adminErrorResponse } from '@/lib/admin-auth'
 import { REGIONS, resolveRegion } from '@/lib/challenges'
 import type { User } from '@/types'
 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   try {
     // No regionId: this is a read across whatever the caller governs, and the
     // filtering below is what enforces scope.
-    const principal = await requireAdmin(req)
+    const principal = await requireAnyAdmin(req)
     const { record } = principal
 
     const visibleRegionIds = record.role === 'superadmin'

@@ -202,6 +202,12 @@ export const onFeedPostCreated = onDocumentCreated(
           .map(async (userId) => {
             const user = await getUser(userId);
             if (!user) return;
+            // Archived PAX are off the crew — pushing to them contradicts what
+            // archiving promises, and the notification is the one thing they
+            // can't dismiss: tapping it lands them on the archived screen.
+            // Reachable because mention *parsing* resolves against the full
+            // directory by design, so typing @Name by hand still matches.
+            if (user.status === "archived") return;
             if (!user.notificationPreferences?.mentions) return;
 
             const notifId = nanoid();
@@ -240,6 +246,9 @@ export const onFeedPostCreated = onDocumentCreated(
         Array.from(recipientSet).map(async (userId) => {
           const user = await getUser(userId);
           if (!user) return;
+          // See the note in the mention branch — archived PAX get no push,
+          // including shoutouts aimed directly at them.
+          if (user.status === "archived") return;
 
           // targetUserId always gets notified; mention recipients respect prefs
           const isMentionOnly =

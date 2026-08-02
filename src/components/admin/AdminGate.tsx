@@ -22,7 +22,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
   // that's its entire purpose — so it renders its own sign-in and skips this
   // gate. It still needs AdminProvider above it, which is why it lives here
   // rather than outside /admin.
-  if (pathname === '/admin/claim') return <>{children}</>
+  if (pathname?.startsWith('/admin/claim')) return <>{children}</>
 
   // No `await` before signInWithPopup — the popup has to open inside the click
   // gesture or the browser blocks it, which looks like a dead button.

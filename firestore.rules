@@ -12,9 +12,11 @@ service cloud.firestore {
     }
 
     // Fields only an admin may write. PAX are unauthenticated, so without this
-    // anyone could archive anyone.
+    // anyone could archive anyone. `formerNames` is here for the same reason:
+    // it reserves F3 names someone has been renamed away from, and clearing it
+    // would let a historical @mention be re-pointed at a different person.
     function touchesAdminFields(keys) {
-      return keys.hasAny(['status', 'archivedAt', 'archivedBy']);
+      return keys.hasAny(['status', 'archivedAt', 'archivedBy', 'formerNames']);
     }
 
     // Users: trust-based, no auth required. PAX writes (displayName, fcmTokens,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
-import { requireAdmin, auditWrite, adminErrorResponse, AdminAuthError } from '@/lib/admin-auth'
+import { requireAnyAdmin, assertRegion, auditWrite, adminErrorResponse, AdminAuthError } from '@/lib/admin-auth'
 import { resolveRegion } from '@/lib/challenges'
 import type { FeedPost, FeedComment } from '@/types'
 
@@ -28,6 +28,9 @@ export async function DELETE(
     const { postId } = await params
     const commentId = req.nextUrl.searchParams.get('commentId')
 
+    // Authenticate first — see the note in the users route.
+    const principal = await requireAnyAdmin(req)
+
     const postRef = adminDb.collection('feed').doc(postId)
     const postSnap = await postRef.get()
     if (!postSnap.exists) {
@@ -37,7 +40,7 @@ export async function DELETE(
 
     // Scope comes from the post's own region, never the request.
     const regionId = resolveRegion(post.regionId).id
-    const principal = await requireAdmin(req, { regionId })
+    assertRegion(principal, regionId)
 
     const batch = adminDb.batch()
 

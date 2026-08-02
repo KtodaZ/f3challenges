@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
-import { requireAdmin, adminErrorResponse } from '@/lib/admin-auth'
+import { requireAnyAdmin, adminErrorResponse } from '@/lib/admin-auth'
 import { REGIONS, resolveRegion } from '@/lib/challenges'
 import type { FeedPost, FeedComment, User } from '@/types'
 
@@ -35,7 +35,7 @@ const PAGE_SIZE = 50
  */
 export async function GET(req: NextRequest) {
   try {
-    const principal = await requireAdmin(req)
+    const principal = await requireAnyAdmin(req)
     const { record } = principal
 
     const governed = record.role === 'superadmin' ? REGIONS.map(r => r.id) : record.regionIds
@@ -46,6 +46,9 @@ export async function GET(req: NextRequest) {
     const regionIds = requested && governed.includes(requested) ? [requested] : governed
 
     const snap = await adminDb.collection('feed')
+      // Firestore caps an `in` filter at 30 values. Two regions today; if this
+      // ever truncates, the fix is to page per region rather than silently
+      // drop the tail.
       .where('regionId', 'in', regionIds.slice(0, 30))
       .where('deleted', '==', false)
       .orderBy('createdAt', 'desc')
