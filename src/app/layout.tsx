@@ -1,18 +1,11 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist } from 'next/font/google'
 import './globals.css'
-import { RegionProvider } from '@/contexts/RegionContext'
-import { UserProvider } from '@/contexts/UserContext'
-import { BottomNav } from '@/components/nav/BottomNav'
-import { TopBar } from '@/components/nav/TopBar'
 import { TooltipProvider } from '@/components/ui/Tooltip'
-import { FCMInitializer } from '@/components/notifications/FCMInitializer'
 import { Toaster } from 'sonner'
 import { QueryProvider } from '@/components/providers/QueryProvider'
-import { FirestoreConnectionGuard } from '@/components/providers/FirestoreConnectionGuard'
 import { CrashCapture } from '@/components/providers/CrashCapture'
-import { UpdateChecker } from '@/components/providers/UpdateChecker'
-import { PendingCelebrationHandler } from '@/components/providers/PendingCelebrationHandler'
+import { AppShell } from '@/components/providers/AppShell'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 
@@ -50,29 +43,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh antialiased">
         <QueryProvider>
-          <RegionProvider>
-            <UserProvider>
-              <TooltipProvider>
-                <CrashCapture />
-                <FCMInitializer />
-                <FirestoreConnectionGuard />
-                <UpdateChecker />
-                <PendingCelebrationHandler />
-                <TopBar />
-                <main className="pb-nav min-h-dvh">
-                  {children}
-                </main>
-                <BottomNav />
-                <Toaster
-                  position="bottom-center"
-                  offset="80px"
-                  toastOptions={{
-                    style: { background: '#27272a', border: '1px solid #3f3f46', color: '#fafafa' },
-                  }}
-                />
-              </TooltipProvider>
-            </UserProvider>
-          </RegionProvider>
+          <TooltipProvider>
+            <CrashCapture />
+            {/* The PAX providers live in AppShell, which skips them under
+                /admin — see the note there. */}
+            <AppShell>{children}</AppShell>
+            <Toaster
+              position="bottom-center"
+              offset="80px"
+              toastOptions={{
+                style: { background: '#27272a', border: '1px solid #3f3f46', color: '#fafafa' },
+              }}
+            />
+          </TooltipProvider>
         </QueryProvider>
       </body>
     </html>

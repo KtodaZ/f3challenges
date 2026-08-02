@@ -215,7 +215,9 @@ function NoChallengeView() {
 
 export default function HomePage() {
   const router = useRouter()
-  const { currentUser, allUsers, loading: userLoading, refreshCurrentUser } = useUser()
+  // `crewRoster` is the active crew (archived PAX excluded); `allUsers` is
+  // the full directory, kept for looking historical names up.
+  const { currentUser, allUsers, roster: crewRoster, loading: userLoading, refreshCurrentUser } = useUser()
 
   const today = getTodayPT()
   const challenge = useCurrentChallenge()
@@ -425,11 +427,11 @@ export default function HomePage() {
   // ── Load challenge roster (participation statuses + who has logged) ──────
 
   useEffect(() => {
-    if (!challenge || allUsers.length === 0) return
+    if (!challenge || crewRoster.length === 0) return
     let cancelled = false
     Promise.all([
       getChallengeParticipants(challenge.id),
-      getUsersWithChallengeLogs(challenge.id, allUsers.map(u => u.id)),
+      getUsersWithChallengeLogs(challenge.id, crewRoster.map(u => u.id)),
     ]).then(([participations, loggedUserIds]) => {
       if (cancelled) return
       setRoster({
@@ -438,7 +440,7 @@ export default function HomePage() {
       })
     })
     return () => { cancelled = true }
-  }, [challenge, allUsers])
+  }, [challenge, crewRoster])
 
   // ── Bonus challenge: load current user's log + subscribe to week logs ────
 
@@ -1173,7 +1175,7 @@ export default function HomePage() {
   // day, explicitly opted in, or (early in the month) hasn't opted out. Keeps
   // inactive month-over-month users out of crew lists and PAX totals.
   const participants = roster
-    ? allUsers.filter(u =>
+    ? crewRoster.filter(u =>
         isChallengeParticipant(
           roster.statusByUserId.get(u.id),
           // The person holding the phone is always "active in the app"
@@ -1181,7 +1183,7 @@ export default function HomePage() {
           dayNumber,
         )
       )
-    : allUsers // roster still loading — fall back to everyone
+    : crewRoster // participation still loading — fall back to the whole crew
 
   const totalPAX      = participants.length
   const completedCount = groupLogs.filter(l => l.completionFraction >= 1).length

@@ -1,5 +1,7 @@
 # Multi-Region
 
+> Known compromises and their expiry dates live in [`TECH_DEBT.md`](./TECH_DEBT.md).
+
 Living tracker for taking the app from one region (F3 Bedrock) to many. Phase 1 shipped for Aug 1, 2026, when F3 Sactown joined with their 100-merkins-a-day challenge.
 
 ## How regions work

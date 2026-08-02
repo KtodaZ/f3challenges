@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useUser } from '@/contexts/UserContext'
 import { useRegion } from '@/contexts/RegionContext'
 import { upsertUser } from '@/lib/firestore'
+import { isNameTaken } from '@/lib/roster'
 import { generateId } from '@/lib/utils'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types'
 import type { User } from '@/types'
@@ -17,14 +18,15 @@ interface ProfileStepProps {
 }
 
 export function ProfileStep({ onNext }: ProfileStepProps) {
-  // allUsers is already scoped to the chosen region by UserContext, so both
-  // the picker and the duplicate-name check below are region-local.
-  const { allUsers, login } = useUser()
+  // Both lists are already region-scoped by UserContext. The picker uses the
+  // roster, so an archived PAX can't be claimed; the duplicate-name check uses
+  // the directory, so their name stays reserved. See handleCreateNew.
+  const { roster, allUsers, login } = useUser()
   const { regionId, region } = useRegion()
   // A brand-new region has nobody to pick from, so "New PAX" is the only
   // sensible landing mode — but an explicit tap always wins over the default.
   const [modeOverride, setModeOverride] = useState<'existing' | 'new' | null>(null)
-  const mode = modeOverride ?? (allUsers.length === 0 ? 'new' : 'existing')
+  const mode = modeOverride ?? (roster.length === 0 ? 'new' : 'existing')
   const setMode = setModeOverride
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [newName, setNewName] = useState('')
@@ -48,13 +50,24 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
       return
     }
 
-    // Duplicate check is region-scoped on purpose: F3 names repeat across
-    // regions constantly, and Sactown's Splice is not Bedrock's Splice.
-    const duplicate = allUsers.find(
-      u => u.displayName.toLowerCase() === trimmed.toLowerCase()
-    )
-    if (duplicate) {
-      setNameError(`That name is already taken in ${region.shortName} — are you them? Select from the list.`)
+    // Region-scoped on purpose: F3 names repeat across regions constantly, and
+    // Sactown's Splice is not Bedrock's Splice.
+    //
+    // Checked against the full directory, and against names PAX used to hold —
+    // see isNameTaken. Mentions render by matching text against displayName, so
+    // a reused name doesn't just collide going forward, it retroactively
+    // re-points every old @Splice at whoever takes it.
+    if (isNameTaken(allUsers, trimmed)) {
+      const current = allUsers.find(
+        u => u.displayName.toLowerCase() === trimmed.toLowerCase()
+      )
+      setNameError(
+        !current
+          ? `A ${region.shortName} PAX used that name before — pick another so old posts don't get confused.`
+          : current.status === 'archived'
+            ? `That name belonged to a past ${region.shortName} PAX — pick another so old posts don't get confused.`
+            : `That name is already taken in ${region.shortName} — are you them? Select from the list.`
+      )
       return
     }
 
@@ -91,7 +104,7 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
 
       {mode === 'existing' ? (
         <>
-          {allUsers.length === 0 ? (
+          {roster.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
               <p className="text-zinc-500 text-sm">No crew members yet.</p>
               <button
@@ -116,7 +129,7 @@ export function ProfileStep({ onNext }: ProfileStepProps) {
                       New PAX
                     </span>
                   </button>
-                  {allUsers.map(user => (
+                  {roster.map(user => (
                     <button
                       key={user.id}
                       onClick={() => setSelectedUser(user)}

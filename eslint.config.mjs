@@ -15,6 +15,9 @@ const eslintConfig = defineConfig([
     // Generated / non-TS files
     ".claude-debug/**",
     "functions/lib/**",
+    // Agent worktrees are full checkouts nested inside the repo — linting them
+    // double-reports every file and fails on paths already ignored above.
+    ".claude/worktrees/**",
   ]),
 ]);
 

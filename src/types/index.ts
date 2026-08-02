@@ -88,11 +88,30 @@ export interface User {
    *  pickers and notification recipients, and their installed app stops
    *  working — but they keep every log, badge and post, so anything rendering
    *  history (PastFinishers, feed authorship) must still resolve them.
-   *  Absent means active. Not a security control: PAX are unauthenticated, so
-   *  this is enforced by the app and server routes, not by Firestore rules. */
+   *  Absent means active.
+   *
+   *  Writes to this field are gated in firestore.rules — only an authenticated
+   *  admin may set, change or remove it, which also means un-archiving is
+   *  admin-only. That is a speed bump, not a lock: the archived PAX is still
+   *  unauthenticated, still free to write everything else, and `users` still
+   *  allows delete, so they could drop and recreate their own document. They
+   *  can also just re-onboard under a different name. Archiving removes
+   *  someone from the crew; it does not lock them out.
+   *  See docs/MULTI_REGION.md. */
   status?: 'active' | 'archived'
   archivedAt?: string  // ISO
   archivedBy?: string  // admin auth uid
+  /**
+   * Every F3 name this PAX has previously held, lowercased.
+   *
+   * Mentions are stored as raw `@Name` text and resolved at render time by
+   * matching `displayName` (see highlightMentions / extractMentionNames), so a
+   * freed name is not inert — if someone else takes it, every historical
+   * mention of the original person silently re-points at the newcomer. Keeping
+   * old names reserved is what stops that. Same reason an archived PAX keeps
+   * their name.
+   */
+  formerNames?: string[]
   createdAt: string   // ISO
   fcmTokens?: string[]
   notificationPreferences: NotificationPreferences

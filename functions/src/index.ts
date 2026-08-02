@@ -202,6 +202,12 @@ export const onFeedPostCreated = onDocumentCreated(
           .map(async (userId) => {
             const user = await getUser(userId);
             if (!user) return;
+            // Archived PAX are off the crew — pushing to them contradicts what
+            // archiving promises, and the notification is the one thing they
+            // can't dismiss: tapping it lands them on the archived screen.
+            // Reachable because mention *parsing* resolves against the full
+            // directory by design, so typing @Name by hand still matches.
+            if (user.status === "archived") return;
             if (!user.notificationPreferences?.mentions) return;
 
             const notifId = nanoid();
@@ -240,6 +246,9 @@ export const onFeedPostCreated = onDocumentCreated(
         Array.from(recipientSet).map(async (userId) => {
           const user = await getUser(userId);
           if (!user) return;
+          // See the note in the mention branch — archived PAX get no push,
+          // including shoutouts aimed directly at them.
+          if (user.status === "archived") return;
 
           // targetUserId always gets notified; mention recipients respect prefs
           const isMentionOnly =
@@ -409,9 +418,11 @@ export const onDailyLogCompleted = onDocumentWritten(
     const repsBefore = repsAfter - gained;
 
     // Only PAX who are actually on the board. Without this, the first PAX to
-    // log on Day 1 "passes" every single person sitting on zero.
+    // log on Day 1 "passes" every single person sitting on zero. Archived PAX
+    // are off the board too — nobody should be told they overtook someone who
+    // has been removed from the crew.
     const standings = usersSnap.docs
-      .filter(d => !optedOut.has(d.id))
+      .filter(d => !optedOut.has(d.id) && (d.data() as User).status !== "archived")
       .map(d => ({ id: d.id, name: (d.data() as User).displayName, reps: repsByUser.get(d.id) ?? 0 }))
       .filter(s => s.reps > 0);
     const passed = paxPassed(standings, after.userId, repsBefore, repsAfter);
@@ -1883,6 +1894,13 @@ async function runBadgeBackfill(challengeId: string): Promise<Array<{ userId: st
   // Only the region(s) that actually ran this challenge — otherwise every PAX
   // in every region gets scanned, and a shared challenge would be the only
   // case where more than one region is in scope.
+  //
+  // Archived PAX are deliberately NOT excluded here. Archiving removes someone
+  // from the active crew; it doesn't retract what they already earned. Skipping
+  // them would deny a badge for a challenge they genuinely completed and drop
+  // them out of PastFinishers, which renders history and includes them by
+  // design. Archive filtering belongs on live surfaces — recipients, standings,
+  // crew counts — not on anything retrospective.
   const regionIds = challengeRegionIds(challenge);
   const usersSnap = await db.collection("users")
     .where("regionId", "in", regionIds)

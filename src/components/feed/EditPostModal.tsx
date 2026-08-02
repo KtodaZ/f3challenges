@@ -22,7 +22,10 @@ interface EditPostModalProps {
 }
 
 export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
-  const { currentUser, allUsers } = useUser()
+  // `allUsers` (directory) re-parses the mentions already in the post being
+  // edited — dropping archived PAX here would silently strip a valid mention
+  // on save. `roster` only feeds the suggestion list.
+  const { currentUser, allUsers, roster } = useUser()
   const [content, setContent]           = useState(post.content)
   const [submitting, setSubmitting]     = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
@@ -137,7 +140,7 @@ export function EditPostModal({ open, post, onClose }: EditPostModalProps) {
           {mentionQuery !== null && (
             <MentionAutocomplete
               query={mentionQuery}
-              users={allUsers.filter(u => u.id !== currentUser?.id)}
+              users={roster.filter(u => u.id !== currentUser?.id)}
               onSelect={handleMentionSelect}
             />
           )}
