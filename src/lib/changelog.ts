@@ -20,8 +20,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-03',
     changes: [
-      'Logging curls happens on one card now. The weight you’re swinging sits right under the rep buttons instead of behind a pop-up full of numbers that looked just like the rep buttons — tap a weight and it’s saved, tap it again to drop it. “Other” works the same way: the box opens right where the button was.',
-      'The weight badge asks one less question. Pick Coupon and it logs the total (**60 lb**); pick Dumbbell or Hammer and it assumes a pair, with a one-arm toggle if that’s your thing. Chin-Up can now fly **BW**.',
+      'Fixed: the weight badge could get stuck. Once it was set, picking a different weight quietly failed to save and the old one hung around no matter what you chose. It changes when you change it now.',
+      'Logging curls happens on one card now. The weight you’re swinging sits right under the rep buttons instead of behind a pop-up full of numbers that looked just like the rep buttons — tap a weight, it’s saved; tap it again to drop it. “Other” works the same way: the box opens right where the button was.',
+      'The weight strip stopped asking questions it could answer itself. Dumbbell and Hammer are a pair (**2×25**), Coupon is one block (**1×45**), and Chin-Up doesn’t ask at all.',
     ],
   },
   {

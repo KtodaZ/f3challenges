@@ -17,8 +17,9 @@ import type { Exercise, ExerciseLoad } from '@/types'
  * Everything lives on this one card on purpose. Weight used to be a modal whose
  * grid of numbers (10, 15, 20, 25…) was a dead ringer for the grid of rep
  * buttons behind it — two screens asking what looked like the same question.
- * Now weight is a quiet inline strip: pounds only, since "one, two, or a
- * coupon" is already answered by the variation you picked.
+ * Now it's a quiet inline strip that asks nothing at all: the variation you
+ * already picked says whether it's a pair of dumbbells or one coupon, so the
+ * chips read the way the badge will ("2×25", "1×60") and one tap saves.
  */
 
 interface AddRepsPadProps {
@@ -94,18 +95,17 @@ export function AddRepsPad({
 
   const todayTotal = Object.values(todayReps).reduce((s, n) => s + n, 0)
   const loadBadge = formatLoad(draftLoad)
-  // A coupon is one implement in both hands, so its weight is a total, not a
-  // per-hand number. Chin-ups take no weight at all — only "BW".
-  const perHand = !selected?.bothHands && !selected?.bodyweight
-  const hands = draftLoad?.hands ?? 2
+  // The variation settles the shape of the weight: dumbbells and hammers come
+  // as a pair, a coupon is one block. Chin-ups have no weight to log at all,
+  // so the row disappears rather than offering "bodyweight" as a choice.
+  const hands = selected?.loadHands ?? 2
+  const showWeight = !selected?.bodyweight
 
   function pickPounds(lbs: number) {
-    const next: ExerciseLoad = perHand ? { lbs, hands } : { lbs }
-    // Tapping the weight already showing turns it off. Same number in a
-    // different shape (a pair of 25s vs a 25 lb coupon) is a change, not a
-    // second tap, so it saves instead of clearing.
-    const unchanged = draftLoad?.lbs === next.lbs && draftLoad?.hands === next.hands
-    applyLoad(unchanged ? null : next)
+    // Every tap writes the whole weight, so it can never half-change. Tapping
+    // the one already showing turns it off.
+    const unchanged = draftLoad?.lbs === lbs && draftLoad?.hands === hands
+    applyLoad(unchanged ? null : { lbs, hands })
   }
 
   return (
@@ -226,91 +226,51 @@ export function AddRepsPad({
 
       {/* Weight — optional, set once a month, so it stays a quiet footer.
           Collapsed it's just the badge; open it's one row of pounds. */}
-      <div className="pt-1 border-t border-zinc-800/80">
-        <button
-          onClick={() => setWeightOpen(o => !o)}
-          disabled={disabled}
-          aria-expanded={weightOpen}
-          className="w-full flex items-center justify-between gap-2 py-1.5 text-left disabled:opacity-40"
-        >
-          <span className="text-xs text-zinc-500 truncate">
-            🏋 Weight
-            {loadBadge ? (
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-xs font-bold tabular-nums">
-                {loadBadge}
-              </span>
-            ) : (
-              <span className="ml-2 text-zinc-600">optional badge</span>
-            )}
-          </span>
-          <span className="text-zinc-600 text-xs shrink-0" aria-hidden="true">{weightOpen ? '▴' : '▾'}</span>
-        </button>
+      {showWeight && (
+        <div className="pt-1 border-t border-zinc-800/80">
+          <button
+            onClick={() => setWeightOpen(o => !o)}
+            disabled={disabled}
+            aria-expanded={weightOpen}
+            className="w-full flex items-center justify-between gap-2 py-1.5 text-left disabled:opacity-40"
+          >
+            <span className="text-xs text-zinc-500 truncate">
+              🏋 Weight
+              {loadBadge ? (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-xs font-bold tabular-nums">
+                  {loadBadge}
+                </span>
+              ) : (
+                <span className="ml-2 text-zinc-600">optional badge</span>
+              )}
+            </span>
+            <span className="text-zinc-600 text-xs shrink-0" aria-hidden="true">{weightOpen ? '▴' : '▾'}</span>
+          </button>
 
-        {weightOpen && (
-          <div className="pb-1 space-y-2">
-            {selected?.bodyweight ? (
-              <button
-                onClick={() => applyLoad(draftLoad?.bodyweight ? null : { bodyweight: true })}
-                className={cn(
-                  'px-3 py-2 rounded-xl text-xs font-semibold transition-colors',
-                  draftLoad?.bodyweight
-                    ? 'bg-amber-500/25 text-amber-200 border border-amber-500/60'
-                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                )}
-              >
-                Bodyweight
-              </button>
-            ) : (
-              <>
-                {/* Pounds. Tap saves — no second confirm, same as the rep
-                    buttons. Scrolls sideways so it stays one line. */}
-                <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1 no-scrollbar">
-                  {COMMON_LBS.map(n => (
-                    <button
-                      key={n}
-                      onClick={() => pickPounds(n)}
-                      disabled={disabled}
-                      className={cn(
-                        'shrink-0 px-3 py-2 rounded-xl text-xs font-semibold tabular-nums transition-colors',
-                        'disabled:opacity-40 disabled:cursor-not-allowed',
-                        draftLoad?.lbs === n
-                          ? 'bg-amber-500/25 text-amber-200 border border-amber-500/60'
-                          : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
-                      )}
-                    >
-                      {n} lb
-                    </button>
-                  ))}
-                </div>
-                {/* Only worth asking once there's a weight to qualify. */}
-                {perHand && draftLoad?.lbs ? (
-                  <div className="flex gap-2">
-                    {([
-                      { v: 2 as const, label: 'A pair' },
-                      { v: 1 as const, label: 'One arm' },
-                    ]).map(opt => (
-                      <button
-                        key={opt.v}
-                        onClick={() => applyLoad({ lbs: draftLoad.lbs, hands: opt.v })}
-                        disabled={disabled}
-                        className={cn(
-                          'px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors',
-                          'disabled:opacity-40 disabled:cursor-not-allowed',
-                          hands === opt.v
-                            ? 'bg-zinc-700 text-zinc-100'
-                            : 'bg-zinc-800/60 text-zinc-500 hover:bg-zinc-700/60'
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </>
-            )}
-          </div>
-        )}
-      </div>
+          {weightOpen && (
+            /* Pounds, and nothing else. Tap saves — no second confirm, same as
+               the rep buttons. Scrolls sideways so it stays one line. */
+            <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-2 no-scrollbar">
+              {COMMON_LBS.map(n => (
+                <button
+                  key={n}
+                  onClick={() => pickPounds(n)}
+                  disabled={disabled}
+                  className={cn(
+                    'shrink-0 px-3 py-2 rounded-xl text-xs font-semibold tabular-nums transition-colors',
+                    'disabled:opacity-40 disabled:cursor-not-allowed',
+                    draftLoad?.lbs === n && draftLoad?.hands === hands
+                      ? 'bg-amber-500/25 text-amber-200 border border-amber-500/60'
+                      : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
+                  )}
+                >
+                  {hands}×{n}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 

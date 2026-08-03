@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  CHALLENGES,
   getChallengeById,
   getChallengeWeek,
   getChallengeWeeks,
@@ -215,6 +216,22 @@ describe('load badges', () => {
     expect(formatLoad({ lbs: 35, hands: 1 })).toBe('1×35')
     expect(formatLoad({ lbs: 65 })).toBe('65 lb')
     expect(formatLoad({ bodyweight: true })).toBe('BW')
+  })
+
+  // The log pad never asks how many implements you used — it stamps
+  // `loadHands` from the variation. Curls are the case that matters: a pair of
+  // dumbbells or hammers, one coupon, and nothing at all on chin-ups.
+  it('takes the implement count from the exercise, not the PAX', () => {
+    const curls = CHALLENGES.find(c => c.type === 'weekly-cumulative')!
+    const handsFor = (id: string) => {
+      const ex = curls.exercises.find(e => e.id === id)!
+      return ex.bodyweight ? null : ex.loadHands ?? 2
+    }
+    expect(handsFor('dumbbell-curl')).toBe(2)
+    expect(handsFor('hammer-curl')).toBe(2)
+    expect(handsFor('coupon-curl')).toBe(1)
+    expect(handsFor('chin-up')).toBeNull()
+    expect(formatLoad({ lbs: 60, hands: 1 })).toBe('1×60')
   })
 
   it('renders nothing when the weight is unset or nonsense', () => {

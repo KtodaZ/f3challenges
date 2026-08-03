@@ -59,6 +59,30 @@ describe('stripUndefined', () => {
     const obj = { x: 1, y: 'hello' }
     expect(stripUndefined(obj)).toEqual(obj)
   })
+
+  // A nested undefined throws in Firestore exactly like a top-level one, and it
+  // takes the whole write with it — that's what wedged the weight badge.
+  it('strips undefined inside a nested object', () => {
+    expect(stripUndefined({ load: { lbs: 60, hands: undefined } }))
+      .toEqual({ load: { lbs: 60 } })
+  })
+
+  it('strips undefined several levels down', () => {
+    expect(stripUndefined({ a: { b: { c: undefined, d: 1 } } }))
+      .toEqual({ a: { b: { d: 1 } } })
+  })
+
+  it('leaves arrays alone', () => {
+    const obj = { list: [1, 2, 3] }
+    expect(stripUndefined(obj).list).toEqual([1, 2, 3])
+  })
+
+  // Rebuilding a Date (or a Firestore sentinel like deleteField) would destroy
+  // it, so anything that isn't a plain object passes through by reference.
+  it('passes non-plain objects through untouched', () => {
+    const date = new Date('2026-08-03T12:00:00Z')
+    expect(stripUndefined({ at: date }).at).toBe(date)
+  })
 })
 
 // ─── formatDate ───────────────────────────────────────────────────────────────

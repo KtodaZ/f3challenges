@@ -10,11 +10,27 @@ export function cn(...inputs: ClassValue[]) {
 // existing `from '@/lib/utils'` imports keep working.
 export { PARTICIPANT_GRACE_DAYS, isChallengeParticipant } from '@f3-bedrock/shared'
 
-/** Strip undefined values from an object before passing to Firestore setDoc/updateDoc. */
+/**
+ * Strip undefined values from an object before passing to Firestore
+ * setDoc/updateDoc, which rejects them outright.
+ *
+ * Recurses into nested plain objects: a nested `undefined` throws just as hard
+ * as a top-level one, and it takes the *whole* write down with it (this is what
+ * silently wedged `load: { lbs: 60, hands: undefined }` — the weight looked
+ * stuck because every save was failing). Arrays and non-plain values (Dates,
+ * Firestore sentinels like deleteField/arrayUnion) are passed through
+ * untouched — rebuilding those would break them.
+ */
 export function stripUndefined<T extends object>(obj: T): T {
   return Object.fromEntries(
-    Object.entries(obj).filter(([, v]) => v !== undefined)
+    Object.entries(obj)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, isPlainObject(v) ? stripUndefined(v) : v])
   ) as T
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && Object.getPrototypeOf(v) === Object.prototype
 }
 
 /** Format YYYY-MM-DD to "Mon Apr 1" */

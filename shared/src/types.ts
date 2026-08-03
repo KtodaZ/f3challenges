@@ -18,10 +18,11 @@ export interface Exercise {
   // No external load possible (chin-ups, dips). The weight picker offers "BW"
   // only and the leaderboard load badge stays quiet for these.
   bodyweight?: boolean
-  // One implement carried in both hands (a coupon, ruck, sandbag), so a weight
-  // is a single total rather than pounds per hand — the badge reads "60 lb",
-  // not "2×30". Saves asking; the variation already said so.
-  bothHands?: boolean
+  // How many implements this variation uses: 2 for a pair of dumbbells
+  // ("2×25"), 1 for a single coupon carried in both hands ("1×60"). Defaults
+  // to 2, and ignored when bodyweight. The variation already answers this, so
+  // the log pad never asks — it just stamps this onto the weight.
+  loadHands?: 1 | 2
 }
 
 // For 'weekly-tiers' challenges: each tier covers a day range with per-exercise amounts.
