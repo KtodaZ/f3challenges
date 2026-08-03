@@ -36,6 +36,7 @@ Never commit with `--no-verify`; the husky hooks must run.
 - `getChallengeForDate`/`getCurrentChallenge` **require** a `regionId` — two regions can run different challenges on the same dates. Use `challengesForRegion()` instead of scanning `CHALLENGES`; in components use the hooks in `src/hooks/useChallenge.ts`.
 - Only `users` and `feed` are *queried* by `regionId`. `dailyLogs`/`participation`/`bonusLogs` partition by `challengeId` and merely stamp `regionId`.
 - Writes stamp the region from an ambient `activeRegionId` in `src/lib/firestore.ts` (`withRegion()`), kept in sync by `RegionProvider`. An explicit `regionId` on the doc wins — that's how server routes stay correct, since the ambient value is browser-only.
+- A **write scope** in the same module says what a preview may write: `own` (not previewing) / `social` (confirmed superadmin — feed only) / `readonly`. Feed helpers use `assertSocialWritable()`, everything that logs uses `assertWritable()`. Cross-region posts carry `authorName`, since the visiting region's roster can't resolve their author.
 
 Full design + migration notes: `docs/MULTI_REGION.md`.
 

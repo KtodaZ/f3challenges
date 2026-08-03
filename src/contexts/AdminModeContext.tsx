@@ -52,7 +52,7 @@ const AdminModeContext = createContext<AdminModeValue | null>(null)
 
 export function AdminModeProvider({ children }: { children: ReactNode }) {
   const { currentUser } = useUser()
-  const { viewingAs, setViewingAs } = useRegion()
+  const { viewingAs, setViewingAs, grantSocialWrites } = useRegion()
   const [status, setStatus] = useState<AdminStatusResponse>({ isAdmin: false, regionIds: [] })
   // Distinguishes "not an admin" from "haven't asked yet", which the preview
   // guard below depends on.
@@ -78,6 +78,14 @@ export function AdminModeProvider({ children }: { children: ReactNode }) {
     if (!checked || !viewingAs) return
     if (status.role !== 'superadmin') setViewingAs(null)
   }, [checked, viewingAs, status.role, setViewingAs])
+
+  // A superadmin visiting another region can take part in its feed — post,
+  // comment, react — while logging stays off. Granted only after the check
+  // comes back, so a preview restored from sessionStorage is read-only until
+  // the server has confirmed who this is.
+  useEffect(() => {
+    grantSocialWrites(checked && status.role === 'superadmin')
+  }, [checked, status.role, grantSocialWrites])
 
   /**
    * Every admin mutation needs a Google ID token. Loading `firebase/auth` is

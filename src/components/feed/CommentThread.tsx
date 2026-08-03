@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
+import { AdminBadge } from '@/components/ui/AdminBadge'
 import { ReactionBar } from './ReactionBar'
 import {
   createComment,
@@ -14,7 +15,9 @@ import { generateId, timeAgo, stripUndefined } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import { useRegion } from '@/contexts/RegionContext'
 import { useAdminMode } from '@/contexts/AdminModeContext'
+import { useAdminRoles } from '@/hooks/useAdminRoles'
 import type { FeedPost, FeedComment, User } from '@/types'
+import type { AdminRole } from '@/lib/admin-auth'
 
 // ─── Individual comment row ───────────────────────────────────────────────────
 
@@ -24,6 +27,8 @@ interface CommentRowProps {
   currentUserId: string | undefined
   /** Lets an admin remove someone else's comment from the thread itself. */
   canModerate?: boolean
+  /** Set when this comment's author is an admin — renders the ADMIN tag. */
+  authorRole?: AdminRole
   onReply?: () => void
   onDelete: () => void | Promise<void>
   onReactionToggle: (emoji: string) => void
@@ -34,12 +39,16 @@ function CommentRow({
   allUsers,
   currentUserId,
   canModerate = false,
+  authorRole,
   onReply,
   onDelete,
   onReactionToggle,
 }: CommentRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const author   = allUsers.find(u => u.id === comment.authorId)
+  // Falls back to the name stored on the comment for an author this region's
+  // roster doesn't contain — an admin commenting from another region.
+  const authorName = author?.displayName ?? comment.authorName ?? 'Unknown'
   const isAuthor = currentUserId === comment.authorId
   // The author's own delete stays the plain client write; an admin removing
   // someone else's goes through the audited route. Same control, different path.
@@ -66,20 +75,21 @@ function CommentRow({
 
   return (
     <div className="flex items-start gap-2">
-      {author && (
-        <Link href={`/profile/${author.id}`} className="shrink-0 mt-0.5">
-          <Avatar name={author.displayName} size="xs" />
-        </Link>
-      )}
+      <Link href={`/profile/${comment.authorId}`} className="shrink-0 mt-0.5">
+        <Avatar name={authorName} size="xs" />
+      </Link>
       <div className="flex-1 min-w-0">
         <div className="bg-zinc-800 rounded-2xl rounded-tl-sm px-3 py-2">
           <div className="flex items-baseline justify-between gap-2 mb-0.5">
-            <Link
-              href={`/profile/${comment.authorId}`}
-              className="text-[11px] font-semibold text-white hover:text-orange-400 transition-colors truncate"
-            >
-              {author?.displayName ?? 'Unknown'}
-            </Link>
+            <div className="flex items-baseline gap-1.5 min-w-0">
+              <Link
+                href={`/profile/${comment.authorId}`}
+                className="text-[11px] font-semibold text-white hover:text-orange-400 transition-colors truncate"
+              >
+                {authorName}
+              </Link>
+              <AdminBadge role={authorRole} size="xs" />
+            </div>
             <span className="text-[10px] text-zinc-500 shrink-0">{timeAgo(comment.createdAt)}</span>
           </div>
           <p className="text-xs text-zinc-200 leading-relaxed break-words">{comment.content}</p>
@@ -144,7 +154,8 @@ interface CommentThreadProps {
 export function CommentThread({ post, comments }: CommentThreadProps) {
   const { currentUser, allUsers } = useUser()
   const { isAdmin, role, regionIds, removeComment } = useAdminMode()
-  const { regionId, readOnly } = useRegion()
+  const { regionId, socialReadOnly } = useRegion()
+  const adminRoles = useAdminRoles()
   // See the note in FeedPost — moderation only where this admin governs.
   const canModerate = isAdmin && (role === 'superadmin' || regionIds.includes(regionId))
 
@@ -167,9 +178,9 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
   )
 
   function handleReply(comment: FeedComment) {
-    const author = allUsers.find(u => u.id === comment.authorId)
+    const name = allUsers.find(u => u.id === comment.authorId)?.displayName ?? comment.authorName
     setReplyingTo(comment)
-    setInputValue(author ? `@${author.displayName} ` : '')
+    setInputValue(name ? `@${name} ` : '')
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 
@@ -191,6 +202,7 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
         postId: post.id,
         parentCommentId: replyingTo?.id,
         authorId: currentUser.id,
+        authorName: currentUser.displayName,
         content,
         createdAt: now,
         deleted: false,
@@ -236,8 +248,8 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
     }
   }
 
-  const replyAuthor = replyingTo
-    ? allUsers.find(u => u.id === replyingTo.authorId)
+  const replyAuthorName = replyingTo
+    ? allUsers.find(u => u.id === replyingTo.authorId)?.displayName ?? replyingTo.authorName
     : null
 
   return (
@@ -254,6 +266,7 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                   allUsers={allUsers}
                   currentUserId={currentUser?.id}
                   canModerate={canModerate}
+                  authorRole={adminRoles[comment.authorId]}
                   onReply={() => handleReply(comment)}
                   onDelete={() => deleteComment(comment.id, comment.authorId)}
                   onReactionToggle={emoji => {
@@ -271,6 +284,7 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                         allUsers={allUsers}
                         currentUserId={currentUser?.id}
                         canModerate={canModerate}
+                        authorRole={adminRoles[reply.authorId]}
                         onDelete={() => deleteComment(reply.id, reply.authorId)}
                         onReactionToggle={emoji => {
                           if (!currentUser) return
@@ -300,7 +314,7 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
         <div className="flex flex-col gap-1.5">
           {replyingTo && (
             <div className="flex items-center gap-2 text-[11px] text-zinc-400 pl-8">
-              <span>Replying to {replyAuthor?.displayName ?? 'someone'}</span>
+              <span>Replying to {replyAuthorName ?? 'someone'}</span>
               <button
                 onClick={handleCancelReply}
                 className="text-zinc-600 hover:text-zinc-300 transition-colors"
@@ -323,14 +337,14 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                     handleSubmit()
                   }
                 }}
-                placeholder={readOnly ? 'Read-only while viewing another region' : 'Add a comment…'}
-                disabled={readOnly}
+                placeholder={socialReadOnly ? 'Read-only while viewing another region' : 'Add a comment…'}
+                disabled={socialReadOnly}
                 className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-500 outline-none"
               />
               {inputValue.trim() && (
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || readOnly}
+                  disabled={submitting || socialReadOnly}
                   className="text-orange-400 hover:text-orange-300 text-xs font-semibold shrink-0 transition-colors disabled:opacity-50"
                 >
                   {submitting ? '…' : 'Post'}

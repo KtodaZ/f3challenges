@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
+import { AdminBadge } from '@/components/ui/AdminBadge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
@@ -40,6 +41,7 @@ import {
 } from '@/lib/challenges'
 import { trophyAmount } from '@/lib/trophies'
 import { useUser } from '@/contexts/UserContext'
+import { useAdminRoles } from '@/hooks/useAdminRoles'
 import type { User, DailyLog, ChallengeParticipation } from '@/types'
 
 interface ProfileViewProps {
@@ -71,6 +73,7 @@ function statusBadge(status: ChallengeParticipation['status'], note?: string) {
 
 export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
   const { currentUser, refreshCurrentUser } = useUser()
+  const adminRoles = useAdminRoles()
   const isOwnProfile = currentUser?.id === initialUser.id
   // The profile's own region, not the viewer's — a profile should read the
   // same whoever opens it, and it's what makes their badge history correct.
@@ -213,9 +216,12 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
             <Avatar name={user.displayName} size="xl" />
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
-                <h1 className="text-xl font-bold text-white leading-tight truncate">
-                  {user.displayName}
-                </h1>
+                <div className="flex items-center gap-2 min-w-0">
+                  <h1 className="text-xl font-bold text-white leading-tight truncate">
+                    {user.displayName}
+                  </h1>
+                  <AdminBadge role={adminRoles[user.id]} />
+                </div>
                 {isOwnProfile ? (
                   <Button
                     variant="ghost"

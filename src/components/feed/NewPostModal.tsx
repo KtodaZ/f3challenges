@@ -91,6 +91,7 @@ export function NewPostModal({ open, onClose }: NewPostModalProps) {
         id: postId,
         type: 'post',
         authorId: currentUser.id,
+        authorName: currentUser.displayName,
         content: content.trim(),
         hashtags: extractHashtags(content),
         mentions,
