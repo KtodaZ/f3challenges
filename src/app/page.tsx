@@ -46,6 +46,11 @@ import {
   getChallengeWeek,
   weekCompleteFeedPost,
   getWeekStreak,
+  logSets,
+  allSets,
+  rollupSetReps,
+  reconcileSets,
+  badgeLoad,
 } from '@/lib/challenges'
 import type { FeedPostVars } from '@/lib/challenges'
 import { monthProgress, cn, stripUndefined, extractHashtags, calculateStreak, isChallengeParticipant } from '@/lib/utils'
@@ -93,6 +98,7 @@ import type {
   BonusLog,
   TrophyTier,
   ExerciseLoad,
+  LoggedSet,
 } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -254,11 +260,11 @@ export default function HomePage() {
   // Exact reps per exercise for quick-tap (mirrors today's log state)
   const [quickReps, setQuickReps] = useState<Record<string, number>>({})
 
-  // Weekly-cumulative additive entry: the running reps map, held in a ref so
-  // two taps inside one save round-trip can't clobber each other, plus the
-  // most recent add so it can be undone.
-  const weeklyRepsRef = useRef<Record<string, number> | null>(null)
-  const [lastAdd, setLastAdd] = useState<{ exerciseId: string; reps: number } | null>(null)
+  // Weekly-cumulative additive entry: today's sets, held in a ref as well as
+  // state so two taps inside one save round-trip can't clobber each other.
+  // Any set can be removed individually, so there's no separate "last add".
+  const [todaySets, setTodaySets] = useState<LoggedSet[]>([])
+  const weeklySetsRef = useRef<LoggedSet[] | null>(null)
 
   // Modal state
   const [calloutOpen, setCalloutOpen] = useState(false)
@@ -382,10 +388,15 @@ export default function HomePage() {
           map[el.exerciseId] = el.completedReps
         }
         setQuickReps(map)
-        // Seed the additive ref from the server exactly once. After that our
-        // own optimistic writes are the truth — re-seeding on every snapshot
-        // would let an in-flight save echo back and undo a rapid second tap.
-        if (weeklyRepsRef.current === null) weeklyRepsRef.current = map
+        // Seed the additive set list from the server exactly once. After that
+        // our own optimistic writes are the truth — re-seeding on every
+        // snapshot would let an in-flight save echo back and undo a rapid
+        // second tap. `logSets` covers days logged before sets existed.
+        if (weeklySetsRef.current === null) {
+          const seeded = logSets(log)
+          weeklySetsRef.current = seeded
+          setTodaySets(seeded)
+        }
       }
     })
     return unsub
@@ -505,8 +516,9 @@ export default function HomePage() {
       notes: string,
       modificationNote: string,
       isMakeUp: boolean,
-      /** undefined leaves the weight as-is; null clears it. */
-      load?: ExerciseLoad | null,
+      /** The day's full set list, when the caller has one (the weekly-cumulative
+       *  pad). Everyone else passes reps and lets reconcileSets work it out. */
+      sets?: LoggedSet[],
     ) => {
       if (!currentUser || !challenge) return
 
@@ -524,6 +536,16 @@ export default function HomePage() {
 
       const existingLog = allLogs.find(l => l.date === date) ?? (date === today ? todayLog : null)
 
+      // Sets are the record of what happened; exerciseLogs and load are rollups
+      // of them. Callers that only know rep totals get their sets reconciled
+      // here, so the two can never describe different workouts.
+      const nextSets = sets ?? reconcileSets(
+        exerciseReps,
+        existingLog ? logSets(existingLog) : [],
+        new Date().toISOString(),
+      )
+      const nextLoad = badgeLoad(nextSets)
+
       const log: DailyLog = {
         id: dailyLogId(currentUser.id, date),
         userId: currentUser.id,
@@ -531,11 +553,11 @@ export default function HomePage() {
         date,
         completionFraction: overallFraction,
         exerciseLogs,
+        sets: nextSets,
+        load: nextLoad,
         isMakeUp,
         notes: notes || undefined,
         modificationNote: modificationNote || undefined,
-        // An explicit `null` clears the weight; undefined leaves it as-is.
-        load: load === null ? undefined : load ?? existingLog?.load,
         loggedAt: existingLog?.loggedAt ?? new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         // First moment the day hit 100% — powers the first-finisher badges
@@ -545,9 +567,9 @@ export default function HomePage() {
       }
 
       await upsertDailyLog(stripUndefined(log))
-      // Omitting `load` above can't remove it — the save merges — so a clear
-      // takes a second, explicit write.
-      if (load === null) await clearDailyLogLoad(log.id)
+      // Omitting `load` above can't remove it — the save merges — so a day whose
+      // last weighted set just went away takes a second, explicit write.
+      if (!nextLoad && existingLog?.load) await clearDailyLogLoad(log.id)
 
       // Logging a day opts you into the challenge — create the participation
       // record if none exists yet (undefined = still loading, don't touch it)
@@ -744,61 +766,60 @@ export default function HomePage() {
       notes: string,
       modificationNote: string,
       isMakeUp: boolean,
-      load?: ExerciseLoad | null,
-    ) => saveLog(today, repsMap, notes, modificationNote, isMakeUp, load),
+      sets?: LoggedSet[],
+    ) => saveLog(today, repsMap, notes, modificationNote, isMakeUp, sets),
     [saveLog, today]
   )
 
   // ── Weekly-cumulative: additive rep entry ────────────────────────────────
-  // Every tap banks a delta rather than setting an absolute, so the pad reads
-  // "+20" the way a set actually happens. The running map is held in a ref as
-  // well as state — two taps landing inside one save round-trip must not
+  // Every tap appends a set — reps of one variation at the weight showing on
+  // the pad — rather than setting an absolute. The running list is held in a
+  // ref as well as state: two taps landing inside one save round-trip must not
   // clobber each other with a stale snapshot.
 
-  const handleAddReps = useCallback(
-    async (exerciseId: string, delta: number) => {
-      if (!challenge) return
-      const base = weeklyRepsRef.current ?? quickReps
-      const next = { ...base, [exerciseId]: (base[exerciseId] ?? 0) + delta }
-      weeklyRepsRef.current = next
-      setQuickReps(next)
-      setLastAdd({ exerciseId, reps: delta })
+  const commitSets = useCallback(
+    async (next: LoggedSet[]) => {
+      weeklySetsRef.current = next
+      setTodaySets(next)
+      setQuickReps(rollupSetReps(next))
       setQuickSaving(true)
       try {
-        await saveTodayLog(next, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false)
+        await saveTodayLog(
+          rollupSetReps(next),
+          todayLog?.notes ?? '',
+          todayLog?.modificationNote ?? '',
+          false,
+          next,
+        )
       } finally {
         setQuickSaving(false)
       }
     },
-    [challenge, quickReps, saveTodayLog, todayLog]
+    [saveTodayLog, todayLog]
   )
 
-  const handleUndoAdd = useCallback(async () => {
-    if (!challenge || !lastAdd) return
-    const base = weeklyRepsRef.current ?? quickReps
-    const next = {
-      ...base,
-      [lastAdd.exerciseId]: Math.max(0, (base[lastAdd.exerciseId] ?? 0) - lastAdd.reps),
-    }
-    weeklyRepsRef.current = next
-    setQuickReps(next)
-    setLastAdd(null)
-    setQuickSaving(true)
-    try {
-      await saveTodayLog(next, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false)
-    } finally {
-      setQuickSaving(false)
-    }
-  }, [challenge, lastAdd, quickReps, saveTodayLog, todayLog])
-
-  const handleSetLoad = useCallback(
-    async (load: ExerciseLoad | null) => {
-      if (!challenge || !currentUser) return
-      const base = weeklyRepsRef.current ?? quickReps
-      await saveTodayLog(base, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false, load)
-      toast.success(load ? 'Weight saved' : 'Weight cleared')
+  const handleAddSet = useCallback(
+    async (exerciseId: string, reps: number, load?: ExerciseLoad) => {
+      if (!challenge || reps <= 0) return
+      const base = weeklySetsRef.current ?? todaySets
+      await commitSets([
+        ...base,
+        { exerciseId, reps, ...(load ? { load } : {}), at: new Date().toISOString() },
+      ])
     },
-    [challenge, currentUser, quickReps, saveTodayLog, todayLog]
+    [challenge, commitSets, todaySets]
+  )
+
+  /** Removes one set by its timestamp — the pad's per-row ✕. */
+  const handleRemoveSet = useCallback(
+    async (at: string) => {
+      if (!challenge) return
+      const base = weeklySetsRef.current ?? todaySets
+      const next = base.filter(s => s.at !== at)
+      if (next.length === base.length) return
+      await commitSets(next)
+    },
+    [challenge, commitSets, todaySets]
   )
 
   // ── Weekly-cumulative: top up a week that closed short ───────────────────
@@ -1161,6 +1182,9 @@ export default function HomePage() {
     ? allLogs.filter(l => l.date >= weekProgress.week.startDate && l.date <= weekProgress.week.endDate)
     : []
   const weekMix         = repsByExercise(weekLogs)
+  // Every set this week, so the ledger can also break the mix down by weight
+  // and total the pounds moved.
+  const weekSets        = allSets(weekLogs)
   // Weeks already closed that came up short — topping them up still climbs the
   // trophy ladder, same as making up a day on a day-scored challenge.
   const shortWeeks = weeklyScoring
@@ -1474,14 +1498,16 @@ export default function HomePage() {
             />
             <AddRepsPad
               exercises={challenge.exercises}
-              todayReps={quickReps}
-              load={todayLog?.load}
-              onAdd={handleAddReps}
-              onSetLoad={handleSetLoad}
-              onUndo={lastAdd ? handleUndoAdd : undefined}
+              todaySets={todaySets}
+              onAdd={handleAddSet}
+              onRemoveSet={handleRemoveSet}
               disabled={quickSaving}
             />
-            <WeekMixLedger exercises={challenge.exercises} repsByExercise={weekMix} />
+            <WeekMixLedger
+              exercises={challenge.exercises}
+              repsByExercise={weekMix}
+              sets={weekSets}
+            />
             {challenge.guidance && challenge.guidance.length > 0 && (
               <details className="rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-3">
                 <summary className="text-xs font-semibold text-zinc-500 uppercase tracking-wider cursor-pointer list-none flex items-center justify-between">

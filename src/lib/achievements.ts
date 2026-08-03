@@ -14,6 +14,7 @@ import {
   challengesForRegion,
   resolveRegion,
   getChallengeById,
+  logSets,
 } from '@/lib/challenges'
 import type {
   AchievementContext,
@@ -47,6 +48,9 @@ export function toAchievementLog(log: DailyLog): AchievementLogInput {
     exerciseReps: Object.fromEntries(
       log.exerciseLogs.map(e => [e.exerciseId, e.completedReps]),
     ),
+    // What the reps were lifted with, for weight-aware badges. Synthesized for
+    // logs written before sets existed.
+    sets: logSets(log),
   }
 }
 

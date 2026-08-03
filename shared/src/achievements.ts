@@ -19,9 +19,11 @@ import {
   getTodayPT,
   isRestDay,
   conditionalRestApplies,
+  loadTotalLbs,
+  setsVolume,
 } from './challenges'
 import { DEFAULT_REGION_ID } from './regions'
-import type { ChallengeBadgeDef, ChallengeTemplate } from './types'
+import type { ChallengeBadgeDef, ChallengeTemplate, LoggedSet } from './types'
 
 // ─── Inputs ───────────────────────────────────────────────────────────────────
 
@@ -38,6 +40,9 @@ export interface AchievementLogInput {
    *  ("100 chin-ups", "all four variations in one week"). Absent on logs
    *  mapped by older callers — those badges simply don't progress. */
   exerciseReps?: Record<string, number>
+  /** The day's sets, for badges that care what the reps were lifted with.
+   *  Same deal: absent means those badges don't progress. */
+  sets?: LoggedSet[]
 }
 
 export interface AchievementContext {
@@ -751,6 +756,32 @@ function criteriaRule(
         ),
       }
 
+    // Weight-aware badges. Both read the sets on each log, so they only
+    // progress on challenges whose pad logs a weight — on anything else the
+    // volume is simply zero and the badge sits at 0%.
+    case 'volume-lbs':
+      return {
+        unitLabel: 'lb',
+        progress: ctx => countProgress(
+          challengeLogs(ctx, c.id).reduce((s, l) => s + setsVolume(l.sets ?? []), 0),
+          crit.lbs,
+        ),
+      }
+
+    case 'reps-at-or-above':
+      return {
+        unitLabel: 'reps',
+        progress: ctx => countProgress(
+          challengeLogs(ctx, c.id).reduce(
+            (s, l) => s + (l.sets ?? [])
+              .filter(set => loadTotalLbs(set.load) >= crit.lbs)
+              .reduce((r, set) => r + set.reps, 0),
+            0,
+          ),
+          crit.reps,
+        ),
+      }
+
     case 'weeks-completed':
       return {
         unitLabel: 'weeks',
@@ -823,7 +854,8 @@ function addDays(date: string, delta: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-function challengeBadgeDefinition(c: ChallengeTemplate, b: ChallengeBadgeDef): AchievementDefinition {
+/** Exported for tests: turns one badge's criteria into a live definition. */
+export function challengeBadgeDefinition(c: ChallengeTemplate, b: ChallengeBadgeDef): AchievementDefinition {
   const rule = criteriaRule(c, b.criteria)
   return {
     id: b.id,

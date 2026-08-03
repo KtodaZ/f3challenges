@@ -59,7 +59,13 @@ Single source of truth: `shared/src/challenges.ts`. Adding a challenge = appendi
 
 **Badges are data.** `ChallengeBadgeDef.criteria` covers `complete-challenge`, `complete-days`, `challenge-reps`, `exercise-reps`, `single-day-reps`, `weeks-completed`, `week-variety`, `week-early`. New criteria = one case in `criteriaRule()` (`achievements.ts`), free for every later challenge.
 
-**`DailyLog.load`** is one optional weight per log, not per exercise — deliberately coarse, never affects scoring. `formatLoad()` renders the badge (`2×25`, `65 lb`, `BW`).
+**Weight lives on sets, not days.** `DailyLog.sets` is the record of what happened — one `LoggedSet` per tap of the pad: reps of one variation at one weight. `exerciseLogs` and the day-level `load` are *rollups* written from it, which is why scoring, trophies and the Functions never had to learn about sets.
+
+- Read sets through **`logSets(log)`**, never `log.sets` — it synthesizes them for logs written before sets existed, so nothing needed migrating.
+- Writers that only know rep totals (Catch Up, the make-up pickers, `LogDayModal`) pass a reps map and `saveLog` runs **`reconcileSets()`**, so a log's sets and its `exerciseLogs` can't describe different workouts. Only the weekly pad passes sets directly.
+- Reps score as reps — 25 at `2×25` is 25, never 50. Weight is a badge (`badgeLoad()` = most reps at, heaviest breaking ties) and a volume stat (`setsVolume()`), never a multiplier.
+- `Exercise.loadHands` gives the weight its shape (2 = a pair, 1 = a coupon); `bodyweight` hides the weight strip entirely. The pad never asks.
+- The pad's weight is *pending* state in localStorage — it writes nothing until reps land on it.
 
 ## Notifications
 

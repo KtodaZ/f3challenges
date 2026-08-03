@@ -7,7 +7,7 @@ import { useUser } from '@/contexts/UserContext'
 import {
   getTodayPT, getChallengeDates, getCurrentWeekDates,
   getDayNumber, getTotalDays, getWeekProgress, getChallengeWeeks,
-  isWeeklyCumulative, latestLoad,
+  isWeeklyCumulative, allSets, badgeLoad,
 } from '@/lib/challenges'
 import { useCurrentChallenge } from '@/hooks/useChallenge'
 import { useRegion } from '@/contexts/RegionContext'
@@ -308,7 +308,9 @@ export default function LeaderboardPage() {
           weekProgress: isWeekly
             ? getWeekProgress(challenge, today, logs) ?? undefined
             : undefined,
-          load: latestLoad(logs),
+          // The weight they've done the most reps at across the challenge —
+          // not the last one they touched, which flip-flopped on every warm-up.
+          load: badgeLoad(allSets(logs)),
         } satisfies RawEntry
       })
     )

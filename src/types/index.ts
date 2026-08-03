@@ -12,7 +12,7 @@ export type {
   ExerciseUnit, Exercise, ChallengeTemplate, DailyTarget, WeekTier, ConditionalRestDate,
   ChallengeTemplateCopy, FeedPostVars, NotificationVars, NotificationTemplatePair,
   BonusChallenge, BonusChallengeWeek,
-  ChallengeWeek, ResolvedWeek, WeekProgress, ExerciseLoad,
+  ChallengeWeek, ResolvedWeek, WeekProgress, ExerciseLoad, LoggedSet,
   TrophyUnit, TrophyUnitInfo,
   AchievementLogInput, AchievementContext, EarnedAchievement,
   AchievementCategory, CelebrationTheme, AchievementProgress,
@@ -160,9 +160,16 @@ export interface DailyLog {
    *  simply 1 when any reps were logged and 0 otherwise — "did you train
    *  today". Week completion lives in WeekProgress, derived from these logs. */
   completionFraction: CompletionFraction
+  /** Reps per exercise. A rollup of `sets` once a log has them — kept as a
+   *  stored field because scoring, week progress, trophies and the Cloud
+   *  Functions all read it. */
   exerciseLogs: ExerciseLog[]
-  /** Optional weight used for this session. Purely for bragging rights —
-   *  never affects scoring. See ExerciseLoad. */
+  /** What the day was actually made of: reps of one variation at one weight,
+   *  one entry per tap of the log pad. Absent on logs written before sets
+   *  existed — read it through `logSets()`, which synthesizes those. */
+  sets?: import('@f3-bedrock/shared').LoggedSet[]
+  /** The day's headline weight, rolled up from `sets` via `badgeLoad()`.
+   *  Purely for bragging rights — never affects scoring. */
   load?: import('@f3-bedrock/shared').ExerciseLoad
   modificationNote?: string
   isMakeUp: boolean

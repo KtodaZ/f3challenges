@@ -14,19 +14,25 @@ export { PARTICIPANT_GRACE_DAYS, isChallengeParticipant } from '@f3-bedrock/shar
  * Strip undefined values from an object before passing to Firestore
  * setDoc/updateDoc, which rejects them outright.
  *
- * Recurses into nested plain objects: a nested `undefined` throws just as hard
- * as a top-level one, and it takes the *whole* write down with it (this is what
- * silently wedged `load: { lbs: 60, hands: undefined }` — the weight looked
- * stuck because every save was failing). Arrays and non-plain values (Dates,
- * Firestore sentinels like deleteField/arrayUnion) are passed through
- * untouched — rebuilding those would break them.
+ * Recurses into nested plain objects, including ones inside arrays: a nested
+ * `undefined` throws just as hard as a top-level one, and it takes the *whole*
+ * write down with it (this is what silently wedged
+ * `load: { lbs: 60, hands: undefined }` — the weight looked stuck because every
+ * save was failing, and a `sets` array full of them would do it again).
+ * Non-plain values (Dates, Firestore sentinels like deleteField/arrayUnion) are
+ * passed through by reference — rebuilding those would break them.
  */
 export function stripUndefined<T extends object>(obj: T): T {
   return Object.fromEntries(
     Object.entries(obj)
       .filter(([, v]) => v !== undefined)
-      .map(([k, v]) => [k, isPlainObject(v) ? stripUndefined(v) : v])
+      .map(([k, v]) => [k, clean(v)])
   ) as T
+}
+
+function clean(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(clean)
+  return isPlainObject(v) ? stripUndefined(v) : v
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {

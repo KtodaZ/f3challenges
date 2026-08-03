@@ -14,6 +14,13 @@ import {
   isWeeklyCumulative,
   formatLoad,
   latestLoad,
+  loadTotalLbs,
+  rollupSetReps,
+  badgeLoad,
+  setsVolume,
+  logSets,
+  allSets,
+  reconcileSets,
   weekCompleteFeedPost,
 } from './challenges'
 import { getTrophyUnit, getTrophyProgress, getTrophyTier, tierAmountRequired } from './trophies'
@@ -239,6 +246,15 @@ describe('load badges', () => {
     expect(formatLoad({ lbs: 0, hands: 2 })).toBeNull()
   })
 
+  it('measures a load by the pounds actually in play', () => {
+    // A pair of 20s and one 40 lb coupon are the same 40 lb — which is what
+    // makes the two comparable instead of one arbitrarily winning.
+    expect(loadTotalLbs({ lbs: 20, hands: 2 })).toBe(40)
+    expect(loadTotalLbs({ lbs: 40, hands: 1 })).toBe(40)
+    expect(loadTotalLbs(undefined)).toBe(0)
+    expect(loadTotalLbs({ bodyweight: true })).toBe(0)
+  })
+
   it('picks the most recent weight regardless of log order', () => {
     const logs = [
       { date: '2026-08-03', load: { lbs: 20, hands: 2 as const } },
@@ -247,6 +263,156 @@ describe('load badges', () => {
     ]
     expect(formatLoad(latestLoad(logs))).toBe('2×30')
     expect(latestLoad([{ date: '2026-08-01' }])).toBeUndefined()
+  })
+})
+
+// ─── Sets ─────────────────────────────────────────────────────────────────────
+
+describe('sets', () => {
+  const set = (reps: number, at: string, load?: { lbs: number; hands: 1 | 2 }, ex = 'dumbbell-curl') =>
+    ({ exerciseId: ex, reps, at, ...(load ? { load } : {}) })
+
+  // The scenario the whole refactor exists for.
+  const twoDays = [
+    set(40, '2026-08-03T14:00:00.000Z', { lbs: 20, hands: 2 }),
+    set(25, '2026-08-04T14:00:00.000Z', { lbs: 40, hands: 1 }, 'coupon-curl'),
+  ]
+
+  it('rolls sets up into the reps-per-exercise the rest of the app scores on', () => {
+    expect(rollupSetReps(twoDays)).toEqual({ 'dumbbell-curl': 40, 'coupon-curl': 25 })
+  })
+
+  it('counts reps as reps — weight never multiplies the score', () => {
+    const heavy = [set(25, '2026-08-03T14:00:00.000Z', { lbs: 50, hands: 2 })]
+    expect(rollupSetReps(heavy)['dumbbell-curl']).toBe(25)
+  })
+
+  it('totals the pounds moved', () => {
+    // 40 reps × 40 lb + 25 reps × 40 lb
+    expect(setsVolume(twoDays)).toBe(2600)
+    expect(setsVolume([set(30, '2026-08-03T14:00:00.000Z')])).toBe(0)
+  })
+
+  describe('badgeLoad', () => {
+    it('shows the weight the most reps were done at, not the last one', () => {
+      const sets = [
+        set(300, '2026-08-03T14:00:00.000Z', { lbs: 25, hands: 2 }),
+        set(1, '2026-08-04T14:00:00.000Z', { lbs: 50, hands: 2 }), // one show-off rep
+      ]
+      expect(formatLoad(badgeLoad(sets))).toBe('2×25')
+    })
+
+    it('adds up reps at the same weight across days', () => {
+      const sets = [
+        set(30, '2026-08-03T14:00:00.000Z', { lbs: 25, hands: 2 }),
+        set(40, '2026-08-04T14:00:00.000Z', { lbs: 30, hands: 2 }),
+        set(30, '2026-08-05T14:00:00.000Z', { lbs: 25, hands: 2 }), // 25s now lead 60–40
+      ]
+      expect(formatLoad(badgeLoad(sets))).toBe('2×25')
+    })
+
+    it('breaks a tie on the heavier total', () => {
+      const sets = [
+        set(50, '2026-08-03T14:00:00.000Z', { lbs: 20, hands: 2 }), // 40 lb
+        set(50, '2026-08-04T14:00:00.000Z', { lbs: 50, hands: 1 }), // 50 lb
+      ]
+      expect(formatLoad(badgeLoad(sets))).toBe('1×50')
+    })
+
+    it('ignores unweighted sets and empty lists', () => {
+      expect(badgeLoad([set(30, '2026-08-03T14:00:00.000Z')])).toBeUndefined()
+      expect(badgeLoad([])).toBeUndefined()
+    })
+  })
+
+  describe('logSets — logs written before sets existed', () => {
+    it('synthesizes one set per exercise carrying the day’s single weight', () => {
+      const legacy = {
+        date: '2026-08-03',
+        loggedAt: '2026-08-03T14:00:00.000Z',
+        load: { lbs: 25, hands: 2 as const },
+        exerciseLogs: [
+          { exerciseId: 'dumbbell-curl', completedReps: 40 },
+          { exerciseId: 'chin-up', completedReps: 0 },
+        ],
+      }
+      expect(logSets(legacy)).toEqual([
+        { exerciseId: 'dumbbell-curl', reps: 40, load: { lbs: 25, hands: 2 }, at: '2026-08-03T14:00:00.000Z' },
+      ])
+    })
+
+    it('prefers real sets when the log has them', () => {
+      const log = { date: '2026-08-03', sets: twoDays, exerciseLogs: [], load: { lbs: 99 } }
+      expect(logSets(log)).toBe(twoDays)
+    })
+
+    it('never invents a load the log did not have', () => {
+      const legacy = {
+        date: '2026-08-03',
+        exerciseLogs: [{ exerciseId: 'chin-up', completedReps: 12 }],
+      }
+      expect(logSets(legacy)[0].load).toBeUndefined()
+    })
+  })
+
+  describe('reconcileSets — writers that only know rep totals', () => {
+    const at = '2026-08-03T18:00:00.000Z'
+
+    it('leaves sets alone when the totals already agree', () => {
+      expect(reconcileSets({ 'dumbbell-curl': 40, 'coupon-curl': 25 }, twoDays, at)).toEqual(twoDays)
+    })
+
+    it('appends a top-up at the weight that exercise was last done at', () => {
+      // What Catch Up does: a day that was 2×20 stays 2×20.
+      const out = reconcileSets({ 'dumbbell-curl': 60, 'coupon-curl': 25 }, twoDays, at)
+      expect(out).toHaveLength(3)
+      const added = out.find(s => s.at === at)!
+      expect(added).toMatchObject({ exerciseId: 'dumbbell-curl', reps: 20, load: { lbs: 20, hands: 2 } })
+      expect(rollupSetReps(out)).toEqual({ 'dumbbell-curl': 60, 'coupon-curl': 25 })
+    })
+
+    it('adds an unweighted set when the exercise has no weight to inherit', () => {
+      const out = reconcileSets({ 'chin-up': 12 }, [], at)
+      expect(out).toEqual([{ exerciseId: 'chin-up', reps: 12, at }])
+    })
+
+    it('trims the newest sets first when edited down', () => {
+      const sets = [
+        set(30, '2026-08-03T10:00:00.000Z', { lbs: 20, hands: 2 }),
+        set(30, '2026-08-03T11:00:00.000Z', { lbs: 30, hands: 2 }),
+      ]
+      const out = reconcileSets({ 'dumbbell-curl': 45 }, sets, at)
+      expect(out.map(s => s.reps)).toEqual([30, 15])
+      expect(out[1].load).toEqual({ lbs: 30, hands: 2 })
+    })
+
+    it('drops an exercise zeroed out entirely', () => {
+      expect(reconcileSets({ 'dumbbell-curl': 0, 'coupon-curl': 25 }, twoDays, at))
+        .toEqual([twoDays[1]])
+    })
+
+    // The invariant the save path leans on: whatever a writer hands over, the
+    // sets and the rollup describe the same workout.
+    it('always rolls back up to the reps it was given', () => {
+      const cases: Record<string, number>[] = [
+        { 'dumbbell-curl': 40, 'coupon-curl': 25 },
+        { 'dumbbell-curl': 100 },
+        { 'dumbbell-curl': 5, 'chin-up': 7 },
+        {},
+      ]
+      for (const reps of cases) {
+        expect(rollupSetReps(reconcileSets(reps, twoDays, at)))
+          .toEqual(Object.fromEntries(Object.entries(reps).filter(([, n]) => n > 0)))
+      }
+    })
+  })
+
+  it('gathers every set across logs, oldest first', () => {
+    const logs = [
+      { date: '2026-08-04', sets: [twoDays[1]], exerciseLogs: [] },
+      { date: '2026-08-03', sets: [twoDays[0]], exerciseLogs: [] },
+    ]
+    expect(allSets(logs).map(s => s.reps)).toEqual([40, 25])
   })
 })
 

@@ -10,7 +10,7 @@
 // (Next.js transpiles it; esbuild bundles it into functions/lib/index.js).
 
 import type {
-  BonusChallengeWeek, ChallengeTemplate, DailyTarget, ExerciseLoad,
+  BonusChallengeWeek, ChallengeTemplate, DailyTarget, ExerciseLoad, LoggedSet,
   ResolvedWeek, WeekProgress,
 } from './types'
 import { DEFAULT_REGION_ID } from './regions'
@@ -1090,6 +1090,9 @@ export function describeLoad(load?: ExerciseLoad | null): string | null {
 /**
  * The load to show for a PAX: the most recent one they set. Logs may arrive in
  * any order, so this scans rather than assuming the array is sorted.
+ *
+ * Superseded by `badgeLoad()` for the leaderboard now that a day holds many
+ * weights; still used where "what were they on last" is the actual question.
  */
 export function latestLoad<T extends { date: string; load?: ExerciseLoad }>(
   logs: T[],
@@ -1100,6 +1103,151 @@ export function latestLoad<T extends { date: string; load?: ExerciseLoad }>(
     if (!best || log.date > best.date) best = log
   }
   return best?.load
+}
+
+// ─── Sets ───────────────────────────────────────────────────────────────────
+// A day is a list of sets; `exerciseLogs` and the day-level `load` are rollups
+// written from them. Everything here treats a missing `sets` array as a legacy
+// log and falls back to those rollups, so nothing needs migrating.
+
+/**
+ * Total pounds in play for one rep: a pair of 20s moves 40, and so does a
+ * single 40 lb coupon. Comparing on the total is what makes "2×20" and "1×40"
+ * rank as the same effort instead of one arbitrarily beating the other.
+ */
+export function loadTotalLbs(load?: ExerciseLoad | null): number {
+  if (!load?.lbs || load.lbs <= 0) return 0
+  return load.lbs * (load.hands ?? 1)
+}
+
+/** Reps per exercise id, for writing the `exerciseLogs` rollup. */
+export function rollupSetReps(sets: LoggedSet[]): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const s of sets) {
+    if (s.reps <= 0) continue
+    out[s.exerciseId] = (out[s.exerciseId] ?? 0) + s.reps
+  }
+  return out
+}
+
+/**
+ * The weight a PAX has actually been moving: whichever they did the most reps
+ * at, heaviest winning a tie.
+ *
+ * Deliberately not "heaviest" — one token rep at 2×50 shouldn't outrank three
+ * hundred at 2×25, which is what the badge claims to be showing. Nor "latest",
+ * which flip-flopped every time someone warmed up light.
+ */
+export function badgeLoad(sets: LoggedSet[]): ExerciseLoad | undefined {
+  const buckets = new Map<string, { load: ExerciseLoad; reps: number }>()
+  for (const s of sets) {
+    if (!s.load || s.reps <= 0 || !formatLoad(s.load)) continue
+    const key = `${s.load.lbs ?? 0}:${s.load.hands ?? 0}:${s.load.bodyweight ? 1 : 0}`
+    const found = buckets.get(key)
+    if (found) found.reps += s.reps
+    else buckets.set(key, { load: s.load, reps: s.reps })
+  }
+  let best: { load: ExerciseLoad; reps: number } | undefined
+  for (const b of buckets.values()) {
+    if (!best) { best = b; continue }
+    if (b.reps > best.reps) best = b
+    else if (b.reps === best.reps && loadTotalLbs(b.load) > loadTotalLbs(best.load)) best = b
+  }
+  return best?.load
+}
+
+/** Pounds moved: reps × total weight, summed. Unweighted sets count zero. */
+export function setsVolume(sets: LoggedSet[]): number {
+  return sets.reduce((sum, s) => sum + Math.max(0, s.reps) * loadTotalLbs(s.load), 0)
+}
+
+/**
+ * A log's sets, inventing them for logs written before sets existed: one set
+ * per exercise, carrying whatever single weight the day had. Every reader goes
+ * through this rather than touching `.sets` directly.
+ */
+export function logSets<T extends {
+  sets?: LoggedSet[]
+  load?: ExerciseLoad
+  loggedAt?: string
+  date?: string
+  exerciseLogs?: Array<{ exerciseId: string; completedReps: number }>
+}>(log: T): LoggedSet[] {
+  if (log.sets?.length) return log.sets
+  const at = log.loggedAt ?? (log.date ? `${log.date}T12:00:00.000Z` : new Date(0).toISOString())
+  return (log.exerciseLogs ?? [])
+    .filter(el => el.completedReps > 0)
+    .map(el => ({
+      exerciseId: el.exerciseId,
+      reps: el.completedReps,
+      ...(log.load ? { load: log.load } : {}),
+      at,
+    }))
+}
+
+/** The weight this exercise was most recently done at, if any. */
+function lastSetLoad(sets: LoggedSet[]): ExerciseLoad | undefined {
+  for (let i = sets.length - 1; i >= 0; i--) if (sets[i].load) return sets[i].load
+  return undefined
+}
+
+/**
+ * Bring a set list in line with a reps map.
+ *
+ * Not every writer thinks in sets — Catch Up, the make-up pickers and the
+ * day-log modal all hand over "this exercise now totals N". Rather than make
+ * each one build sets (and get it subtly wrong), the save path runs everything
+ * through here, so a log's sets and its `exerciseLogs` rollup cannot drift
+ * apart no matter who wrote it.
+ *
+ * Topping an exercise up appends one set at whatever weight that exercise was
+ * last done at — a Catch Up on a day you curled 2×20 is 2×20. Editing down
+ * trims the newest sets first, the way undo would.
+ */
+export function reconcileSets(
+  reps: Record<string, number>,
+  existing: LoggedSet[],
+  at: string,
+): LoggedSet[] {
+  const byExercise = new Map<string, LoggedSet[]>()
+  for (const s of existing) {
+    const list = byExercise.get(s.exerciseId) ?? []
+    list.push(s)
+    byExercise.set(s.exerciseId, list)
+  }
+
+  const out: LoggedSet[] = []
+  for (const id of new Set([...Object.keys(reps), ...byExercise.keys()])) {
+    const want = Math.max(0, reps[id] ?? 0)
+    if (want === 0) continue
+    const have = byExercise.get(id) ?? []
+    const total = have.reduce((sum, s) => sum + s.reps, 0)
+
+    if (total === want) { out.push(...have); continue }
+
+    if (want > total) {
+      const load = lastSetLoad(have)
+      out.push(...have, { exerciseId: id, reps: want - total, ...(load ? { load } : {}), at })
+      continue
+    }
+
+    let room = want
+    for (const s of have) {
+      if (room <= 0) break
+      out.push(s.reps <= room ? s : { ...s, reps: room })
+      room -= Math.min(s.reps, room)
+    }
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at))
+}
+
+/** Every set across a batch of logs, oldest first. */
+export function allSets<T extends Parameters<typeof logSets>[0] & { date?: string }>(
+  logs: T[],
+): LoggedSet[] {
+  return logs
+    .flatMap(l => logSets(l))
+    .sort((a, b) => a.at.localeCompare(b.at))
 }
 
 /** Returns reps completed as a fraction of today's target. */

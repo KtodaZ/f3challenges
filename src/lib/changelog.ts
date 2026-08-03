@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-04',
+    changes: [
+      'The weight now rides along with the reps. Set the pad to **2×20** and every tap logs at 2×20; switch to a **1×40** coupon at lunch and those reps log at 1×40. No more one weight for the whole day.',
+      'Today’s sets are listed right on the card — **+20 Dumbbell 2×20**, **+25 Coupon 1×40** — and each one has an ✕. Fat-fingered a set three taps ago? Drop that one, keep the rest. (The old single Undo is gone; this does the same job better.)',
+      'This week’s mix now shows what you moved as well as what you did: your reps split by weight, plus the total pounds moved for the week.',
+      'The leaderboard badge got honest. It shows the weight you’ve done the most reps at instead of whatever you touched last, so one show-off rep at 2×50 no longer outranks three hundred at 2×25.',
+    ],
+  },
+  {
     date: '2026-08-03',
     changes: [
       'Fixed: the weight badge could get stuck. Once it was set, picking a different weight quietly failed to save and the old one hung around no matter what you chose. It changes when you change it now.',

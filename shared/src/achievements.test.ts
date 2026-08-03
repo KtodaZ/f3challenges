@@ -8,8 +8,10 @@ import {
   findNewlyEarned,
   getNextAchievements,
   nearMissLabel,
+  challengeBadgeDefinition,
 } from './achievements'
 import { getChallengeById } from './challenges'
+import type { ChallengeBadgeDef } from './types'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -352,5 +354,49 @@ describe('nearMissLabel', () => {
     const c = ctx({ longestStreak: 6 })
     const e = getNextAchievements(c, 1)[0]
     expect(nearMissLabel(e)).toBe('1 day away')
+  })
+})
+
+// ─── Weight-aware challenge badges ────────────────────────────────────────────
+// Nothing ships with these criteria yet — they exist so a future challenge can
+// declare "move 50,000 lb" or "500 reps at 40 lb+" as pure data.
+
+describe('weight-aware badge criteria', () => {
+  const AUG = getChallengeById('aug-2026')!
+
+  const badge = (criteria: ChallengeBadgeDef['criteria']) =>
+    challengeBadgeDefinition(AUG, {
+      id: 'test-badge', name: 'Test', emoji: '🏋', description: '', howTo: '', criteria,
+    })
+
+  const augLog = (sets: AchievementLogInput['sets']) =>
+    log({ date: '2026-08-03', challengeId: 'aug-2026', sets })
+
+  const pair25 = { lbs: 25, hands: 2 as const }   // 50 lb
+  const coupon40 = { lbs: 40, hands: 1 as const } // 40 lb
+
+  it('totals pounds moved across the challenge', () => {
+    const c = ctx({ logs: [
+      augLog([{ exerciseId: 'dumbbell-curl', reps: 40, load: pair25, at: '2026-08-03T14:00:00.000Z' }]),
+      augLog([{ exerciseId: 'coupon-curl', reps: 25, load: coupon40, at: '2026-08-04T14:00:00.000Z' }]),
+    ] })
+    // 40×50 + 25×40 = 3,000 of a 10,000 lb badge
+    expect(badge({ type: 'volume-lbs', lbs: 10000 }).progress(c).current).toBe(3000)
+  })
+
+  it('counts reps at or above a weight on the total in play', () => {
+    const c = ctx({ logs: [augLog([
+      { exerciseId: 'dumbbell-curl', reps: 30, load: pair25, at: '2026-08-03T14:00:00.000Z' },   // 50 lb ✓
+      { exerciseId: 'coupon-curl', reps: 20, load: coupon40, at: '2026-08-03T15:00:00.000Z' },   // 40 lb ✓
+      { exerciseId: 'dumbbell-curl', reps: 99, load: { lbs: 15, hands: 2 }, at: '2026-08-03T16:00:00.000Z' }, // 30 lb ✗
+      { exerciseId: 'chin-up', reps: 50, at: '2026-08-03T17:00:00.000Z' },                        // unweighted ✗
+    ]) ] })
+    expect(badge({ type: 'reps-at-or-above', lbs: 40, reps: 100 }).progress(c).current).toBe(50)
+  })
+
+  it('sits at zero when logs carry no sets', () => {
+    const c = ctx({ logs: [log({ date: '2026-08-03', challengeId: 'aug-2026' })] })
+    expect(badge({ type: 'volume-lbs', lbs: 10000 }).progress(c).current).toBe(0)
+    expect(badge({ type: 'volume-lbs', lbs: 10000 }).progress(c).earned).toBe(false)
   })
 })

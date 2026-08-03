@@ -90,6 +90,12 @@ export type ChallengeBadgeCriteria =
   | { type: 'weeks-completed'; weeks: number }
   /** Every one of the challenge's exercises logged inside one week. */
   | { type: 'week-variety' }
+  /** N pounds moved across the challenge: reps × weight, summed. Unweighted
+   *  sets count zero, so this only exists on challenges that log a weight. */
+  | { type: 'volume-lbs'; lbs: number }
+  /** N reps done at or above a weight, counted on total pounds in play — a
+   *  pair of 20s and a single 40 lb coupon both clear a 40 lb bar. */
+  | { type: 'reps-at-or-above'; lbs: number; reps: number }
   /** Hit a week's target with at least this many days still on the clock. */
   | { type: 'week-early'; daysEarly: number }
 
@@ -261,17 +267,41 @@ export interface DailyTarget {
 }
 
 // ─── Load (weight used) ───────────────────────────────────────────────────────
-// Optional, per-log, and deliberately coarse: one weight for the session rather
-// than one per variation. Nobody is going to fill in four numbers on their
-// phone in the gym, and the point is bragging rights, not a training log.
+// A weight belongs to a set, not to a day: 2×20 with dumbbells on Monday and
+// 1×40 with a coupon on Tuesday are both true, and so is doing both in one
+// morning. See LoggedSet — the day-level `load` on a DailyLog is a rollup of
+// the sets underneath it, kept so older readers stay correct.
 
 export interface ExerciseLoad {
   /** Pounds per hand (or total, for a coupon). Omitted for bodyweight-only work. */
   lbs?: number
-  /** 1 = single dumbbell / one arm at a time, 2 = a pair. Absent for a coupon. */
+  /** Implements: 2 = a pair of dumbbells, 1 = a single coupon. Stamped from the
+   *  variation's `loadHands`, never asked. */
   hands?: 1 | 2
   /** True when the work was bodyweight (chin-ups) — renders as "BW". */
   bodyweight?: boolean
+}
+
+/**
+ * One tap of the log pad: some reps of one variation at one weight.
+ *
+ * The pad was always producing these — every "+20" is a set — it just summed
+ * them away on the spot, which is why a day could only carry a single weight.
+ * Keeping them makes "2×20 dumbbells today, 1×40 coupon tomorrow" (or both
+ * before coffee) representable, and makes volume computable.
+ *
+ * Reps still score as reps: 25 reps at 2×20 is 25 toward the week, never 50.
+ * Weight is a badge and a volume stat, never a multiplier.
+ */
+export interface LoggedSet {
+  exerciseId: string
+  reps: number
+  /** Absent for bodyweight work, or when the PAX never set one. */
+  load?: ExerciseLoad
+  /** ISO timestamp. Doubles as the set's identity — undo pops by it, and it's
+   *  what keeps two identical sets logged seconds apart from collapsing into
+   *  one under Firestore's arrayUnion. */
+  at: string
 }
 
 // ─── Weekly-cumulative progress ───────────────────────────────────────────────

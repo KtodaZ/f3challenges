@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { formatLoad } from '@/lib/challenges'
-import type { Exercise, ExerciseLoad } from '@/types'
+import type { Exercise, ExerciseLoad, LoggedSet } from '@/types'
 
 /**
  * Rep entry for a weekly-cumulative challenge.
@@ -11,54 +11,55 @@ import type { Exercise, ExerciseLoad } from '@/types'
  * The old fraction grid (1/4, 1/2, 3/4, Done) can't work here: it's sized to a
  * daily target that doesn't exist, and one tap of "1/4" would bank 75 curls —
  * a number nobody actually did. So this is additive instead: pick the variation
- * you just did, tap what you did, done. Both the variation and the weight stick
- * between sessions, so the common case is a single tap.
+ * and the weight, tap what you did, done.
  *
- * Everything lives on this one card on purpose. Weight used to be a modal whose
- * grid of numbers (10, 15, 20, 25…) was a dead ringer for the grid of rep
- * buttons behind it — two screens asking what looked like the same question.
- * Now it's a quiet inline strip that asks nothing at all: the variation you
- * already picked says whether it's a pair of dumbbells or one coupon, so the
- * chips read the way the badge will ("2×25", "1×60") and one tap saves.
+ * Every tap logs a set, so the weight travels with the reps rather than being a
+ * single sticky fact about the day: 2×20 dumbbells before work, 1×40 coupon at
+ * lunch, both true. The weight is a *pending* choice — it costs nothing and
+ * writes nothing until reps land on it — which is what keeps the strip
+ * instant. It sticks between sessions through localStorage.
  */
 
 interface AddRepsPadProps {
   exercises: Exercise[]
-  /** Reps banked today, per exercise id — drives the "already in" line. */
-  todayReps: Record<string, number>
-  /** Weight currently attached to today's log, if any. */
-  load?: ExerciseLoad
-  onAdd: (exerciseId: string, reps: number) => void | Promise<void>
-  /** Pass null to clear the weight entirely. */
-  onSetLoad: (load: ExerciseLoad | null) => void | Promise<void>
-  /** Undoes the most recent add. Absent when there's nothing to undo. */
-  onUndo?: () => void | Promise<void>
+  /** Sets already logged today, oldest first. */
+  todaySets: LoggedSet[]
+  onAdd: (exerciseId: string, reps: number, load?: ExerciseLoad) => void | Promise<void>
+  /** Drops one set by its `at` timestamp. */
+  onRemoveSet: (at: string) => void | Promise<void>
   disabled?: boolean
 }
 
 const QUICK_ADD = [5, 10, 15, 20, 25, 30]
 const COMMON_LBS = [10, 15, 20, 25, 30, 35, 40, 45, 50]
 
+const LAST_EXERCISE_KEY = 'lastExerciseId'
+const LAST_LBS_KEY = 'lastLoadLbs'
+
 function vibrate() {
   if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50)
 }
 
-export function AddRepsPad({
-  exercises,
-  todayReps,
-  load,
-  onAdd,
-  onSetLoad,
-  onUndo,
-  disabled,
-}: AddRepsPadProps) {
+function readStored(key: string): string | null {
+  try { return localStorage.getItem(key) } catch { return null } // private mode
+}
+
+function store(key: string, value: string) {
+  try { localStorage.setItem(key, value) } catch { /* private mode */ }
+}
+
+export function AddRepsPad({ exercises, todaySets, onAdd, onRemoveSet, disabled }: AddRepsPadProps) {
   // Last variation used sticks across visits — most PAX have a default.
   const [selectedId, setSelectedId] = useState(() => {
-    try {
-      const saved = localStorage.getItem('lastExerciseId')
-      if (saved && exercises.some(e => e.id === saved)) return saved
-    } catch { /* private mode */ }
+    const saved = readStored(LAST_EXERCISE_KEY)
+    if (saved && exercises.some(e => e.id === saved)) return saved
     return exercises[0]?.id ?? ''
+  })
+  // Pounds, not a full load: the pair-or-coupon half comes from the variation,
+  // so the same 25 follows you from dumbbells to hammers without re-picking.
+  const [lbs, setLbs] = useState<number | null>(() => {
+    const saved = Number(readStored(LAST_LBS_KEY))
+    return Number.isFinite(saved) && saved > 0 ? saved : null
   })
   const [customOpen, setCustomOpen] = useState(false)
   const [customValue, setCustomValue] = useState('')
@@ -66,46 +67,54 @@ export function AddRepsPad({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const selected = exercises.find(e => e.id === selectedId) ?? exercises[0]
+  // The variation settles the shape of the weight: dumbbells and hammers come
+  // as a pair, a coupon is one block. Chin-ups have no weight to log at all.
+  const hands = selected?.loadHands ?? 2
+  const showWeight = !selected?.bodyweight
+  const load: ExerciseLoad | undefined = showWeight && lbs ? { lbs, hands } : undefined
+  const loadBadge = formatLoad(load)
 
-  // Weight saves on tap like reps do, but the write round-trips through
-  // Firestore before `load` comes back — so the strip renders this optimistic
-  // copy and lets the saved value take over once it lands.
-  const [draftLoad, setDraftLoad] = useState<ExerciseLoad | undefined>(load)
-  useEffect(() => { setDraftLoad(load) }, [load])
+  const byExercise = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const s of todaySets) map[s.exerciseId] = (map[s.exerciseId] ?? 0) + s.reps
+    return map
+  }, [todaySets])
+  const todayTotal = todaySets.reduce((sum, s) => sum + s.reps, 0)
+  // Newest first — the set you'd most likely want to take back is on top.
+  const recent = useMemo(() => [...todaySets].reverse(), [todaySets])
 
   useEffect(() => {
     if (customOpen) setTimeout(() => inputRef.current?.focus(), 50)
   }, [customOpen])
 
+  // On a device that has never logged here — a new phone, a reinstalled PWA —
+  // localStorage has nothing, so fall back to what today's sets say the PAX has
+  // been lifting. Once, so it never fights a deliberate clear.
+  const seeded = useRef(false)
+  useEffect(() => {
+    if (seeded.current || todaySets.length === 0) return
+    seeded.current = true
+    if (lbs !== null) return
+    const last = [...todaySets].reverse().find(s => s.load?.lbs)
+    if (last?.load?.lbs) setLbs(last.load.lbs)
+  }, [todaySets, lbs])
+
   function selectExercise(id: string) {
     setSelectedId(id)
-    try { localStorage.setItem('lastExerciseId', id) } catch { /* private mode */ }
+    store(LAST_EXERCISE_KEY, id)
   }
 
-  async function add(amount: number) {
-    if (disabled || !selected || amount <= 0) return
+  function pickPounds(next: number) {
+    // Tapping the weight already showing turns it off — logs go in unweighted.
+    const value = lbs === next ? null : next
+    setLbs(value)
+    store(LAST_LBS_KEY, value ? String(value) : '')
+  }
+
+  async function add(reps: number) {
+    if (disabled || !selected || reps <= 0) return
     vibrate()
-    await onAdd(selected.id, amount)
-  }
-
-  function applyLoad(next: ExerciseLoad | null) {
-    setDraftLoad(next ?? undefined)
-    onSetLoad(next)
-  }
-
-  const todayTotal = Object.values(todayReps).reduce((s, n) => s + n, 0)
-  const loadBadge = formatLoad(draftLoad)
-  // The variation settles the shape of the weight: dumbbells and hammers come
-  // as a pair, a coupon is one block. Chin-ups have no weight to log at all,
-  // so the row disappears rather than offering "bodyweight" as a choice.
-  const hands = selected?.loadHands ?? 2
-  const showWeight = !selected?.bodyweight
-
-  function pickPounds(lbs: number) {
-    // Every tap writes the whole weight, so it can never half-change. Tapping
-    // the one already showing turns it off.
-    const unchanged = draftLoad?.lbs === lbs && draftLoad?.hands === hands
-    applyLoad(unchanged ? null : { lbs, hands })
+    await onAdd(selected.id, reps, load)
   }
 
   return (
@@ -113,20 +122,9 @@ export function AddRepsPad({
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Log curls</p>
         {todayTotal > 0 && (
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-zinc-400 tabular-nums">
-              <span className="font-semibold text-orange-400">{todayTotal}</span> in today
-            </span>
-            {onUndo && (
-              <button
-                onClick={() => onUndo()}
-                disabled={disabled}
-                className="text-xs text-zinc-500 underline hover:text-zinc-300 disabled:opacity-40"
-              >
-                Undo
-              </button>
-            )}
-          </div>
+          <span className="text-xs text-zinc-400 tabular-nums shrink-0">
+            <span className="font-semibold text-orange-400">{todayTotal}</span> in today
+          </span>
         )}
       </div>
 
@@ -134,7 +132,7 @@ export function AddRepsPad({
       <div className="flex flex-wrap gap-1.5">
         {exercises.map(ex => {
           const isActive = ex.id === selected?.id
-          const banked = todayReps[ex.id] ?? 0
+          const banked = byExercise[ex.id] ?? 0
           return (
             <button
               key={ex.id}
@@ -224,8 +222,7 @@ export function AddRepsPad({
         )}
       </div>
 
-      {/* Weight — optional, set once a month, so it stays a quiet footer.
-          Collapsed it's just the badge; open it's one row of pounds. */}
+      {/* Weight for the next tap. Nothing is written until reps land on it. */}
       {showWeight && (
         <div className="pt-1 border-t border-zinc-800/80">
           <button
@@ -235,21 +232,19 @@ export function AddRepsPad({
             className="w-full flex items-center justify-between gap-2 py-1.5 text-left disabled:opacity-40"
           >
             <span className="text-xs text-zinc-500 truncate">
-              🏋 Weight
+              🏋 Logging at
               {loadBadge ? (
                 <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-xs font-bold tabular-nums">
                   {loadBadge}
                 </span>
               ) : (
-                <span className="ml-2 text-zinc-600">optional badge</span>
+                <span className="ml-2 text-zinc-600">no weight</span>
               )}
             </span>
             <span className="text-zinc-600 text-xs shrink-0" aria-hidden="true">{weightOpen ? '▴' : '▾'}</span>
           </button>
 
           {weightOpen && (
-            /* Pounds, and nothing else. Tap saves — no second confirm, same as
-               the rep buttons. Scrolls sideways so it stays one line. */
             <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-2 no-scrollbar">
               {COMMON_LBS.map(n => (
                 <button
@@ -259,7 +254,7 @@ export function AddRepsPad({
                   className={cn(
                     'shrink-0 px-3 py-2 rounded-xl text-xs font-semibold tabular-nums transition-colors',
                     'disabled:opacity-40 disabled:cursor-not-allowed',
-                    draftLoad?.lbs === n && draftLoad?.hands === hands
+                    lbs === n
                       ? 'bg-amber-500/25 text-amber-200 border border-amber-500/60'
                       : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
                   )}
@@ -269,6 +264,34 @@ export function AddRepsPad({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Today's sets. Doubles as the undo: each row drops itself, so a mis-tap
+          three sets ago is fixable without unwinding the two after it. */}
+      {recent.length > 0 && (
+        <div className="pt-1 border-t border-zinc-800/80 space-y-1">
+          {recent.map(set => {
+            const ex = exercises.find(e => e.id === set.exerciseId)
+            const badge = formatLoad(set.load)
+            return (
+              <div key={set.at} className="flex items-center gap-2 text-xs">
+                <span className="font-semibold text-zinc-300 tabular-nums w-10 shrink-0">+{set.reps}</span>
+                <span className="text-zinc-500 truncate">{ex?.shortName ?? set.exerciseId}</span>
+                {badge && (
+                  <span className="text-amber-300/80 font-semibold tabular-nums shrink-0">{badge}</span>
+                )}
+                <button
+                  onClick={() => onRemoveSet(set.at)}
+                  disabled={disabled}
+                  aria-label={`Remove ${set.reps} ${ex?.shortName ?? 'reps'}`}
+                  className="ml-auto shrink-0 px-2 py-1 -my-1 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

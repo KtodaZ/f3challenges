@@ -72,9 +72,22 @@ describe('stripUndefined', () => {
       .toEqual({ a: { b: { d: 1 } } })
   })
 
-  it('leaves arrays alone', () => {
+  it('leaves arrays of primitives alone', () => {
     const obj = { list: [1, 2, 3] }
     expect(stripUndefined(obj).list).toEqual([1, 2, 3])
+  })
+
+  // A day's `sets` is an array of objects with an optional `load` — one
+  // undefined in there would reject the whole write.
+  it('strips undefined inside objects in an array', () => {
+    const sets = [
+      { exerciseId: 'dumbbell-curl', reps: 20, load: undefined, at: 'x' },
+      { exerciseId: 'coupon-curl', reps: 25, load: { lbs: 40, hands: 1 }, at: 'y' },
+    ]
+    expect(stripUndefined({ sets }).sets).toEqual([
+      { exerciseId: 'dumbbell-curl', reps: 20, at: 'x' },
+      { exerciseId: 'coupon-curl', reps: 25, load: { lbs: 40, hands: 1 }, at: 'y' },
+    ])
   })
 
   // Rebuilding a Date (or a Firestore sentinel like deleteField) would destroy
