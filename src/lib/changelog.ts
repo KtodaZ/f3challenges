@@ -18,6 +18,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-03',
+    changes: [
+      'Logging curls happens on one card now. The weight you’re swinging sits right under the rep buttons instead of behind a pop-up full of numbers that looked just like the rep buttons — tap a weight and it’s saved, tap it again to drop it. “Other” works the same way: the box opens right where the button was.',
+      'The weight badge asks one less question. Pick Coupon and it logs the total (**60 lb**); pick Dumbbell or Hammer and it assumes a pair, with a one-arm toggle if that’s your thing. Chin-Up can now fly **BW**.',
+    ],
+  },
+  {
     date: '2026-08-01',
     changes: [
       'Inviting a new PAX is a lot easier to text: **f3challenges.com/bedrock** and **f3challenges.com/sactown** drop them straight into the right region. The old link still works if you’ve got it saved.',

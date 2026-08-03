@@ -172,6 +172,16 @@ export async function upsertDailyLog(log: DailyLog): Promise<void> {
   await setDoc(doc(dailyLogsCol(), log.id), withRegion(log), { merge: true })
 }
 
+/**
+ * Drops the optional weight from a log. Needs its own write: every log save is
+ * a `setDoc(..., { merge: true })`, and merging can't remove a field — leaving
+ * `load` out just keeps whatever was stored last.
+ */
+export async function clearDailyLogLoad(logId: string): Promise<void> {
+  assertWritable()
+  await updateDoc(doc(dailyLogsCol(), logId), { load: deleteField() })
+}
+
 /** Get all logs for a user in a challenge (for heat map / streak calc). */
 export async function getUserChallengeLogs(
   userId: string,

@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { formatLoad } from '@/lib/challenges'
-import { Modal } from '@/components/ui/Modal'
-import { LoadPicker } from './LoadPicker'
 import type { Exercise, ExerciseLoad } from '@/types'
 
 /**
@@ -15,6 +13,12 @@ import type { Exercise, ExerciseLoad } from '@/types'
  * a number nobody actually did. So this is additive instead: pick the variation
  * you just did, tap what you did, done. Both the variation and the weight stick
  * between sessions, so the common case is a single tap.
+ *
+ * Everything lives on this one card on purpose. Weight used to be a modal whose
+ * grid of numbers (10, 15, 20, 25…) was a dead ringer for the grid of rep
+ * buttons behind it — two screens asking what looked like the same question.
+ * Now weight is a quiet inline strip: pounds only, since "one, two, or a
+ * coupon" is already answered by the variation you picked.
  */
 
 interface AddRepsPadProps {
@@ -24,13 +28,15 @@ interface AddRepsPadProps {
   /** Weight currently attached to today's log, if any. */
   load?: ExerciseLoad
   onAdd: (exerciseId: string, reps: number) => void | Promise<void>
-  onSetLoad: (load: ExerciseLoad | undefined) => void | Promise<void>
+  /** Pass null to clear the weight entirely. */
+  onSetLoad: (load: ExerciseLoad | null) => void | Promise<void>
   /** Undoes the most recent add. Absent when there's nothing to undo. */
   onUndo?: () => void | Promise<void>
   disabled?: boolean
 }
 
 const QUICK_ADD = [5, 10, 15, 20, 25, 30]
+const COMMON_LBS = [10, 15, 20, 25, 30, 35, 40, 45, 50]
 
 function vibrate() {
   if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50)
@@ -54,11 +60,17 @@ export function AddRepsPad({
     return exercises[0]?.id ?? ''
   })
   const [customOpen, setCustomOpen] = useState(false)
-  const [loadOpen, setLoadOpen] = useState(false)
   const [customValue, setCustomValue] = useState('')
+  const [weightOpen, setWeightOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const selected = exercises.find(e => e.id === selectedId) ?? exercises[0]
+
+  // Weight saves on tap like reps do, but the write round-trips through
+  // Firestore before `load` comes back — so the strip renders this optimistic
+  // copy and lets the saved value take over once it lands.
+  const [draftLoad, setDraftLoad] = useState<ExerciseLoad | undefined>(load)
+  useEffect(() => { setDraftLoad(load) }, [load])
 
   useEffect(() => {
     if (customOpen) setTimeout(() => inputRef.current?.focus(), 50)
@@ -75,10 +87,26 @@ export function AddRepsPad({
     await onAdd(selected.id, amount)
   }
 
+  function applyLoad(next: ExerciseLoad | null) {
+    setDraftLoad(next ?? undefined)
+    onSetLoad(next)
+  }
+
   const todayTotal = Object.values(todayReps).reduce((s, n) => s + n, 0)
-  const loadBadge = formatLoad(load)
-  // Chin-ups can't take a weight, so the picker stays out of the way for them.
-  const showLoad = !selected?.bodyweight
+  const loadBadge = formatLoad(draftLoad)
+  // A coupon is one implement in both hands, so its weight is a total, not a
+  // per-hand number. Chin-ups take no weight at all — only "BW".
+  const perHand = !selected?.bothHands && !selected?.bodyweight
+  const hands = draftLoad?.hands ?? 2
+
+  function pickPounds(lbs: number) {
+    const next: ExerciseLoad = perHand ? { lbs, hands } : { lbs }
+    // Tapping the weight already showing turns it off. Same number in a
+    // different shape (a pair of 25s vs a 25 lb coupon) is a change, not a
+    // second tap, so it saves instead of clearing.
+    const unchanged = draftLoad?.lbs === next.lbs && draftLoad?.hands === next.hands
+    applyLoad(unchanged ? null : next)
+  }
 
   return (
     <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
@@ -131,7 +159,7 @@ export function AddRepsPad({
         })}
       </div>
 
-      {/* Quick add */}
+      {/* Quick add — the whole point of the card, so it gets the big targets */}
       <div className="grid grid-cols-4 gap-2">
         {QUICK_ADD.map(amount => (
           <button
@@ -148,72 +176,141 @@ export function AddRepsPad({
             +{amount}
           </button>
         ))}
-        <button
-          onClick={() => { setCustomValue(''); setCustomOpen(true) }}
-          disabled={disabled}
-          className={cn(
-            'py-3 rounded-xl text-sm font-semibold transition-colors min-h-[44px]',
-            'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200',
-            'disabled:opacity-40 disabled:cursor-not-allowed'
-          )}
-        >
-          Other
-        </button>
-        {showLoad ? (
+        {!customOpen && (
           <button
-            onClick={() => setLoadOpen(true)}
+            onClick={() => { setCustomValue(''); setCustomOpen(true) }}
             disabled={disabled}
             className={cn(
-              'py-3 rounded-xl text-xs font-semibold transition-colors min-h-[44px] truncate px-1',
-              loadBadge
-                ? 'bg-amber-500/15 text-amber-300 border border-amber-600/40 hover:bg-amber-500/25'
-                : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300',
+              'col-span-2 py-3 rounded-xl text-sm font-semibold transition-colors min-h-[44px]',
+              'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200',
               'disabled:opacity-40 disabled:cursor-not-allowed'
             )}
           >
-            {loadBadge ? `🏋 ${loadBadge}` : '🏋 Weight'}
+            Other
           </button>
-        ) : (
-          <div className="flex items-center justify-center text-xs text-zinc-600 font-semibold">BW</div>
+        )}
+        {/* Some other number of reps — an input in the grid rather than a
+            modal, so nothing about logging ever leaves this card. */}
+        {customOpen && (
+          <div className="col-span-2 flex gap-2">
+            <input
+              ref={inputRef}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={customValue}
+              onChange={e => setCustomValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') submitCustom()
+                if (e.key === 'Escape') setCustomOpen(false)
+              }}
+              onBlur={() => { if (!customValue) setCustomOpen(false) }}
+              placeholder="# reps"
+              aria-label="Number of reps"
+              className={cn(
+                'w-full min-w-0 px-3 rounded-xl bg-zinc-800 border border-orange-500/60',
+                'text-white text-sm tabular-nums focus:outline-none',
+                '[&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+              )}
+            />
+            <button
+              onClick={submitCustom}
+              disabled={disabled}
+              className="px-4 rounded-xl bg-orange-500 text-white text-sm font-bold hover:bg-orange-600 active:bg-orange-700 disabled:opacity-40 transition-colors"
+            >
+              Add
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Custom amount */}
-      <Modal
-        open={customOpen}
-        onClose={() => setCustomOpen(false)}
-        title={selected?.name ?? 'Add reps'}
-        description="How many did you just knock out?"
-      >
-        <div className="flex gap-2">
-          <input
-            ref={inputRef}
-            type="number"
-            inputMode="numeric"
-            min={1}
-            value={customValue}
-            onChange={e => setCustomValue(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') submitCustom() }}
-            placeholder="# reps"
-            className="flex-1 px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-white text-sm focus:outline-none focus:border-orange-500"
-          />
-          <button
-            onClick={submitCustom}
-            className="px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-semibold hover:bg-orange-600 active:bg-orange-700 transition-colors"
-          >
-            Add
-          </button>
-        </div>
-      </Modal>
+      {/* Weight — optional, set once a month, so it stays a quiet footer.
+          Collapsed it's just the badge; open it's one row of pounds. */}
+      <div className="pt-1 border-t border-zinc-800/80">
+        <button
+          onClick={() => setWeightOpen(o => !o)}
+          disabled={disabled}
+          aria-expanded={weightOpen}
+          className="w-full flex items-center justify-between gap-2 py-1.5 text-left disabled:opacity-40"
+        >
+          <span className="text-xs text-zinc-500 truncate">
+            🏋 Weight
+            {loadBadge ? (
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-xs font-bold tabular-nums">
+                {loadBadge}
+              </span>
+            ) : (
+              <span className="ml-2 text-zinc-600">optional badge</span>
+            )}
+          </span>
+          <span className="text-zinc-600 text-xs shrink-0" aria-hidden="true">{weightOpen ? '▴' : '▾'}</span>
+        </button>
 
-      <LoadPicker
-        // Remount on each open so the picker re-seeds from the saved weight.
-        key={loadOpen ? 'open' : 'closed'}
-        open={loadOpen}
-        onClose={() => setLoadOpen(false)}
-        value={load}
-        onSave={next => { onSetLoad(next); setLoadOpen(false) }}
-      />
+        {weightOpen && (
+          <div className="pb-1 space-y-2">
+            {selected?.bodyweight ? (
+              <button
+                onClick={() => applyLoad(draftLoad?.bodyweight ? null : { bodyweight: true })}
+                className={cn(
+                  'px-3 py-2 rounded-xl text-xs font-semibold transition-colors',
+                  draftLoad?.bodyweight
+                    ? 'bg-amber-500/25 text-amber-200 border border-amber-500/60'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                )}
+              >
+                Bodyweight
+              </button>
+            ) : (
+              <>
+                {/* Pounds. Tap saves — no second confirm, same as the rep
+                    buttons. Scrolls sideways so it stays one line. */}
+                <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1 no-scrollbar">
+                  {COMMON_LBS.map(n => (
+                    <button
+                      key={n}
+                      onClick={() => pickPounds(n)}
+                      disabled={disabled}
+                      className={cn(
+                        'shrink-0 px-3 py-2 rounded-xl text-xs font-semibold tabular-nums transition-colors',
+                        'disabled:opacity-40 disabled:cursor-not-allowed',
+                        draftLoad?.lbs === n
+                          ? 'bg-amber-500/25 text-amber-200 border border-amber-500/60'
+                          : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
+                      )}
+                    >
+                      {n} lb
+                    </button>
+                  ))}
+                </div>
+                {/* Only worth asking once there's a weight to qualify. */}
+                {perHand && draftLoad?.lbs ? (
+                  <div className="flex gap-2">
+                    {([
+                      { v: 2 as const, label: 'A pair' },
+                      { v: 1 as const, label: 'One arm' },
+                    ]).map(opt => (
+                      <button
+                        key={opt.v}
+                        onClick={() => applyLoad({ lbs: draftLoad.lbs, hands: opt.v })}
+                        disabled={disabled}
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors',
+                          'disabled:opacity-40 disabled:cursor-not-allowed',
+                          hands === opt.v
+                            ? 'bg-zinc-700 text-zinc-100'
+                            : 'bg-zinc-800/60 text-zinc-500 hover:bg-zinc-700/60'
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 
