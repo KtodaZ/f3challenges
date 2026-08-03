@@ -126,6 +126,23 @@ describe('getWeekProgress', () => {
     expect(p.perDayNeeded).toBe(0)
     expect(p.remaining).toBe(200)
   })
+
+  // What past-challenge Catch Up runs on: an ended challenge's week, read
+  // from a date past the challenge itself, still knows what it's short and
+  // still closes out when the reps land.
+  it('still scores a week after the whole challenge has ended', () => {
+    const short = getWeekProgress(AUG, '2026-08-02', [log('2026-08-03', db(100))], '2026-09-15')!
+    expect(short.remaining).toBe(200)
+    expect(short.isComplete).toBe(false)
+
+    const toppedUp = getWeekProgress(
+      AUG, '2026-08-02',
+      [log('2026-08-03', db(100)), log('2026-08-08', db(200))],
+      '2026-09-15',
+    )!
+    expect(toppedUp.isComplete).toBe(true)
+    expect(toppedUp.remaining).toBe(0)
+  })
 })
 
 // ─── Weeks completed + streak ─────────────────────────────────────────────────

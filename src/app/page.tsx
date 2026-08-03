@@ -60,7 +60,7 @@ import { AddRepsPad } from '@/components/daily/AddRepsPad'
 import { WeekMixLedger } from '@/components/daily/WeekMixLedger'
 import { WeekCatchUpCard } from '@/components/daily/WeekCatchUpCard'
 import { DayLogCarousel } from '@/components/daily/DayLogCarousel'
-import { PastChallengeMakeup } from '@/components/daily/PastChallengeMakeup'
+import { PastChallengeMakeup, PastWeekCatchUp } from '@/components/daily/PastChallengeMakeup'
 import { MakeupBonusPicker } from '@/components/daily/MakeupBonusPicker'
 import type { MissedBonusWeek } from '@/components/daily/MakeupBonusPicker'
 import { CalloutModal, type CalloutUserStatus } from '@/components/daily/CalloutModal'
@@ -881,14 +881,18 @@ export default function HomePage() {
     const target = getDailyTarget(pastChallenge, date)
     if (!target) return
 
-    const fraction = computeOverallFraction(repsMap, target.exercises)
+    // isOpenEnded matters here too: without it a top-up on a closed weekly
+    // challenge divides by a zero target and saves as fraction 0 — logged
+    // reps that don't read as a day trained.
+    const fraction = computeOverallFraction(repsMap, target.exercises, target.isOpenEnded)
     const exerciseLogs: ExerciseLog[] = target.exercises.map(({ exercise, reps }) => ({
       exerciseId: exercise.id,
       targetReps: reps,
       completedReps: repsMap[exercise.id] ?? 0,
     }))
 
-    const existing = (pastChallengeLogs[pastChallenge.id] ?? []).find(l => l.date === date)
+    const priorLogs = pastChallengeLogs[pastChallenge.id] ?? []
+    const existing = priorLogs.find(l => l.date === date)
     const newLog: DailyLog = stripUndefined({
       id: dailyLogId(currentUser.id, date),
       userId: currentUser.id,
@@ -909,7 +913,7 @@ export default function HomePage() {
     await upsertDailyLog(newLog)
 
     const updatedLogs = [
-      ...(pastChallengeLogs[pastChallenge.id] ?? []).filter(l => l.date !== date),
+      ...priorLogs.filter(l => l.date !== date),
       newLog,
     ]
     setPastChallengeLogs(prev => ({ ...prev, [pastChallenge.id]: updatedLogs }))
@@ -955,7 +959,15 @@ export default function HomePage() {
 
     // Redemption moment (skipped when the big celebration/trophy moment fires)
     const wasComplete = !!(existing && existing.completionFraction >= 1)
-    if (!trophyMomentFired && fraction >= 1 && !wasComplete) {
+    if (!trophyMomentFired && isWeeklyCumulative(pastChallenge)) {
+      // No day was ever owed here, so "days still missed" is meaningless — the
+      // moment worth marking is a closed week finally getting there.
+      const before = getWeekProgress(pastChallenge, date, priorLogs, today)
+      const after  = getWeekProgress(pastChallenge, date, updatedLogs, today)
+      if (after && after.isComplete && !before?.isComplete) {
+        pushCelebrations([buildWeekCelebration(after, pastChallenge.name, true)], true)
+      }
+    } else if (!trophyMomentFired && fraction >= 1 && !wasComplete) {
       const done = new Set(updatedLogs.filter(l => l.completionFraction >= 1).map(l => l.date))
       const remaining = getChallengeDates(pastChallenge).filter(d =>
         !isRestDay(pastChallenge, d) && !done.has(d)
@@ -966,7 +978,39 @@ export default function HomePage() {
         true
       )
     }
-  }, [currentUser, pastChallengeLogs, pushCelebrations, refreshCurrentUser])
+  }, [currentUser, pastChallengeLogs, pushCelebrations, refreshCurrentUser, today])
+
+  // ── Top up a short week on a challenge that already ended ───────────────
+  // Same move as handleWeekCatchUp, routed through the past-challenge save so
+  // the trophy ladder and celebrations come from that challenge's own logs.
+
+  const [pastWeekSaving, setPastWeekSaving] = useState<string | null>(null)
+
+  const handlePastWeekCatchUp = useCallback(
+    async (
+      pastChallenge: ChallengeTemplate,
+      weekEndDate: string,
+      exerciseId: string,
+      reps: number,
+    ) => {
+      setPastWeekSaving(weekEndDate)
+      try {
+        const existing = (pastChallengeLogs[pastChallenge.id] ?? []).find(l => l.date === weekEndDate)
+        const base: Record<string, number> = {}
+        for (const el of existing?.exerciseLogs ?? []) base[el.exerciseId] = el.completedReps
+        await savePastChallengeLog(
+          pastChallenge,
+          weekEndDate,
+          { ...base, [exerciseId]: (base[exerciseId] ?? 0) + reps },
+          existing?.notes ?? '',
+          existing?.modificationNote ?? '',
+        )
+      } finally {
+        setPastWeekSaving(null)
+      }
+    },
+    [pastChallengeLogs, savePastChallengeLog]
+  )
 
   // ── Complete bonus challenge for this week ──────────────────────────────
 
@@ -1541,11 +1585,31 @@ export default function HomePage() {
           if (dismissedMakeups.has(pastChallenge.id)) return null
           // A weekly-cumulative challenge has no missed *days* to make up — a
           // day you didn't train isn't a hole, and every daily target is 0, so
-          // the picker below would list rest days as missed and offer "0 reps"
-          // to log against. Topping up a closed week is what catch-up means
-          // there, and WeekCatchUpCard only covers the live challenge — so a
-          // past one is out of reach until that card learns past challenges.
-          if (isWeeklyCumulative(pastChallenge)) return null
+          // the day picker would list rest days as missed and offer "0 reps"
+          // to log against. A week is what falls short there.
+          if (isWeeklyCumulative(pastChallenge)) {
+            const short = getChallengeWeeks(pastChallenge)
+              .map(w => getWeekProgress(pastChallenge, w.startDate, logs, today))
+              .filter((w): w is NonNullable<typeof w> => !!w && !w.isComplete)
+            if (short.length === 0) return null
+            return (
+              <div key={pastChallenge.id} className="pt-2">
+                <PastWeekCatchUp
+                  challenge={pastChallenge}
+                  weeks={short}
+                  savingWeek={pastWeekSaving}
+                  onAdd={(weekEndDate, exerciseId, reps) =>
+                    handlePastWeekCatchUp(pastChallenge, weekEndDate, exerciseId, reps)
+                  }
+                  onDismiss={() => {
+                    const next = new Set(dismissedMakeups).add(pastChallenge.id)
+                    setDismissedMakeups(next)
+                    try { localStorage.setItem('dismissedMakeups', JSON.stringify([...next])) } catch { /* ignore */ }
+                  }}
+                />
+              </div>
+            )
+          }
           const pastLogsMap = Object.fromEntries(logs.map(l => [l.date, l]))
           const incomplete = getChallengeDates(pastChallenge).filter(d => {
             if (isRestDay(pastChallenge, d)) return false
