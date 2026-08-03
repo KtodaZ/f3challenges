@@ -7,6 +7,7 @@ import { useUser } from '@/contexts/UserContext'
 import {
   subscribeToDailyLog,
   upsertDailyLog,
+  clearDailyLogLoad,
   getParticipation,
   upsertParticipation,
   participationId,
@@ -504,7 +505,8 @@ export default function HomePage() {
       notes: string,
       modificationNote: string,
       isMakeUp: boolean,
-      load?: ExerciseLoad,
+      /** undefined leaves the weight as-is; null clears it. */
+      load?: ExerciseLoad | null,
     ) => {
       if (!currentUser || !challenge) return
 
@@ -533,7 +535,7 @@ export default function HomePage() {
         notes: notes || undefined,
         modificationNote: modificationNote || undefined,
         // An explicit `null` clears the weight; undefined leaves it as-is.
-        load: load ?? existingLog?.load,
+        load: load === null ? undefined : load ?? existingLog?.load,
         loggedAt: existingLog?.loggedAt ?? new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         // First moment the day hit 100% — powers the first-finisher badges
@@ -543,6 +545,9 @@ export default function HomePage() {
       }
 
       await upsertDailyLog(stripUndefined(log))
+      // Omitting `load` above can't remove it — the save merges — so a clear
+      // takes a second, explicit write.
+      if (load === null) await clearDailyLogLoad(log.id)
 
       // Logging a day opts you into the challenge — create the participation
       // record if none exists yet (undefined = still loading, don't touch it)
@@ -739,7 +744,7 @@ export default function HomePage() {
       notes: string,
       modificationNote: string,
       isMakeUp: boolean,
-      load?: ExerciseLoad,
+      load?: ExerciseLoad | null,
     ) => saveLog(today, repsMap, notes, modificationNote, isMakeUp, load),
     [saveLog, today]
   )
@@ -787,7 +792,7 @@ export default function HomePage() {
   }, [challenge, lastAdd, quickReps, saveTodayLog, todayLog])
 
   const handleSetLoad = useCallback(
-    async (load: ExerciseLoad | undefined) => {
+    async (load: ExerciseLoad | null) => {
       if (!challenge || !currentUser) return
       const base = weeklyRepsRef.current ?? quickReps
       await saveTodayLog(base, todayLog?.notes ?? '', todayLog?.modificationNote ?? '', false, load)

@@ -457,7 +457,7 @@ export const CHALLENGES: ChallengeTemplate[] = [
     // to decode "DB" mid-workout.
     exercises: [
       { id: 'dumbbell-curl', name: 'Dumbbell Curl', shortName: 'Dumbbell', plural: 'dumbbell curls' },
-      { id: 'coupon-curl',   name: 'Coupon Curl',   shortName: 'Coupon',   plural: 'coupon curls'   },
+      { id: 'coupon-curl',   name: 'Coupon Curl',   shortName: 'Coupon',   plural: 'coupon curls', bothHands: true },
       { id: 'hammer-curl',   name: 'Hammer Curl',   shortName: 'Hammer',   plural: 'hammer curls'   },
       { id: 'chin-up',       name: 'Chin-Up',       shortName: 'Chin-Up',  plural: 'chin-ups', bodyweight: true },
     ],
