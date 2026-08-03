@@ -13,6 +13,7 @@ import { TrophyTierSummary } from '@/components/profile/TrophyTierSummary'
 import { TodaySummary } from '@/components/profile/TodaySummary'
 import { HeatMap } from '@/components/profile/HeatMap'
 import { CumulativeStats } from '@/components/profile/CumulativeStats'
+import { RepBreakdown } from '@/components/profile/RepBreakdown'
 import { OptOutModal } from '@/components/profile/OptOutModal'
 import { ShoutoutModal } from '@/components/profile/ShoutoutModal'
 import {
@@ -348,6 +349,21 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
                 />
                 <TrophyTierSummary challenge={currentChallenge} completed={trophyScore} />
               </div>
+            )}
+          </Card>
+        )}
+
+        {/* ── Rep breakdown: what the reps were made of ──────── */}
+        {currentChallenge && (
+          <Card id="breakdown">
+            <CardHeader>
+              <CardTitle>Breakdown</CardTitle>
+              <span className="text-xs text-zinc-500 font-normal">{currentChallenge.name}</span>
+            </CardHeader>
+            {loading ? (
+              <div className="h-32 bg-zinc-800 rounded-xl animate-pulse" />
+            ) : (
+              <RepBreakdown challenge={currentChallenge} logs={currentLogs} />
             )}
           </Card>
         )}

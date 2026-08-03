@@ -1156,6 +1156,42 @@ export function badgeLoad(sets: LoggedSet[]): ExerciseLoad | undefined {
   return best?.load
 }
 
+/** One weight a PAX worked at, and how much of their work happened there. */
+export interface WeightTally {
+  /** The badge form — "2×25", "1×40" — and the group's identity. */
+  badge: string
+  load: ExerciseLoad
+  reps: number
+  /** Pounds moved at this weight. */
+  volume: number
+}
+
+/**
+ * Reps grouped by the weight they were done at, heaviest first. Unweighted
+ * sets are left out — "no weight" isn't a weight, and a bodyweight row would
+ * read as a zero next to real ones.
+ */
+export function setsByWeight(sets: LoggedSet[]): WeightTally[] {
+  const groups = new Map<string, WeightTally>()
+  for (const s of sets) {
+    const badge = formatLoad(s.load)
+    if (!badge || !s.load || s.reps <= 0) continue
+    const found = groups.get(badge)
+    if (found) {
+      found.reps += s.reps
+      found.volume += s.reps * loadTotalLbs(s.load)
+    } else {
+      groups.set(badge, {
+        badge,
+        load: s.load,
+        reps: s.reps,
+        volume: s.reps * loadTotalLbs(s.load),
+      })
+    }
+  }
+  return [...groups.values()].sort((a, b) => loadTotalLbs(b.load) - loadTotalLbs(a.load))
+}
+
 /** Pounds moved: reps × total weight, summed. Unweighted sets count zero. */
 export function setsVolume(sets: LoggedSet[]): number {
   return sets.reduce((sum, s) => sum + Math.max(0, s.reps) * loadTotalLbs(s.load), 0)

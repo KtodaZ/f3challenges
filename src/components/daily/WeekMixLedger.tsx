@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { formatLoad, loadTotalLbs, setsVolume } from '@/lib/challenges'
+import { setsByWeight, setsVolume } from '@/lib/challenges'
 import type { Exercise, LoggedSet } from '@/types'
 
 /**
@@ -28,7 +28,7 @@ export function WeekMixLedger({ exercises, repsByExercise, sets = [] }: WeekMixL
     .filter(r => r.reps > 0)
     .sort((a, b) => b.reps - a.reps)
 
-  const byWeight = weightRows(sets)
+  const byWeight = setsByWeight(sets)
   const volume = setsVolume(sets)
 
   if (rows.length === 0) return null
@@ -68,9 +68,9 @@ export function WeekMixLedger({ exercises, repsByExercise, sets = [] }: WeekMixL
             )}
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {byWeight.map(({ key, badge, reps }) => (
+            {byWeight.map(({ badge, reps }) => (
               <span
-                key={key}
+                key={badge}
                 className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-zinc-800 text-xs"
               >
                 <span className="font-semibold text-amber-300/90 tabular-nums">{badge}</span>
@@ -82,18 +82,4 @@ export function WeekMixLedger({ exercises, repsByExercise, sets = [] }: WeekMixL
       )}
     </div>
   )
-}
-
-/** Reps grouped by the weight they were done at, heaviest first. */
-function weightRows(sets: LoggedSet[]) {
-  const groups = new Map<string, { key: string; badge: string; reps: number; total: number }>()
-  for (const s of sets) {
-    const badge = formatLoad(s.load)
-    if (!badge || s.reps <= 0) continue
-    const key = badge
-    const found = groups.get(key)
-    if (found) found.reps += s.reps
-    else groups.set(key, { key, badge, reps: s.reps, total: loadTotalLbs(s.load) })
-  }
-  return [...groups.values()].sort((a, b) => b.total - a.total)
 }

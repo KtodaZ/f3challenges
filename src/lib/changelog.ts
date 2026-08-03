@@ -20,6 +20,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-04',
     changes: [
+      'New **Breakdown** on every profile — yours and everybody else’s. Total reps, the weight you usually work at, pounds moved, which variations you actually favour, how your reps split across weights, and your best single day. Tap the 🏋 badge on the leaderboard to jump straight to someone’s.',
       'The weight now rides along with the reps. Set the pad to **2×20** and every tap logs at 2×20; switch to a **1×40** coupon at lunch and those reps log at 1×40. No more one weight for the whole day.',
       'Today’s sets are listed right on the card — **+20 Dumbbell 2×20**, **+25 Coupon 1×40** — and each one has an ✕. Fat-fingered a set three taps ago? Drop that one, keep the rest. (The old single Undo is gone; this does the same job better.)',
       'This week’s mix now shows what you moved as well as what you did: your reps split by weight, plus the total pounds moved for the week.',

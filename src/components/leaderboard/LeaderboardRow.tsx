@@ -73,15 +73,25 @@ function StatusBadge({ entry }: { entry: LeaderboardEntry }) {
   )
 }
 
-/** The weight this PAX has been moving — "2×25", "65 lb", "BW". Optional, so
- *  most rows won't show one until people start setting it. */
+/** The weight this PAX has done the most reps at — "2×25", "1×40". Optional,
+ *  so most rows won't show one until people start logging with weight.
+ *
+ *  Tapping it jumps straight to the breakdown behind the number. It's a span
+ *  rather than a button because the whole row is already a button and nesting
+ *  those is invalid — the row still reaches the same profile for anyone
+ *  navigating by keyboard, just without the anchor. */
 function LoadBadge({ entry }: { entry: LeaderboardEntry }) {
+  const router = useRouter()
   const badge = formatLoad(entry.load)
   if (!badge) return null
   return (
     <span
-      title="Weight used"
-      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums bg-amber-500/15 text-amber-300 shrink-0"
+      title="Weight used — tap for the breakdown"
+      onClick={e => {
+        e.stopPropagation()
+        router.push(`/profile/${entry.user.id}#breakdown`)
+      }}
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums bg-amber-500/15 text-amber-300 shrink-0 hover:bg-amber-500/25"
     >
       🏋 {badge}
     </span>

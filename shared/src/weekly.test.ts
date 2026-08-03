@@ -18,6 +18,7 @@ import {
   rollupSetReps,
   badgeLoad,
   setsVolume,
+  setsByWeight,
   logSets,
   allSets,
   reconcileSets,
@@ -404,6 +405,24 @@ describe('sets', () => {
         expect(rollupSetReps(reconcileSets(reps, twoDays, at)))
           .toEqual(Object.fromEntries(Object.entries(reps).filter(([, n]) => n > 0)))
       }
+    })
+  })
+
+  describe('setsByWeight', () => {
+    it('groups reps by weight, heaviest first, with the pounds moved', () => {
+      const rows = setsByWeight([
+        set(20, '2026-08-03T13:00:00.000Z', { lbs: 20, hands: 2 }),  // 40 lb
+        set(25, '2026-08-03T14:00:00.000Z', { lbs: 40, hands: 1 }),  // 40 lb, different badge
+        set(15, '2026-08-04T13:00:00.000Z', { lbs: 30, hands: 2 }),  // 60 lb
+        set(10, '2026-08-05T13:00:00.000Z', { lbs: 20, hands: 2 }),  // folds into 2×20
+      ])
+      expect(rows.map(r => r.badge)).toEqual(['2×30', '2×20', '1×40'])
+      expect(rows.find(r => r.badge === '2×20')).toMatchObject({ reps: 30, volume: 1200 })
+      expect(rows.find(r => r.badge === '2×30')).toMatchObject({ reps: 15, volume: 900 })
+    })
+
+    it('leaves unweighted work out — "no weight" is not a weight', () => {
+      expect(setsByWeight([set(30, '2026-08-03T13:00:00.000Z', undefined, 'chin-up')])).toEqual([])
     })
   })
 
