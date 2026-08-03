@@ -8,16 +8,18 @@ import type { ChallengeTemplate } from '@/types'
 
 interface TrophyTierSummaryProps {
   challenge: ChallengeTemplate
-  /** Days of this challenge fully completed (makeups included). */
-  completedDays: number
+  /** Amount banked in the challenge's trophy unit — completed days normally,
+   *  reps on a weekly-cumulative month. Always from trophyAmount(); passing a
+   *  day count on a rep-scored challenge reads as barely started. */
+  completed: number
 }
 
 /**
- * Where this month's trophy stands — the tier in hand and the days left to the
+ * Where this month's trophy stands — the tier in hand and what's left to the
  * next one. Reads the same on your own profile and on someone else's.
  */
-export function TrophyTierSummary({ challenge, completedDays }: TrophyTierSummaryProps) {
-  const progress = getTrophyProgress(challenge, completedDays)
+export function TrophyTierSummary({ challenge, completed }: TrophyTierSummaryProps) {
+  const progress = getTrophyProgress(challenge, completed)
   const { earned, next, toNext, unit } = progress
 
   return (

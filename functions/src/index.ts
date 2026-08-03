@@ -1213,6 +1213,30 @@ function buildStandings(
 
 const repWord = (n: number) => `${n} rep${n === 1 ? "" : "s"}`;
 
+/**
+ * The "what's left right now" sentence most competitive bodies end on.
+ *
+ * Weekly-cumulative challenges owe the WEEK, not the day: getDailyTarget()
+ * returns 0 reps there, so a daily-shaped tail reads "0 reps left today — go
+ * get it." Pass weekRemaining on those challenges and the tail talks about
+ * the week instead.
+ */
+function competitiveTail(opts: {
+  /** Reps still owed on this week's target. Undefined on daily-target challenges. */
+  weekRemaining?: number;
+  userCompleted: boolean;
+  repsRemaining: number;
+}): string {
+  const { weekRemaining, userCompleted, repsRemaining } = opts;
+  if (weekRemaining !== undefined) {
+    return weekRemaining > 0
+      ? `${repWord(weekRemaining)} left this week — go get it.`
+      : "This week's target is banked — keep stacking.";
+  }
+  if (userCompleted || repsRemaining <= 0) return "You're locked in for today — keep stacking.";
+  return `${repWord(repsRemaining)} left today — go get it.`;
+}
+
 /** Neck-and-neck lines for when the gap is small enough to close in one set.
  *  These beat the regular chase/defend copy — a 6-rep gap is a race, a
  *  400-rep gap is a status report. */
@@ -1318,8 +1342,10 @@ function competitiveBodies(scope: CompScope, c: CompetitiveContext, fn: string, 
 function generateCompetitiveNotification(ctx: {
   fn: string;
   notificationType: "morning" | "afternoon" | "evening";
-  userCompleted: boolean;
-  workLeft: string;
+  /** Closing sentence for the bodies — see competitiveTail(). Built by the
+   *  caller because what's "left" is a day on most challenges and a week on
+   *  weekly-cumulative ones. */
+  todayTail: string;
   seed: number;
   week?: CompetitiveContext;
   month?: CompetitiveContext;
@@ -1328,11 +1354,7 @@ function generateCompetitiveNotification(ctx: {
   // challenge and a 300-rep one.
   closeThreshold: number;
 }): { title: string; body: string } | null {
-  const { fn, notificationType, userCompleted, workLeft, seed, week, month, closeThreshold } = ctx;
-
-  const todayTail = userCompleted
-    ? "You're locked in for today — keep stacking."
-    : (workLeft ? `${workLeft} left today — go get it.` : "Get after it.");
+  const { fn, notificationType, todayTail, seed, week, month, closeThreshold } = ctx;
 
   // A tight race trumps a status report: if anyone is within striking distance
   // in either scope, only photo-finish lines are eligible.
@@ -1650,6 +1672,12 @@ async function notifyRegion(
           console.log(`[notify]   → smart context: daysAway=${daysAway} stackedDays=${stackedDays}`);
         }
 
+        // Weekly-cumulative challenges route to entirely different copy —
+        // there's no daily target for the standard nudges to talk about.
+        const weekProgress = isWeeklyCumulative(challenge)
+          ? getWeekProgress(challenge, today, logsByUser.get(user.id) ?? [], today) ?? undefined
+          : undefined;
+
         let { title, body } = generateNotification({
           challenge,
           dailyTarget:         todayTarget,
@@ -1675,11 +1703,7 @@ async function notifyRegion(
           notDoneNames:   eligibleUsers.filter(u => !completedUserIds.has(u.id) && u.id !== user.id).map(u => u.displayName),
           stackedDays,
           daysAway,
-          // Weekly-cumulative challenges route to entirely different copy —
-          // there's no daily target for the standard nudges to talk about.
-          week: isWeeklyCumulative(challenge)
-            ? getWeekProgress(challenge, today, logsByUser.get(user.id) ?? [], today) ?? undefined
-            : undefined,
+          week: weekProgress,
         });
 
         // Competitive nudges (opt-in): for morning/afternoon/evening, replace
@@ -1698,12 +1722,24 @@ async function notifyRegion(
             const comp = generateCompetitiveNotification({
               fn: firstName(user.displayName),
               notificationType: w.type,
-              userCompleted,
-              workLeft: userCompleted ? "" : `${repsRemaining} reps`,
+              todayTail: competitiveTail({
+                weekRemaining: weekProgress?.remaining,
+                userCompleted,
+                repsRemaining,
+              }),
               seed: notifSeed(dayNumber, `${w.type}_competitive`),
               week: weekRc,
               month: monthRc,
-              closeThreshold: Math.max(5, Math.round(todayReps * 0.1)),
+              // Scaled to a day's worth of work so "close" means the same
+              // thing everywhere. A weekly-cumulative challenge has no daily
+              // target, so its week target spread over the week is the
+              // equivalent — without it every race falls back to the floor.
+              closeThreshold: Math.max(
+                5,
+                Math.round((weekProgress
+                  ? weekProgress.target / weekProgress.week.dayCount
+                  : todayReps) * 0.1),
+              ),
             });
             if (comp) {
               ({ title, body } = comp);

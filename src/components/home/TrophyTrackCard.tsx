@@ -8,8 +8,9 @@ import type { ChallengeTemplate } from '@/types'
 
 interface TrophyTrackCardProps {
   challenge: ChallengeTemplate
-  /** Days of this challenge fully completed (makeups included). */
-  completedDays: number
+  /** Amount banked in the challenge's trophy unit — completed days normally,
+   *  reps on a weekly-cumulative month. Always from trophyAmount(). */
+  completed: number
   /** Required days that have already passed, today included — for pace. */
   elapsedRequiredDays: number
   /** Past days still owed, available in Catch Up. */
@@ -24,12 +25,12 @@ interface TrophyTrackCardProps {
  */
 export function TrophyTrackCard({
   challenge,
-  completedDays,
+  completed,
   elapsedRequiredDays,
   missedDays,
   seed,
 }: TrophyTrackCardProps) {
-  const progress = getTrophyProgress(challenge, completedDays)
+  const progress = getTrophyProgress(challenge, completed)
   const nudge = trophyNudge({ challenge, progress, elapsedRequiredDays, missedDays, seed })
 
   const accentTier = progress.next?.tier ?? 'gold'

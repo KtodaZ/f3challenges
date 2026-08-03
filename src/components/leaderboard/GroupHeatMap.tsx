@@ -76,7 +76,9 @@ export function GroupHeatMap({ challenge, dayCompletionCounts, activeCount }: Gr
           style={{ top: tooltip.y - 80, left: Math.min(tooltip.x, window.innerWidth - 180) }}
         >
           <p className="font-semibold text-zinc-200">{formatDate(tooltip.date)}</p>
-          {tooltipTarget && (
+          {/* Open-ended days (weekly-cumulative) have no daily target — the
+              figure there is 0, which reads as "target: nothing". */}
+          {tooltipTarget && !tooltipTarget.isOpenEnded && (
             <p className="text-zinc-400">Target: {tooltipTarget.totalReps} reps</p>
           )}
           {tooltip.date <= today ? (

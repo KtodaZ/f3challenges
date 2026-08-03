@@ -3,7 +3,7 @@
 import { cn, formatClock } from '@/lib/utils'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { getRemainingExercises } from '@/lib/challenges'
-import type { DailyLog, DailyTarget, ExerciseUnit } from '@/types'
+import type { DailyLog, DailyTarget, ExerciseUnit, WeekProgress } from '@/types'
 
 /** Amount in the exercise's own unit — clock for timed, plain count for reps. */
 function amount(value: number, unit?: ExerciseUnit): string {
@@ -47,6 +47,9 @@ function CompletionRing({ fraction }: { fraction: number }) {
 interface TodaySummaryProps {
   target: DailyTarget
   log: DailyLog | null
+  /** Required when the target is open-ended (weekly-cumulative): what's owed
+   *  is the week, so there is no daily "still to do" to list. */
+  week?: WeekProgress | null
 }
 
 /**
@@ -54,7 +57,7 @@ interface TodaySummaryProps {
  * knocked out today and what's still on the board. Read-only; the home page
  * is where logging happens.
  */
-export function TodaySummary({ target, log }: TodaySummaryProps) {
+export function TodaySummary({ target, log, week }: TodaySummaryProps) {
   const fraction = log?.completionFraction ?? 0
   const isDone = fraction >= 1
 
@@ -129,9 +132,20 @@ export function TodaySummary({ target, log }: TodaySummaryProps) {
           {/* ── Still to do ── */}
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-500/80 mb-1">
-              ◔ To do
+              {target.isOpenEnded ? '◔ This week' : '◔ To do'}
             </p>
-            {remaining.length > 0 ? (
+            {target.isOpenEnded ? (
+              // No daily quota to be short of — every exercise comes back with
+              // a target of 0, so the daily "to do" list is always empty here.
+              // The week is what's owed.
+              <p className={cn('text-xs', week && week.remaining === 0 ? 'text-green-400 font-medium' : 'text-zinc-400')}>
+                {!week
+                  ? 'Log any amount — the week is the target.'
+                  : week.remaining > 0
+                  ? `${week.remaining.toLocaleString()} of ${week.target.toLocaleString()} reps left this week.`
+                  : `Week's target banked — ${week.reps.toLocaleString()} reps. 🎉`}
+              </p>
+            ) : remaining.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {remaining.map(({ exercise, remaining: left }) => (
                   <span

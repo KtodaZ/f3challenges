@@ -35,7 +35,9 @@ import {
   getChallengeDates,
   getDailyTarget,
   getTodayPT,
+  getWeekProgress,
 } from '@/lib/challenges'
+import { trophyAmount } from '@/lib/trophies'
 import { useUser } from '@/contexts/UserContext'
 import type { User, DailyLog, ChallengeParticipation } from '@/types'
 
@@ -157,6 +159,12 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
   const todayTarget = currentChallenge ? getDailyTarget(currentChallenge, today) : null
   const todayLog = currentLogs.find(l => l.date === today) ?? null
   const daysCompleted = currentLogs.filter(l => l.completionFraction >= 1).length
+  // The trophy ladder isn't always scored in days — weekly-cumulative months
+  // count reps. trophyAmount() is the one place that decides which.
+  const trophyScore = currentChallenge ? trophyAmount(currentChallenge, currentLogs) : 0
+  const weekProgress = currentChallenge
+    ? getWeekProgress(currentChallenge, today, currentLogs, today)
+    : null
   const totalDays = currentChallenge ? getChallengeDates(currentChallenge).filter(d => d <= today).length : 0
   const totalRepsLogged = currentLogs.reduce((sum, log) => {
     return sum + log.exerciseLogs.reduce((s, e) => s + e.completedReps, 0)
@@ -306,7 +314,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
           loading ? (
             <div className="h-24 bg-zinc-800 rounded-2xl animate-pulse" />
           ) : (
-            <TodaySummary target={todayTarget} log={todayLog} />
+            <TodaySummary target={todayTarget} log={todayLog} week={weekProgress} />
           )
         )}
 
@@ -338,7 +346,7 @@ export function ProfileView({ profileUser: initialUser }: ProfileViewProps) {
                   sublabel={`${progressPct}%`}
                   color={progressPct >= 100 ? 'green' : 'orange'}
                 />
-                <TrophyTierSummary challenge={currentChallenge} completedDays={daysCompleted} />
+                <TrophyTierSummary challenge={currentChallenge} completed={trophyScore} />
               </div>
             )}
           </Card>

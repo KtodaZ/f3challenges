@@ -1505,7 +1505,7 @@ export default function HomePage() {
         {/* ── Month trophy: which tier you're holding and what's next ── */}
         <TrophyTrackCard
           challenge={challenge}
-          completedDays={trophyAmount(challenge, allLogs)}
+          completed={trophyAmount(challenge, allLogs)}
           elapsedRequiredDays={elapsedRequiredDays}
           missedDays={weeklyScoring ? shortWeeks.length : incompletePastDates.length}
           seed={dayNumber}
@@ -1539,6 +1539,13 @@ export default function HomePage() {
           const logs = pastChallengeLogs[pastChallenge.id] ?? []
           if (logs.length === 0) return null
           if (dismissedMakeups.has(pastChallenge.id)) return null
+          // A weekly-cumulative challenge has no missed *days* to make up — a
+          // day you didn't train isn't a hole, and every daily target is 0, so
+          // the picker below would list rest days as missed and offer "0 reps"
+          // to log against. Topping up a closed week is what catch-up means
+          // there, and WeekCatchUpCard only covers the live challenge — so a
+          // past one is out of reach until that card learns past challenges.
+          if (isWeeklyCumulative(pastChallenge)) return null
           const pastLogsMap = Object.fromEntries(logs.map(l => [l.date, l]))
           const incomplete = getChallengeDates(pastChallenge).filter(d => {
             if (isRestDay(pastChallenge, d)) return false

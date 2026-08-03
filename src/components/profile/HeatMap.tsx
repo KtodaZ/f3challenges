@@ -106,7 +106,9 @@ export function HeatMap({ challenge, logs }: HeatMapProps) {
           style={{ top: tooltip.y - 70, left: Math.min(tooltip.x, window.innerWidth - 200) }}
         >
           <p className="font-semibold text-zinc-200">{formatDate(tooltip.date)}</p>
-          {tooltipTarget && (
+          {/* Open-ended days (weekly-cumulative) have no daily target — the
+              figure there is 0, which reads as "target: nothing". */}
+          {tooltipTarget && !tooltipTarget.isOpenEnded && (
             <p className="text-zinc-400">
               Target: {tooltipTarget.totalReps} reps
             </p>
