@@ -129,7 +129,8 @@ export default function SettingsPage() {
           <p className="text-sm font-medium text-white mb-1">View another region</p>
           <p className="text-xs text-zinc-500 mb-3">
             Loads that region&apos;s challenge, leaderboard and feed as its PAX see them.
-            Read-only — you can&apos;t log or post while previewing.
+            You can post, comment and react in their feed — your posts show an Admin tag.
+            Logging stays off: your reps only count in your own region.
           </p>
           <div className="flex flex-wrap gap-2">
             {REGIONS.map(r => {

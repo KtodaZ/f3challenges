@@ -48,12 +48,21 @@ import type {
 let activeRegionId: string = DEFAULT_REGION_ID
 
 /**
- * Set while a superadmin is previewing another region's app. Every write helper
- * below refuses, because the signed-in PAX belongs to a different region — a
- * log written in this state would be stamped with the region being *viewed*
- * and attributed to someone who isn't in it.
+ * What the signed-in PAX may write into the region currently on screen.
  *
- * The composer and log controls are hidden while previewing, and
+ * - `own` — this is their region. Everything is allowed.
+ * - `social` — a superadmin visiting another region. They may join the
+ *   conversation (post, comment, react) but not log: their scores belong to
+ *   their own region's challenge, and a log written here would be stamped with
+ *   the region being *viewed* and counted for a crew they aren't in. Feed
+ *   activity has no such problem — a post is attributed to whoever wrote it,
+ *   and cross-region posts carry `authorName` so the visiting region can render
+ *   an author its roster has never heard of.
+ * - `readonly` — previewing with no writes at all; the state anyone who isn't a
+ *   confirmed superadmin lands in, and where preview starts until the admin
+ *   check comes back.
+ *
+ * The composer and log controls follow the same split in the UI, and
  * ReadOnlyRegionError is surfaced as a toast by CrashCapture, so a missed
  * control tells the person rather than reverting on next refresh.
  *
@@ -62,22 +71,41 @@ let activeRegionId: string = DEFAULT_REGION_ID
  * never reach it. That's fine for the ones that exist — they target a specific
  * document by id and stamp no region — but a future server route is not
  * covered by this and must not assume it is.
+ *
+ * None of this is a security boundary — Firestore rules are open to
+ * unauthenticated clients (see CLAUDE.md). It exists to stop an admin
+ * accidentally logging into someone else's region, which is a mistake that is
+ * easy to make and tedious to undo.
  */
-let readOnly = false
+export type RegionWriteScope = 'own' | 'social' | 'readonly'
+
+let writeScope: RegionWriteScope = 'own'
 
 export class ReadOnlyRegionError extends Error {
-  constructor() {
-    super("You're viewing another region — switch back to your own to log anything.")
+  constructor(message = "You're viewing another region — switch back to your own to log anything.") {
+    super(message)
     this.name = 'ReadOnlyRegionError'
   }
 }
 
-export function setRegionReadOnly(value: boolean): void {
-  readOnly = value
+export function setRegionWriteScope(scope: RegionWriteScope): void {
+  writeScope = scope
 }
 
+export function getRegionWriteScope(): RegionWriteScope {
+  return writeScope
+}
+
+/** Guards anything that counts toward a challenge, or that describes a PAX. */
 function assertWritable(): void {
-  if (readOnly) throw new ReadOnlyRegionError()
+  if (writeScope !== 'own') throw new ReadOnlyRegionError()
+}
+
+/** Guards feed activity, which a visiting superadmin is allowed to take part in. */
+function assertSocialWritable(): void {
+  if (writeScope === 'readonly') {
+    throw new ReadOnlyRegionError("You're viewing another region — switch back to your own to post.")
+  }
 }
 
 export function setActiveRegionId(regionId: string): void {
@@ -298,11 +326,18 @@ export async function getUserParticipations(userId: string): Promise<ChallengePa
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 
 export async function createFeedPost(post: FeedPost): Promise<void> {
-  assertWritable()
+  assertSocialWritable()
   await setDoc(doc(feedCol(), post.id), stripUndefined(withRegion(post)))
 }
 
-/** Creates a feed post only if a doc with that ID doesn't already exist. */
+/**
+ * Creates a feed post only if a doc with that ID doesn't already exist.
+ *
+ * Deliberately on the stricter guard: every caller is an automated post about
+ * the author's *own* progress (milestones, trophies, week completions), which
+ * belongs in their own region's feed and nowhere else. Unreachable while
+ * previewing anyway, since the log that triggers it is blocked first.
+ */
 export async function createFeedPostOnce(post: FeedPost): Promise<void> {
   assertWritable()
   const ref = doc(feedCol(), post.id)
@@ -312,12 +347,12 @@ export async function createFeedPostOnce(post: FeedPost): Promise<void> {
 }
 
 export async function updateFeedPost(postId: string, updates: Partial<FeedPost>): Promise<void> {
-  assertWritable()
+  assertSocialWritable()
   await updateDoc(doc(feedCol(), postId), stripUndefined({ ...updates, updatedAt: new Date().toISOString() }))
 }
 
 export async function softDeletePost(postId: string): Promise<void> {
-  assertWritable()
+  assertSocialWritable()
   await updateDoc(doc(feedCol(), postId), { deleted: true })
 }
 
@@ -442,7 +477,7 @@ export async function togglePostReaction(
   userId: string,
   hasReacted: boolean
 ): Promise<void> {
-  assertWritable()
+  assertSocialWritable()
   await updateDoc(doc(feedCol(), postId), {
     [`reactions.${emoji}`]: hasReacted ? arrayRemove(userId) : arrayUnion(userId),
   })
@@ -455,7 +490,7 @@ export async function toggleCommentReaction(
   userId: string,
   hasReacted: boolean
 ): Promise<void> {
-  assertWritable()
+  assertSocialWritable()
   await updateDoc(doc(commentsCol(postId), commentId), {
     [`reactions.${emoji}`]: hasReacted ? arrayRemove(userId) : arrayUnion(userId),
   })
@@ -467,12 +502,12 @@ export const commentsCol = (postId: string) =>
   collection(db, 'feed', postId, 'comments')
 
 export async function createComment(comment: FeedComment): Promise<void> {
-  assertWritable()
+  assertSocialWritable()
   await setDoc(doc(commentsCol(comment.postId), comment.id), comment)
 }
 
 export async function softDeleteComment(postId: string, commentId: string): Promise<void> {
-  assertWritable()
+  assertSocialWritable()
   await updateDoc(doc(commentsCol(postId), commentId), { deleted: true })
 }
 

@@ -51,6 +51,7 @@ export function ShoutoutModal({ open, onClose, targetUser, challengeId }: Shouto
         id: generateId(),
         type: 'shoutout',
         authorId: currentUser.id,
+        authorName: currentUser.displayName,
         content: content.trim(),
         hashtags: [],
         mentions: [targetUser.id],

@@ -204,6 +204,20 @@ export interface FeedPost {
   id: string
   type: FeedPostType
   authorId: string
+  /**
+   * The author's F3 name at the time of posting.
+   *
+   * Normally redundant — the feed resolves authors against the region roster
+   * (`allUsers`). It exists for the one case the roster can't answer: a
+   * superadmin posting into a region they don't belong to, whose `users` query
+   * will never return them. Written on new posts only; older ones resolve the
+   * way they always did, since a post whose author is in the region needs no
+   * fallback.
+   *
+   * A snapshot, deliberately not kept in sync. The roster wins wherever it has
+   * an answer, so a PAX who renames is still current on their own posts.
+   */
+  authorName?: string
   /** Region whose feed this post belongs to. Unlike logs, the feed has no
    *  challenge filter — this is what actually keeps the two regions' feeds
    *  apart, so it is queried. */
@@ -228,6 +242,9 @@ export interface FeedComment {
   postId: string
   parentCommentId?: string  // if set, this is a reply (max depth 2)
   authorId: string
+  /** Author's F3 name at the time of writing — see `FeedPost.authorName`. Only
+   *  ever consulted when the region roster can't resolve `authorId`. */
+  authorName?: string
   content: string
   reactions?: Record<string, string[]>  // emoji → userId[]
   createdAt: string         // ISO

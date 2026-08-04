@@ -34,6 +34,29 @@ In components, use the hooks in `src/hooks/useChallenge.ts` (`useCurrentChalleng
 
 `src/lib/firestore.ts` holds an ambient `activeRegionId`, kept in sync by `RegionProvider`, and every create helper stamps it via `withRegion()`. This is deliberate: threading a `regionId` parameter through ~15 call sites means a missed one silently writes a region-less doc that never appears in its own feed. An explicit `regionId` already on the document always wins — that's how any server-side caller stays correct, since the ambient value is browser-only.
 
+### Previewing another region
+
+A superadmin can load any region's app as its PAX see it (`viewingAs` in `RegionContext`, switched from Settings, sessionStorage so it ends with the tab). Alongside `activeRegionId`, the same module holds a **write scope** that says what may be written into the region on screen:
+
+| Scope | When | What's allowed |
+|---|---|---|
+| `own` | not previewing | everything |
+| `social` | previewing, confirmed superadmin | feed posts, comments, reactions |
+| `readonly` | previewing, anyone else — including before the admin check returns | nothing |
+
+The split is about what a write *means*, not about trust. A daily log belongs to a challenge and a crew: written from a preview it would be stamped with the region being viewed and counted for people the author doesn't train with. A feed post has no such second meaning — it's attributed to whoever wrote it, and an admin answering a question in another region's feed is the point of the feature.
+
+Two things follow from it:
+
+- **`authorName` on `FeedPost` / `FeedComment`.** The feed resolves authors against the region roster, and a visiting admin is by definition not in it, so new posts and comments carry their author's F3 name as a fallback. The roster still wins wherever it has an answer, so a rename stays live on a PAX's own posts.
+- **`createFeedPostOnce` stays on the strict guard.** Its callers are automated posts about the author's own progress — those belong in their own region's feed, and are unreachable while previewing anyway since the log that triggers them is blocked first.
+
+`AdminModeProvider` is what opens the `social` scope, after `/api/admin/status` confirms the role. Preview restores itself from sessionStorage before anyone has been checked, so it starts closed and is opened afterwards, never the reverse. None of this is a security boundary — Firestore rules are open (Phase 3 below) — it's there to stop an admin accidentally logging into someone else's region.
+
+### The ADMIN tag
+
+`/api/admin/roles` returns `paxUserId → role` for every admin who has linked a PAX account; `useAdminRoles()` fetches it once per page load and shares the result. Feed posts, comments and profiles render `<AdminBadge>` from it. Unauthenticated for the same reason `/api/admin/status` is, and it returns strictly less: no email, no uid, no name. Live admins only — a pending designation is a name on a list, and revoking an admin drops the tag everywhere on next load, because nothing about it is stored on the posts.
+
 ### Region resolution
 
 `src/contexts/RegionContext.tsx`, in priority order:

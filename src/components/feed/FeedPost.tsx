@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
+import { AdminBadge } from '@/components/ui/AdminBadge'
 import { EditPostModal } from './EditPostModal'
 import { CommentThread } from './CommentThread'
 import { ReactionBar } from './ReactionBar'
@@ -11,6 +12,7 @@ import { FeedVideoGrid } from './FeedVideoGrid'
 import { Lightbox } from './Lightbox'
 import { softDeletePost, togglePostReaction, subscribeToComments } from '@/lib/firestore'
 import { useAdminMode } from '@/contexts/AdminModeContext'
+import { useAdminRoles } from '@/hooks/useAdminRoles'
 import { timeAgo, highlightMentions, cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import { useRegion } from '@/contexts/RegionContext'
@@ -198,6 +200,10 @@ export function FeedPost({ post }: FeedPostProps) {
   const canModerate = isAdmin && governsRegion && !isAuthor
   const author   = allUsers.find(u => u.id === post.authorId)
   const target   = post.targetUserId ? allUsers.find(u => u.id === post.targetUserId) : undefined
+  // The roster answers for everyone in this region. `authorName` covers the one
+  // case it can't: an admin from another region posting here.
+  const authorName = author?.displayName ?? post.authorName ?? 'Unknown'
+  const adminRoles = useAdminRoles()
 
   const handleDelete = useCallback(async () => {
     setDeleting(true)
@@ -271,11 +277,9 @@ export function FeedPost({ post }: FeedPostProps) {
         <article className="px-4 py-4 border-l-4 border-orange-500 bg-orange-500/5 mx-4 my-1 rounded-r-xl animate-in fade-in duration-300">
           {/* Header */}
           <div className="flex items-center gap-2 mb-3">
-            {author && (
-              <Link href={`/profile/${author.id}`} className="shrink-0">
-                <Avatar name={author.displayName} size="sm" />
-              </Link>
-            )}
+            <Link href={`/profile/${post.authorId}`} className="shrink-0">
+              <Avatar name={authorName} size="sm" />
+            </Link>
             <span className="text-xl">💪</span>
             {target && (
               <Link href={`/profile/${target.id}`} className="shrink-0">
@@ -285,8 +289,9 @@ export function FeedPost({ post }: FeedPostProps) {
             <div className="flex-1 min-w-0">
               <p className="text-xs text-zinc-400 leading-snug">
                 <Link href={`/profile/${post.authorId}`} className="text-orange-400 font-semibold hover:underline">
-                  @{author?.displayName ?? 'Someone'}
+                  @{authorName}
                 </Link>
+                <AdminBadge role={adminRoles[post.authorId]} size="xs" className="ml-1 align-middle" />
                 {' shouted out '}
                 {target && (
                   <Link href={`/profile/${target.id}`} className="text-orange-400 font-semibold hover:underline">
@@ -351,7 +356,7 @@ export function FeedPost({ post }: FeedPostProps) {
               onConfirm={handleDelete}
               onCancel={() => { setConfirmDelete(false); setDeleteError(null) }}
               deleting={deleting}
-              prompt={deleteError ?? (asAdmin ? `Remove ${author?.displayName ?? 'this PAX'}'s post? They won't be told.` : 'Delete this post?')}
+              prompt={deleteError ?? (asAdmin ? `Remove ${authorName}'s post? They won't be told.` : 'Delete this post?')}
               verb={asAdmin ? 'Remove' : 'Delete'}
             />
           )}
@@ -380,11 +385,9 @@ export function FeedPost({ post }: FeedPostProps) {
       <article className="px-4 py-4 animate-in fade-in duration-300">
         <div className="flex items-start gap-3">
           {/* Avatar */}
-          {author && (
-            <Link href={`/profile/${author.id}`} className="shrink-0 mt-0.5">
-              <Avatar name={author.displayName} size="sm" />
-            </Link>
-          )}
+          <Link href={`/profile/${post.authorId}`} className="shrink-0 mt-0.5">
+            <Avatar name={authorName} size="sm" />
+          </Link>
 
           <div className="flex-1 min-w-0">
             {/* Author row */}
@@ -394,8 +397,9 @@ export function FeedPost({ post }: FeedPostProps) {
                   href={`/profile/${post.authorId}`}
                   className="text-sm font-semibold text-white hover:text-orange-400 transition-colors truncate"
                 >
-                  {author?.displayName ?? 'Unknown'}
+                  {authorName}
                 </Link>
+                <AdminBadge role={adminRoles[post.authorId]} />
                 <span className="text-[11px] text-zinc-500 shrink-0">{timeAgo(post.createdAt)}</span>
                 {post.updatedAt && (
                   <span className="text-[10px] text-zinc-600 shrink-0">· edited</span>
@@ -451,7 +455,7 @@ export function FeedPost({ post }: FeedPostProps) {
                 onConfirm={handleDelete}
                 onCancel={() => { setConfirmDelete(false); setDeleteError(null) }}
                 deleting={deleting}
-                prompt={deleteError ?? (asAdmin ? `Remove ${author?.displayName ?? 'this PAX'}'s post? They won't be told.` : 'Delete this post?')}
+                prompt={deleteError ?? (asAdmin ? `Remove ${authorName}'s post? They won't be told.` : 'Delete this post?')}
                 verb={asAdmin ? 'Remove' : 'Delete'}
               />
             )}

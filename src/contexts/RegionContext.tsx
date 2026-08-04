@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { getStoredRegionId, setStoredRegionId, clearStoredRegionId, getCachedUser } from '@/lib/storage'
 import { DEFAULT_REGION_ID, isValidRegionId, resolveRegion } from '@/lib/challenges'
-import { setActiveRegionId, setRegionReadOnly } from '@/lib/firestore'
+import { setActiveRegionId, setRegionWriteScope } from '@/lib/firestore'
 import type { Region, User } from '@/types'
 
 interface RegionContextValue {
@@ -25,16 +25,31 @@ interface RegionContextValue {
   clearRegion: () => void
   /**
    * A superadmin previewing another region's app exactly as its PAX see it.
-   * Null when off. While set, `regionId` reports the previewed region and the
-   * app is read-only — the signed-in PAX belongs elsewhere, so any write would
-   * be stamped with a region they aren't in.
+   * Null when off. While set, `regionId` reports the previewed region and
+   * logging is off — the signed-in PAX belongs elsewhere, so a log would be
+   * stamped with a region they aren't in and counted for a crew they aren't on.
    */
   viewingAs: string | null
   setViewingAs: (regionId: string | null) => void
-  /** True while previewing another region. Controls that write should be
+  /** True while previewing another region. Controls that *log* should be
    *  disabled on this — the write helpers refuse regardless, but a disabled
    *  button explains itself and a rejected promise doesn't. */
   readOnly: boolean
+  /**
+   * True while previewing a region this viewer may not post in. Feed controls
+   * gate on this rather than `readOnly`: a superadmin visiting another region
+   * can post, comment and react there, because a post is attributed to whoever
+   * wrote it and nothing about it counts toward a challenge.
+   */
+  socialReadOnly: boolean
+  /**
+   * Opens feed writes while previewing. Called by `AdminModeProvider` once the
+   * server has confirmed the viewer is a superadmin — this provider has no way
+   * to know that itself, and must not assume it: preview restores from
+   * sessionStorage before anyone has been checked, so it starts closed and is
+   * opened afterwards, never the other way round.
+   */
+  grantSocialWrites: (allowed: boolean) => void
 }
 
 /** sessionStorage, not localStorage: previewing another region should end when
@@ -75,6 +90,7 @@ export function RegionProvider({ children }: { children: ReactNode }) {
     ready: false,
   })
   const [viewingAs, setViewingAsState] = useState<string | null>(null)
+  const [socialAllowed, setSocialAllowed] = useState(false)
 
   useEffect(() => {
     const { regionId, chosen } = resolveRegionId()
@@ -83,12 +99,21 @@ export function RegionProvider({ children }: { children: ReactNode }) {
 
     if (chosen) setStoredRegionId(regionId)
     setActiveRegionId(active)
-    setRegionReadOnly(active !== regionId)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setState({ regionId, chosen, ready: true })
     // Restores an in-progress preview across a reload within the same tab.
     if (active !== regionId) setViewingAsState(active)
   }, [])
+
+  // The one place the write scope is decided, so the two inputs it depends on
+  // can't drift apart. An effect rather than a line in each handler: the grant
+  // arrives asynchronously from the admin check, and no write can happen
+  // between a handler and the effect that follows it.
+  useEffect(() => {
+    setRegionWriteScope(
+      viewingAs === null ? 'own' : socialAllowed ? 'social' : 'readonly'
+    )
+  }, [viewingAs, socialAllowed])
 
   const setRegion = useCallback((regionId: string) => {
     if (!isValidRegionId(regionId)) return
@@ -99,7 +124,6 @@ export function RegionProvider({ children }: { children: ReactNode }) {
     // reads showing one region, writes stamping another.
     sessionStorage.removeItem(VIEW_AS_KEY)
     setViewingAsState(null)
-    setRegionReadOnly(false)
     // Keep the write path in lock step with the read path, so a doc created
     // right after a region switch lands in the region the user is looking at.
     setActiveRegionId(regionId)
@@ -130,16 +154,20 @@ export function RegionProvider({ children }: { children: ReactNode }) {
     else sessionStorage.removeItem(VIEW_AS_KEY)
 
     setActiveRegionId(active)
-    setRegionReadOnly(next !== null && next !== own)
     setViewingAsState(next)
   }, [state.regionId])
+
+  const grantSocialWrites = useCallback((allowed: boolean) => {
+    setSocialAllowed(allowed)
+  }, [])
 
   const clearRegion = useCallback(() => {
     clearStoredRegionId()
     sessionStorage.removeItem(VIEW_AS_KEY)
     setActiveRegionId(DEFAULT_REGION_ID)
-    setRegionReadOnly(false)
     setViewingAsState(null)
+    // Whoever signs in next is a different person until proven otherwise.
+    setSocialAllowed(false)
     setState({ regionId: DEFAULT_REGION_ID, chosen: false, ready: true })
   }, [])
 
@@ -157,6 +185,8 @@ export function RegionProvider({ children }: { children: ReactNode }) {
         viewingAs,
         setViewingAs,
         readOnly: viewingAs !== null,
+        socialReadOnly: viewingAs !== null && !socialAllowed,
+        grantSocialWrites,
       }}
     >
       {children}

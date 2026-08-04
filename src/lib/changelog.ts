@@ -20,6 +20,8 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-04',
     changes: [
+      'An **Admin** tag now sits beside the name of anyone who runs the app — on their posts, their comments and their profile. If you\'ve ever wondered who to ask, that\'s who.',
+      'Admins can now post and comment in another region\'s feed, so you may see one turn up in yours (spot them by the Admin tag). Nothing they do there counts toward your leaderboard — their reps stay in their own region.',
       'New **Breakdown** on every profile — yours and everybody else’s. Total reps, the weight you usually work at, pounds moved, which variations you actually favour, how your reps split across weights, and your best single day. Tap the 🏋 badge on the leaderboard to jump straight to someone’s.',
       'The weight now rides along with the reps. Set the pad to **2×20** and every tap logs at 2×20; switch to a **1×40** coupon at lunch and those reps log at 1×40. No more one weight for the whole day.',
       'Today’s sets are listed right on the card — **+20 Dumbbell 2×20**, **+25 Coupon 1×40** — and each one has an ✕. Fat-fingered a set three taps ago? Drop that one, keep the rest. (The old single Undo is gone; this does the same job better.)',

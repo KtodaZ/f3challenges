@@ -192,6 +192,7 @@ export function CalloutModal({
         id: generateId(),
         type: 'shoutout',
         authorId: currentUser.id,
+        authorName: currentUser.displayName,
         content: content.trim(),
         hashtags: extractHashtags(content),
         mentions: allMentions,

@@ -13,7 +13,7 @@ const PAGE_SIZE = 30
 
 export default function FeedPage() {
   const { currentUser, loading } = useUser()
-  const { regionId, ready: regionReady, readOnly } = useRegion()
+  const { regionId, ready: regionReady, socialReadOnly } = useRegion()
   const [posts, setPosts]             = useState<FeedPostType[]>([])
   const [feedLoading, setFeedLoading] = useState(true)
   const [newPostOpen, setNewPostOpen] = useState(false)
@@ -127,7 +127,7 @@ export default function FeedPage() {
       </div>
 
       {/* New Post FAB — floating above bottom nav */}
-      {currentUser && !loading && !readOnly && (
+      {currentUser && !loading && !socialReadOnly && (
         <button
           onClick={() => setNewPostOpen(true)}
           className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-20 w-14 h-14 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 rounded-full shadow-lg shadow-orange-500/30 flex items-center justify-center transition-colors"
