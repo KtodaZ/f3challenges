@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-07',
+    changes: [
+      'The weight now sits right under the variation chips on the log card, always open — no more tapping "Logging at" to unfold it. Pick your variation, pick your weight, tap your reps, top to bottom.',
+    ],
+  },
+  {
     date: '2026-08-04',
     changes: [
       'An **Admin** tag now sits beside the name of anyone who runs the app — on their posts, their comments and their profile. If you\'ve ever wondered who to ask, that\'s who.',

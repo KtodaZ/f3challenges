@@ -63,7 +63,6 @@ export function AddRepsPad({ exercises, todaySets, onAdd, onRemoveSet, disabled 
   })
   const [customOpen, setCustomOpen] = useState(false)
   const [customValue, setCustomValue] = useState('')
-  const [weightOpen, setWeightOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const selected = exercises.find(e => e.id === selectedId) ?? exercises[0]
@@ -72,7 +71,6 @@ export function AddRepsPad({ exercises, todaySets, onAdd, onRemoveSet, disabled 
   const hands = selected?.loadHands ?? 2
   const showWeight = !selected?.bodyweight
   const load: ExerciseLoad | undefined = showWeight && lbs ? { lbs, hands } : undefined
-  const loadBadge = formatLoad(load)
 
   const byExercise = useMemo(() => {
     const map: Record<string, number> = {}
@@ -157,6 +155,31 @@ export function AddRepsPad({ exercises, todaySets, onAdd, onRemoveSet, disabled 
         })}
       </div>
 
+      {/* Weight for the next tap, sitting right under the variation it belongs
+          to and above the reps it will travel with. Nothing is written until
+          reps land on it, so it stays open — it's a choice, not a step. */}
+      {showWeight && (
+        <div className="flex gap-2 overflow-x-auto -mx-1 px-1 no-scrollbar">
+          {COMMON_LBS.map(n => (
+            <button
+              key={n}
+              onClick={() => pickPounds(n)}
+              disabled={disabled}
+              aria-pressed={lbs === n}
+              className={cn(
+                'shrink-0 px-3 py-2 rounded-xl text-xs font-semibold tabular-nums transition-colors',
+                'disabled:opacity-40 disabled:cursor-not-allowed',
+                lbs === n
+                  ? 'bg-amber-500/25 text-amber-200 border border-amber-500/60'
+                  : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
+              )}
+            >
+              {hands}×{n}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Quick add — the whole point of the card, so it gets the big targets */}
       <div className="grid grid-cols-4 gap-2">
         {QUICK_ADD.map(amount => (
@@ -221,51 +244,6 @@ export function AddRepsPad({ exercises, todaySets, onAdd, onRemoveSet, disabled 
           </div>
         )}
       </div>
-
-      {/* Weight for the next tap. Nothing is written until reps land on it. */}
-      {showWeight && (
-        <div className="pt-1 border-t border-zinc-800/80">
-          <button
-            onClick={() => setWeightOpen(o => !o)}
-            disabled={disabled}
-            aria-expanded={weightOpen}
-            className="w-full flex items-center justify-between gap-2 py-1.5 text-left disabled:opacity-40"
-          >
-            <span className="text-xs text-zinc-500 truncate">
-              🏋 Logging at
-              {loadBadge ? (
-                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-xs font-bold tabular-nums">
-                  {loadBadge}
-                </span>
-              ) : (
-                <span className="ml-2 text-zinc-600">no weight</span>
-              )}
-            </span>
-            <span className="text-zinc-600 text-xs shrink-0" aria-hidden="true">{weightOpen ? '▴' : '▾'}</span>
-          </button>
-
-          {weightOpen && (
-            <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-2 no-scrollbar">
-              {COMMON_LBS.map(n => (
-                <button
-                  key={n}
-                  onClick={() => pickPounds(n)}
-                  disabled={disabled}
-                  className={cn(
-                    'shrink-0 px-3 py-2 rounded-xl text-xs font-semibold tabular-nums transition-colors',
-                    'disabled:opacity-40 disabled:cursor-not-allowed',
-                    lbs === n
-                      ? 'bg-amber-500/25 text-amber-200 border border-amber-500/60'
-                      : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
-                  )}
-                >
-                  {hands}×{n}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Today's sets. Doubles as the undo: each row drops itself, so a mis-tap
           three sets ago is fixable without unwinding the two after it. */}
