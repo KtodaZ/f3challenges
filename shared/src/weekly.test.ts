@@ -19,6 +19,7 @@ import {
   badgeLoad,
   setsVolume,
   setsByWeight,
+  setsByExerciseWeight,
   logSets,
   allSets,
   reconcileSets,
@@ -379,6 +380,51 @@ describe('sets', () => {
         exerciseLogs: [],
       }
       expect(logSets(log, AUG.exercises)[0].load).toBeUndefined()
+    })
+  })
+
+  describe('setsByExerciseWeight — the week mix rows', () => {
+    it('splits one variation into a row per weight, heaviest first', () => {
+      const rows = setsByExerciseWeight([
+        set(40, '2026-08-02T14:00:00.000Z', { lbs: 15, hands: 2 }),
+        set(60, '2026-08-04T14:00:00.000Z', { lbs: 20, hands: 2 }),
+        set(95, '2026-08-03T14:00:00.000Z', { lbs: 30, hands: 1 }, 'coupon-curl'),
+        set(5, '2026-08-05T14:00:00.000Z', undefined, 'chin-up'),
+      ], AUG.exercises)
+
+      expect(rows.map(r => [r.exerciseId, r.badge, r.reps])).toEqual([
+        // Dumbbell totals 100, so both its rows sort above the 95 of coupon —
+        // a bigger variation can't wedge between them.
+        ['dumbbell-curl', '2×20', 60],
+        ['dumbbell-curl', '2×15', 40],
+        ['coupon-curl', '1×30', 95],
+        ['chin-up', 'BW', 5],
+      ])
+    })
+
+    it('rows sum to the header total, bodyweight included', () => {
+      const rows = setsByExerciseWeight([
+        set(40, '2026-08-02T14:00:00.000Z', { lbs: 15, hands: 2 }),
+        set(95, '2026-08-03T14:00:00.000Z', { lbs: 30, hands: 1 }, 'coupon-curl'),
+        set(5, '2026-08-05T14:00:00.000Z', undefined, 'chin-up'),
+      ], AUG.exercises)
+      expect(rows.reduce((s, r) => s + r.reps, 0)).toBe(140)
+    })
+
+    it('gives a bodyweight movement a BW row and no pounds, however it was logged', () => {
+      const rows = setsByExerciseWeight(
+        [set(5, '2026-08-05T14:00:00.000Z', { lbs: 15, hands: 2 }, 'chin-up')],
+        AUG.exercises,
+      )
+      expect(rows).toEqual([
+        { exerciseId: 'chin-up', badge: 'BW', reps: 5, volume: 0 },
+      ])
+    })
+
+    it('leaves unweighted reps of a weighted movement without a badge', () => {
+      const rows = setsByExerciseWeight([set(20, '2026-08-02T14:00:00.000Z')], AUG.exercises)
+      expect(rows[0].badge).toBeNull()
+      expect(rows[0].volume).toBe(0)
     })
   })
 

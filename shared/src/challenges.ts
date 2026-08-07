@@ -1192,6 +1192,67 @@ export function setsByWeight(sets: LoggedSet[]): WeightTally[] {
   return [...groups.values()].sort((a, b) => loadTotalLbs(b.load) - loadTotalLbs(a.load))
 }
 
+/** One variation done at one weight — a single row of the week's mix. */
+export interface ExerciseWeightTally {
+  exerciseId: string
+  /** Badge form: "2×15", "BW", or null when the reps carried no weight. */
+  badge: string | null
+  load?: ExerciseLoad
+  reps: number
+  /** Pounds moved on this row. */
+  volume: number
+}
+
+/**
+ * The week's reps cut by variation *and* the weight they were done at, so
+ * switching dumbbells mid-week shows up as two rows rather than being averaged
+ * into one badge or split into a second table that doesn't reconcile.
+ *
+ * Rows of the same variation stay together — ordered by that variation's total,
+ * heaviest first within it — so a bigger variation can't wedge between them.
+ * Bodyweight movements get a "BW" row and are counted, unlike `setsByWeight()`,
+ * which is about weights alone and drops them.
+ */
+export function setsByExerciseWeight(
+  sets: LoggedSet[],
+  exercises: Exercise[] = [],
+): ExerciseWeightTally[] {
+  const bodyweight = bodyweightIds(exercises)
+  const groups = new Map<string, ExerciseWeightTally>()
+  const totals = new Map<string, number>()
+
+  for (const s of sets) {
+    if (s.reps <= 0) continue
+    const isBodyweight = bodyweight.has(s.exerciseId)
+    const load = isBodyweight ? undefined : s.load
+    const badge = isBodyweight ? 'BW' : formatLoad(load)
+    totals.set(s.exerciseId, (totals.get(s.exerciseId) ?? 0) + s.reps)
+
+    const key = `${s.exerciseId}::${badge ?? ''}`
+    const found = groups.get(key)
+    if (found) {
+      found.reps += s.reps
+      found.volume += s.reps * loadTotalLbs(load)
+    } else {
+      groups.set(key, {
+        exerciseId: s.exerciseId,
+        badge,
+        ...(load ? { load } : {}),
+        reps: s.reps,
+        volume: s.reps * loadTotalLbs(load),
+      })
+    }
+  }
+
+  return [...groups.values()].sort((a, b) => {
+    if (a.exerciseId !== b.exerciseId) {
+      const byTotal = (totals.get(b.exerciseId) ?? 0) - (totals.get(a.exerciseId) ?? 0)
+      return byTotal !== 0 ? byTotal : a.exerciseId.localeCompare(b.exerciseId)
+    }
+    return loadTotalLbs(b.load) - loadTotalLbs(a.load)
+  })
+}
+
 /** Pounds moved: reps × total weight, summed. Unweighted sets count zero. */
 export function setsVolume(sets: LoggedSet[]): number {
   return sets.reduce((sum, s) => sum + Math.max(0, s.reps) * loadTotalLbs(s.load), 0)
