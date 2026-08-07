@@ -10,8 +10,8 @@
 // (Next.js transpiles it; esbuild bundles it into functions/lib/index.js).
 
 import type {
-  BonusChallengeWeek, ChallengeTemplate, DailyTarget, ExerciseLoad, LoggedSet,
-  ResolvedWeek, WeekProgress,
+  BonusChallengeWeek, ChallengeTemplate, DailyTarget, Exercise, ExerciseLoad,
+  LoggedSet, ResolvedWeek, WeekProgress,
 } from './types'
 import { DEFAULT_REGION_ID } from './regions'
 
@@ -1192,15 +1192,98 @@ export function setsByWeight(sets: LoggedSet[]): WeightTally[] {
   return [...groups.values()].sort((a, b) => loadTotalLbs(b.load) - loadTotalLbs(a.load))
 }
 
+/** One variation done at one weight — a single row of the week's mix. */
+export interface ExerciseWeightTally {
+  exerciseId: string
+  /** Badge form: "2×15", "BW", or null when the reps carried no weight. */
+  badge: string | null
+  load?: ExerciseLoad
+  reps: number
+  /** Pounds moved on this row. */
+  volume: number
+}
+
+/**
+ * The week's reps cut by variation *and* the weight they were done at, so
+ * switching dumbbells mid-week shows up as two rows rather than being averaged
+ * into one badge or split into a second table that doesn't reconcile.
+ *
+ * Rows of the same variation stay together — ordered by that variation's total,
+ * heaviest first within it — so a bigger variation can't wedge between them.
+ * Bodyweight movements get a "BW" row and are counted, unlike `setsByWeight()`,
+ * which is about weights alone and drops them.
+ */
+export function setsByExerciseWeight(
+  sets: LoggedSet[],
+  exercises: Exercise[] = [],
+): ExerciseWeightTally[] {
+  const bodyweight = bodyweightIds(exercises)
+  const groups = new Map<string, ExerciseWeightTally>()
+  const totals = new Map<string, number>()
+
+  for (const s of sets) {
+    if (s.reps <= 0) continue
+    const isBodyweight = bodyweight.has(s.exerciseId)
+    const load = isBodyweight ? undefined : s.load
+    const badge = isBodyweight ? 'BW' : formatLoad(load)
+    totals.set(s.exerciseId, (totals.get(s.exerciseId) ?? 0) + s.reps)
+
+    const key = `${s.exerciseId}::${badge ?? ''}`
+    const found = groups.get(key)
+    if (found) {
+      found.reps += s.reps
+      found.volume += s.reps * loadTotalLbs(load)
+    } else {
+      groups.set(key, {
+        exerciseId: s.exerciseId,
+        badge,
+        ...(load ? { load } : {}),
+        reps: s.reps,
+        volume: s.reps * loadTotalLbs(load),
+      })
+    }
+  }
+
+  return [...groups.values()].sort((a, b) => {
+    if (a.exerciseId !== b.exerciseId) {
+      const byTotal = (totals.get(b.exerciseId) ?? 0) - (totals.get(a.exerciseId) ?? 0)
+      return byTotal !== 0 ? byTotal : a.exerciseId.localeCompare(b.exerciseId)
+    }
+    return loadTotalLbs(b.load) - loadTotalLbs(a.load)
+  })
+}
+
 /** Pounds moved: reps × total weight, summed. Unweighted sets count zero. */
 export function setsVolume(sets: LoggedSet[]): number {
   return sets.reduce((sum, s) => sum + Math.max(0, s.reps) * loadTotalLbs(s.load), 0)
 }
 
 /**
+ * Exercises that can't carry a weight, by id. Cheap enough to rebuild per call,
+ * and passing the list stays optional so old call sites keep working.
+ */
+function bodyweightIds(exercises?: Exercise[]): Set<string> {
+  return new Set((exercises ?? []).filter(e => e.bodyweight).map(e => e.id))
+}
+
+/** Drops a load a bodyweight movement should never have had. */
+function unweighted(set: LoggedSet): LoggedSet {
+  if (!set.load) return set
+  const out = { ...set }
+  delete out.load
+  return out
+}
+
+/**
  * A log's sets, inventing them for logs written before sets existed: one set
  * per exercise, carrying whatever single weight the day had. Every reader goes
  * through this rather than touching `.sets` directly.
+ *
+ * Pass `exercises` and bodyweight movements are stripped of any weight. A
+ * legacy log holds one weight for the *whole day*, so synthesizing sets from it
+ * hands the day's dumbbells to the chin-ups too — which then double-counts into
+ * the by-weight tallies and inflates the pounds moved. Scrubbing on the way out
+ * fixes those logs and any log that had the bad set list written back to it.
  */
 export function logSets<T extends {
   sets?: LoggedSet[]
@@ -1208,17 +1291,23 @@ export function logSets<T extends {
   loggedAt?: string
   date?: string
   exerciseLogs?: Array<{ exerciseId: string; completedReps: number }>
-}>(log: T): LoggedSet[] {
-  if (log.sets?.length) return log.sets
+}>(log: T, exercises?: Exercise[]): LoggedSet[] {
+  const bodyweight = bodyweightIds(exercises)
+  const scrub = (sets: LoggedSet[]) =>
+    bodyweight.size === 0 ? sets : sets.map(s => (bodyweight.has(s.exerciseId) ? unweighted(s) : s))
+
+  if (log.sets?.length) return scrub(log.sets)
   const at = log.loggedAt ?? (log.date ? `${log.date}T12:00:00.000Z` : new Date(0).toISOString())
-  return (log.exerciseLogs ?? [])
-    .filter(el => el.completedReps > 0)
-    .map(el => ({
-      exerciseId: el.exerciseId,
-      reps: el.completedReps,
-      ...(log.load ? { load: log.load } : {}),
-      at,
-    }))
+  return scrub(
+    (log.exerciseLogs ?? [])
+      .filter(el => el.completedReps > 0)
+      .map(el => ({
+        exerciseId: el.exerciseId,
+        reps: el.completedReps,
+        ...(log.load ? { load: log.load } : {}),
+        at,
+      })),
+  )
 }
 
 /** The weight this exercise was most recently done at, if any. */
@@ -1280,9 +1369,10 @@ export function reconcileSets(
 /** Every set across a batch of logs, oldest first. */
 export function allSets<T extends Parameters<typeof logSets>[0] & { date?: string }>(
   logs: T[],
+  exercises?: Exercise[],
 ): LoggedSet[] {
   return logs
-    .flatMap(l => logSets(l))
+    .flatMap(l => logSets(l, exercises))
     .sort((a, b) => a.at.localeCompare(b.at))
 }
 

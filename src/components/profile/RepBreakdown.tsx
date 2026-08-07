@@ -21,7 +21,7 @@ interface RepBreakdownProps {
 }
 
 export function RepBreakdown({ challenge, logs }: RepBreakdownProps) {
-  const sets = allSets(logs)
+  const sets = allSets(logs, challenge.exercises)
   const totalReps = sets.reduce((sum, s) => sum + s.reps, 0)
 
   if (totalReps === 0) {

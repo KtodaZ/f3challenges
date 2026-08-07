@@ -393,7 +393,7 @@ export default function HomePage() {
         // snapshot would let an in-flight save echo back and undo a rapid
         // second tap. `logSets` covers days logged before sets existed.
         if (weeklySetsRef.current === null) {
-          const seeded = logSets(log)
+          const seeded = logSets(log, challenge?.exercises)
           weeklySetsRef.current = seeded
           setTodaySets(seeded)
         }
@@ -541,7 +541,7 @@ export default function HomePage() {
       // here, so the two can never describe different workouts.
       const nextSets = sets ?? reconcileSets(
         exerciseReps,
-        existingLog ? logSets(existingLog) : [],
+        existingLog ? logSets(existingLog, challenge.exercises) : [],
         new Date().toISOString(),
       )
       const nextLoad = badgeLoad(nextSets)
@@ -1184,7 +1184,7 @@ export default function HomePage() {
   const weekMix         = repsByExercise(weekLogs)
   // Every set this week, so the ledger can also break the mix down by weight
   // and total the pounds moved.
-  const weekSets        = allSets(weekLogs)
+  const weekSets        = allSets(weekLogs, challenge?.exercises)
   // Weeks already closed that came up short — topping them up still climbs the
   // trophy ladder, same as making up a day on a day-scored challenge.
   const shortWeeks = weeklyScoring

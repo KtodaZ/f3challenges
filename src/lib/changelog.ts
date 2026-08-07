@@ -20,7 +20,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-07',
     changes: [
-      'The weight now sits right under the variation chips on the log card, always open — no more tapping "Logging at" to unfold it. Pick your variation, pick your weight, tap your reps, top to bottom.',
+      'The weight now sits right under the variation chips on the log card, always open — no more tapping "Logging at" to unfold it. Pick your variation, pick your weight, tap your reps, top to bottom. The list of what you\'ve banked underneath now says **Today\'s reps** on it, so it\'s clear those rows are just today.',
+      'This week\'s mix is one table now. Each row is a variation *and* the weight you did it at — **Dumbbell 2×15 · 40** — so if you switch dumbbells mid-week you get a row for each. The separate "by weight" list underneath is gone: it was the same reps counted a second way, close enough to your variation totals to look like it should match them when it never did. The rows add up to the number at the top, chin-ups included.',
+      'Fixed: chin-ups were being counted as if you did them holding whatever weight the rest of that day was logged at. That padded the weight breakdown and inflated your pounds moved. Chin-ups show **BW** and move nothing now — your rep totals never changed, only the weight they were credited to.',
     ],
   },
   {

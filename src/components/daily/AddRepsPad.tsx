@@ -249,6 +249,7 @@ export function AddRepsPad({ exercises, todaySets, onAdd, onRemoveSet, disabled 
           three sets ago is fixable without unwinding the two after it. */}
       {recent.length > 0 && (
         <div className="pt-1 border-t border-zinc-800/80 space-y-1">
+          <p className="text-xs text-zinc-500">Today&apos;s reps:</p>
           {recent.map(set => {
             const ex = exercises.find(e => e.id === set.exerciseId)
             const badge = formatLoad(set.load)

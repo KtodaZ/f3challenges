@@ -19,6 +19,7 @@ import {
   badgeLoad,
   setsVolume,
   setsByWeight,
+  setsByExerciseWeight,
   logSets,
   allSets,
   reconcileSets,
@@ -353,6 +354,115 @@ describe('sets', () => {
         exerciseLogs: [{ exerciseId: 'chin-up', completedReps: 12 }],
       }
       expect(logSets(legacy)[0].load).toBeUndefined()
+    })
+
+    it('does not hand the day’s weight to a bodyweight movement', () => {
+      // A legacy log holds one weight for the whole day, so synthesizing sets
+      // from it would put the dumbbells on the chin-ups too.
+      const legacy = {
+        date: '2026-08-03',
+        loggedAt: '2026-08-03T14:00:00.000Z',
+        load: { lbs: 15, hands: 2 as const },
+        exerciseLogs: [
+          { exerciseId: 'dumbbell-curl', completedReps: 40 },
+          { exerciseId: 'chin-up', completedReps: 5 },
+        ],
+      }
+      const sets = logSets(legacy, AUG.exercises)
+      expect(sets.find(s => s.exerciseId === 'dumbbell-curl')?.load).toEqual({ lbs: 15, hands: 2 })
+      expect(sets.find(s => s.exerciseId === 'chin-up')?.load).toBeUndefined()
+    })
+
+    it('scrubs a bad weight already written onto a bodyweight set', () => {
+      const log = {
+        date: '2026-08-03',
+        sets: [set(5, '2026-08-03T14:00:00.000Z', { lbs: 15, hands: 2 }, 'chin-up')],
+        exerciseLogs: [],
+      }
+      expect(logSets(log, AUG.exercises)[0].load).toBeUndefined()
+    })
+  })
+
+  describe('setsByExerciseWeight — the week mix rows', () => {
+    it('splits one variation into a row per weight, heaviest first', () => {
+      const rows = setsByExerciseWeight([
+        set(40, '2026-08-02T14:00:00.000Z', { lbs: 15, hands: 2 }),
+        set(60, '2026-08-04T14:00:00.000Z', { lbs: 20, hands: 2 }),
+        set(95, '2026-08-03T14:00:00.000Z', { lbs: 30, hands: 1 }, 'coupon-curl'),
+        set(5, '2026-08-05T14:00:00.000Z', undefined, 'chin-up'),
+      ], AUG.exercises)
+
+      expect(rows.map(r => [r.exerciseId, r.badge, r.reps])).toEqual([
+        // Dumbbell totals 100, so both its rows sort above the 95 of coupon —
+        // a bigger variation can't wedge between them.
+        ['dumbbell-curl', '2×20', 60],
+        ['dumbbell-curl', '2×15', 40],
+        ['coupon-curl', '1×30', 95],
+        ['chin-up', 'BW', 5],
+      ])
+    })
+
+    it('rows sum to the header total, bodyweight included', () => {
+      const rows = setsByExerciseWeight([
+        set(40, '2026-08-02T14:00:00.000Z', { lbs: 15, hands: 2 }),
+        set(95, '2026-08-03T14:00:00.000Z', { lbs: 30, hands: 1 }, 'coupon-curl'),
+        set(5, '2026-08-05T14:00:00.000Z', undefined, 'chin-up'),
+      ], AUG.exercises)
+      expect(rows.reduce((s, r) => s + r.reps, 0)).toBe(140)
+    })
+
+    it('gives a bodyweight movement a BW row and no pounds, however it was logged', () => {
+      const rows = setsByExerciseWeight(
+        [set(5, '2026-08-05T14:00:00.000Z', { lbs: 15, hands: 2 }, 'chin-up')],
+        AUG.exercises,
+      )
+      expect(rows).toEqual([
+        { exerciseId: 'chin-up', badge: 'BW', reps: 5, volume: 0 },
+      ])
+    })
+
+    it('leaves unweighted reps of a weighted movement without a badge', () => {
+      const rows = setsByExerciseWeight([set(20, '2026-08-02T14:00:00.000Z')], AUG.exercises)
+      expect(rows[0].badge).toBeNull()
+      expect(rows[0].volume).toBe(0)
+    })
+  })
+
+  describe('the by-weight tallies a bodyweight movement can’t skew', () => {
+    // Reproduces what the ledger showed: a week of 40 dumbbell + 95 coupon +
+    // 5 chin-up read as "2×15 → 45" because the chin-ups inherited the day's
+    // dumbbells, and the 5 of them added 150 phantom lb to the pounds moved.
+    const week = [
+      {
+        date: '2026-08-02',
+        loggedAt: '2026-08-02T14:00:00.000Z',
+        load: { lbs: 15, hands: 2 as const },
+        exerciseLogs: [
+          { exerciseId: 'dumbbell-curl', completedReps: 40 },
+          { exerciseId: 'chin-up', completedReps: 5 },
+        ],
+      },
+      {
+        date: '2026-08-03',
+        loggedAt: '2026-08-03T14:00:00.000Z',
+        load: { lbs: 30, hands: 1 as const },
+        exerciseLogs: [{ exerciseId: 'coupon-curl', completedReps: 95 }],
+      },
+    ]
+
+    it('counts only the reps that actually carried weight', () => {
+      const rows = setsByWeight(allSets(week, AUG.exercises))
+      // A pair of 15s and a single 30 are both 30 lb, so the heaviest-first
+      // sort ties and they stay in the order they were logged.
+      expect(rows.map(r => [r.badge, r.reps])).toEqual([
+        ['2×15', 40],
+        ['1×30', 95],
+      ])
+    })
+
+    it('leaves bodyweight reps out of the pounds moved', () => {
+      // 40 × 30 + 95 × 30 — the 5 chin-ups move nothing.
+      expect(setsVolume(allSets(week, AUG.exercises))).toBe(4050)
     })
   })
 

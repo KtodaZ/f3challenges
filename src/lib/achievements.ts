@@ -49,8 +49,9 @@ export function toAchievementLog(log: DailyLog): AchievementLogInput {
       log.exerciseLogs.map(e => [e.exerciseId, e.completedReps]),
     ),
     // What the reps were lifted with, for weight-aware badges. Synthesized for
-    // logs written before sets existed.
-    sets: logSets(log),
+    // logs written before sets existed. Logs here span challenges, so the
+    // exercise list comes from each log's own challenge.
+    sets: logSets(log, getChallengeById(log.challengeId)?.exercises),
   }
 }
 
