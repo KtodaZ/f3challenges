@@ -354,6 +354,70 @@ describe('sets', () => {
       }
       expect(logSets(legacy)[0].load).toBeUndefined()
     })
+
+    it('does not hand the day’s weight to a bodyweight movement', () => {
+      // A legacy log holds one weight for the whole day, so synthesizing sets
+      // from it would put the dumbbells on the chin-ups too.
+      const legacy = {
+        date: '2026-08-03',
+        loggedAt: '2026-08-03T14:00:00.000Z',
+        load: { lbs: 15, hands: 2 as const },
+        exerciseLogs: [
+          { exerciseId: 'dumbbell-curl', completedReps: 40 },
+          { exerciseId: 'chin-up', completedReps: 5 },
+        ],
+      }
+      const sets = logSets(legacy, AUG.exercises)
+      expect(sets.find(s => s.exerciseId === 'dumbbell-curl')?.load).toEqual({ lbs: 15, hands: 2 })
+      expect(sets.find(s => s.exerciseId === 'chin-up')?.load).toBeUndefined()
+    })
+
+    it('scrubs a bad weight already written onto a bodyweight set', () => {
+      const log = {
+        date: '2026-08-03',
+        sets: [set(5, '2026-08-03T14:00:00.000Z', { lbs: 15, hands: 2 }, 'chin-up')],
+        exerciseLogs: [],
+      }
+      expect(logSets(log, AUG.exercises)[0].load).toBeUndefined()
+    })
+  })
+
+  describe('the by-weight tallies a bodyweight movement can’t skew', () => {
+    // Reproduces what the ledger showed: a week of 40 dumbbell + 95 coupon +
+    // 5 chin-up read as "2×15 → 45" because the chin-ups inherited the day's
+    // dumbbells, and the 5 of them added 150 phantom lb to the pounds moved.
+    const week = [
+      {
+        date: '2026-08-02',
+        loggedAt: '2026-08-02T14:00:00.000Z',
+        load: { lbs: 15, hands: 2 as const },
+        exerciseLogs: [
+          { exerciseId: 'dumbbell-curl', completedReps: 40 },
+          { exerciseId: 'chin-up', completedReps: 5 },
+        ],
+      },
+      {
+        date: '2026-08-03',
+        loggedAt: '2026-08-03T14:00:00.000Z',
+        load: { lbs: 30, hands: 1 as const },
+        exerciseLogs: [{ exerciseId: 'coupon-curl', completedReps: 95 }],
+      },
+    ]
+
+    it('counts only the reps that actually carried weight', () => {
+      const rows = setsByWeight(allSets(week, AUG.exercises))
+      // A pair of 15s and a single 30 are both 30 lb, so the heaviest-first
+      // sort ties and they stay in the order they were logged.
+      expect(rows.map(r => [r.badge, r.reps])).toEqual([
+        ['2×15', 40],
+        ['1×30', 95],
+      ])
+    })
+
+    it('leaves bodyweight reps out of the pounds moved', () => {
+      // 40 × 30 + 95 × 30 — the 5 chin-ups move nothing.
+      expect(setsVolume(allSets(week, AUG.exercises))).toBe(4050)
+    })
   })
 
   describe('reconcileSets — writers that only know rep totals', () => {

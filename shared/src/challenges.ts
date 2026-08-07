@@ -10,8 +10,8 @@
 // (Next.js transpiles it; esbuild bundles it into functions/lib/index.js).
 
 import type {
-  BonusChallengeWeek, ChallengeTemplate, DailyTarget, ExerciseLoad, LoggedSet,
-  ResolvedWeek, WeekProgress,
+  BonusChallengeWeek, ChallengeTemplate, DailyTarget, Exercise, ExerciseLoad,
+  LoggedSet, ResolvedWeek, WeekProgress,
 } from './types'
 import { DEFAULT_REGION_ID } from './regions'
 
@@ -1198,9 +1198,31 @@ export function setsVolume(sets: LoggedSet[]): number {
 }
 
 /**
+ * Exercises that can't carry a weight, by id. Cheap enough to rebuild per call,
+ * and passing the list stays optional so old call sites keep working.
+ */
+function bodyweightIds(exercises?: Exercise[]): Set<string> {
+  return new Set((exercises ?? []).filter(e => e.bodyweight).map(e => e.id))
+}
+
+/** Drops a load a bodyweight movement should never have had. */
+function unweighted(set: LoggedSet): LoggedSet {
+  if (!set.load) return set
+  const out = { ...set }
+  delete out.load
+  return out
+}
+
+/**
  * A log's sets, inventing them for logs written before sets existed: one set
  * per exercise, carrying whatever single weight the day had. Every reader goes
  * through this rather than touching `.sets` directly.
+ *
+ * Pass `exercises` and bodyweight movements are stripped of any weight. A
+ * legacy log holds one weight for the *whole day*, so synthesizing sets from it
+ * hands the day's dumbbells to the chin-ups too — which then double-counts into
+ * the by-weight tallies and inflates the pounds moved. Scrubbing on the way out
+ * fixes those logs and any log that had the bad set list written back to it.
  */
 export function logSets<T extends {
   sets?: LoggedSet[]
@@ -1208,17 +1230,23 @@ export function logSets<T extends {
   loggedAt?: string
   date?: string
   exerciseLogs?: Array<{ exerciseId: string; completedReps: number }>
-}>(log: T): LoggedSet[] {
-  if (log.sets?.length) return log.sets
+}>(log: T, exercises?: Exercise[]): LoggedSet[] {
+  const bodyweight = bodyweightIds(exercises)
+  const scrub = (sets: LoggedSet[]) =>
+    bodyweight.size === 0 ? sets : sets.map(s => (bodyweight.has(s.exerciseId) ? unweighted(s) : s))
+
+  if (log.sets?.length) return scrub(log.sets)
   const at = log.loggedAt ?? (log.date ? `${log.date}T12:00:00.000Z` : new Date(0).toISOString())
-  return (log.exerciseLogs ?? [])
-    .filter(el => el.completedReps > 0)
-    .map(el => ({
-      exerciseId: el.exerciseId,
-      reps: el.completedReps,
-      ...(log.load ? { load: log.load } : {}),
-      at,
-    }))
+  return scrub(
+    (log.exerciseLogs ?? [])
+      .filter(el => el.completedReps > 0)
+      .map(el => ({
+        exerciseId: el.exerciseId,
+        reps: el.completedReps,
+        ...(log.load ? { load: log.load } : {}),
+        at,
+      })),
+  )
 }
 
 /** The weight this exercise was most recently done at, if any. */
@@ -1280,9 +1308,10 @@ export function reconcileSets(
 /** Every set across a batch of logs, oldest first. */
 export function allSets<T extends Parameters<typeof logSets>[0] & { date?: string }>(
   logs: T[],
+  exercises?: Exercise[],
 ): LoggedSet[] {
   return logs
-    .flatMap(l => logSets(l))
+    .flatMap(l => logSets(l, exercises))
     .sort((a, b) => a.at.localeCompare(b.at))
 }
 

@@ -310,7 +310,7 @@ export default function LeaderboardPage() {
             : undefined,
           // The weight they've done the most reps at across the challenge —
           // not the last one they touched, which flip-flopped on every warm-up.
-          load: badgeLoad(allSets(logs)),
+          load: badgeLoad(allSets(logs, challenge.exercises)),
         } satisfies RawEntry
       })
     )

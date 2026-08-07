@@ -21,6 +21,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-07',
     changes: [
       'The weight now sits right under the variation chips on the log card, always open — no more tapping "Logging at" to unfold it. Pick your variation, pick your weight, tap your reps, top to bottom.',
+      'Fixed: chin-ups were being counted as if you did them holding whatever weight the rest of that day was logged at. That padded the "by weight" reps in This Week\'s Mix and inflated your pounds moved. Chin-ups are bodyweight again — your rep totals never changed, only the weight breakdown.',
     ],
   },
   {
