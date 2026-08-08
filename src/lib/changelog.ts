@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-08',
+    changes: [
+      'The **Admin** tag no longer shows up on comments — comment threads are just names again. It still sits beside the name on posts and on profiles, so you can still tell who runs things.',
+    ],
+  },
+  {
     date: '2026-08-07',
     changes: [
       'The weight now sits right under the variation chips on the log card, always open — no more tapping "Logging at" to unfold it. Pick your variation, pick your weight, tap your reps, top to bottom. The list of what you\'ve banked underneath now says **Today\'s reps** on it, so it\'s clear those rows are just today.',
