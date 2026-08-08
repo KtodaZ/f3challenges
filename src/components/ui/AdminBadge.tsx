@@ -10,12 +10,16 @@ interface AdminBadgeProps {
 }
 
 /**
- * The ADMIN tag beside a name in the feed.
+ * The ADMIN tag beside a name on a profile.
+ *
+ * It used to ride along in the feed too, on posts and comments. That put the
+ * same fact in front of a PAX dozens of times per scroll to answer a question
+ * they ask once, so the feed dropped it — the profile is where you go when you
+ * actually want to know who someone is.
  *
  * One label for both roles on purpose. The difference between a superadmin and
- * a region admin is about what the panel lets them do; to a PAX reading the
- * feed it's the same fact — this person runs things — and spelling out a
- * hierarchy in the middle of a workout post helps nobody.
+ * a region admin is about what the panel lets them do; to a PAX it's the same
+ * fact — this person runs things — and spelling out a hierarchy helps nobody.
  */
 export function AdminBadge({ role, size = 'sm', className }: AdminBadgeProps) {
   if (!role) return null

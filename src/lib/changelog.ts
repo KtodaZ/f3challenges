@@ -20,7 +20,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-08',
     changes: [
-      'The **Admin** tag no longer shows up on comments — comment threads are just names again. It still sits beside the name on posts and on profiles, so you can still tell who runs things.',
+      'The **Admin** tag is out of the feed — no more tag on posts or on comments, just names. It still sits beside the name on a profile, so if you want to know who runs things, tap through.',
     ],
   },
   {
