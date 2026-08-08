@@ -8,9 +8,8 @@ import type { AdminRole } from '@/lib/admin-auth'
  * Which PAX are admins, for the ADMIN tag beside their name.
  *
  * One fetch per page load, shared by every caller through a module-level
- * promise. A feed screen renders this from dozens of components (each post,
- * each comment); a provider would do the same job with more wiring, and a
- * per-component fetch would be dozens of identical requests.
+ * promise. Only the profile reads it now that the feed dropped the tag, but the
+ * shared promise is what keeps that true regardless of how many components ask.
  *
  * The empty map is a fine answer: no tags, nothing broken. Nothing in the app
  * depends on this beyond decoration, so a failed fetch is swallowed.

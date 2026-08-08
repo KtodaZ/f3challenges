@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
-import { AdminBadge } from '@/components/ui/AdminBadge'
 import { ReactionBar } from './ReactionBar'
 import {
   createComment,
@@ -15,9 +14,7 @@ import { generateId, timeAgo, stripUndefined } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import { useRegion } from '@/contexts/RegionContext'
 import { useAdminMode } from '@/contexts/AdminModeContext'
-import { useAdminRoles } from '@/hooks/useAdminRoles'
 import type { FeedPost, FeedComment, User } from '@/types'
-import type { AdminRole } from '@/lib/admin-auth'
 
 // ─── Individual comment row ───────────────────────────────────────────────────
 
@@ -27,8 +24,6 @@ interface CommentRowProps {
   currentUserId: string | undefined
   /** Lets an admin remove someone else's comment from the thread itself. */
   canModerate?: boolean
-  /** Set when this comment's author is an admin — renders the ADMIN tag. */
-  authorRole?: AdminRole
   onReply?: () => void
   onDelete: () => void | Promise<void>
   onReactionToggle: (emoji: string) => void
@@ -39,7 +34,6 @@ function CommentRow({
   allUsers,
   currentUserId,
   canModerate = false,
-  authorRole,
   onReply,
   onDelete,
   onReactionToggle,
@@ -88,7 +82,6 @@ function CommentRow({
               >
                 {authorName}
               </Link>
-              <AdminBadge role={authorRole} size="xs" />
             </div>
             <span className="text-[10px] text-zinc-500 shrink-0">{timeAgo(comment.createdAt)}</span>
           </div>
@@ -155,7 +148,6 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
   const { currentUser, allUsers } = useUser()
   const { isAdmin, role, regionIds, removeComment } = useAdminMode()
   const { regionId, socialReadOnly } = useRegion()
-  const adminRoles = useAdminRoles()
   // See the note in FeedPost — moderation only where this admin governs.
   const canModerate = isAdmin && (role === 'superadmin' || regionIds.includes(regionId))
 
@@ -266,7 +258,6 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                   allUsers={allUsers}
                   currentUserId={currentUser?.id}
                   canModerate={canModerate}
-                  authorRole={adminRoles[comment.authorId]}
                   onReply={() => handleReply(comment)}
                   onDelete={() => deleteComment(comment.id, comment.authorId)}
                   onReactionToggle={emoji => {
@@ -284,7 +275,6 @@ export function CommentThread({ post, comments }: CommentThreadProps) {
                         allUsers={allUsers}
                         currentUserId={currentUser?.id}
                         canModerate={canModerate}
-                        authorRole={adminRoles[reply.authorId]}
                         onDelete={() => deleteComment(reply.id, reply.authorId)}
                         onReactionToggle={emoji => {
                           if (!currentUser) return

@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
-import { AdminBadge } from '@/components/ui/AdminBadge'
 import { EditPostModal } from './EditPostModal'
 import { CommentThread } from './CommentThread'
 import { ReactionBar } from './ReactionBar'
@@ -12,7 +11,6 @@ import { FeedVideoGrid } from './FeedVideoGrid'
 import { Lightbox } from './Lightbox'
 import { softDeletePost, togglePostReaction, subscribeToComments } from '@/lib/firestore'
 import { useAdminMode } from '@/contexts/AdminModeContext'
-import { useAdminRoles } from '@/hooks/useAdminRoles'
 import { timeAgo, highlightMentions, cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import { useRegion } from '@/contexts/RegionContext'
@@ -203,7 +201,6 @@ export function FeedPost({ post }: FeedPostProps) {
   // The roster answers for everyone in this region. `authorName` covers the one
   // case it can't: an admin from another region posting here.
   const authorName = author?.displayName ?? post.authorName ?? 'Unknown'
-  const adminRoles = useAdminRoles()
 
   const handleDelete = useCallback(async () => {
     setDeleting(true)
@@ -291,7 +288,6 @@ export function FeedPost({ post }: FeedPostProps) {
                 <Link href={`/profile/${post.authorId}`} className="text-orange-400 font-semibold hover:underline">
                   @{authorName}
                 </Link>
-                <AdminBadge role={adminRoles[post.authorId]} size="xs" className="ml-1 align-middle" />
                 {' shouted out '}
                 {target && (
                   <Link href={`/profile/${target.id}`} className="text-orange-400 font-semibold hover:underline">
@@ -399,7 +395,6 @@ export function FeedPost({ post }: FeedPostProps) {
                 >
                   {authorName}
                 </Link>
-                <AdminBadge role={adminRoles[post.authorId]} />
                 <span className="text-[11px] text-zinc-500 shrink-0">{timeAgo(post.createdAt)}</span>
                 {post.updatedAt && (
                   <span className="text-[10px] text-zinc-600 shrink-0">· edited</span>
