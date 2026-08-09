@@ -14,6 +14,8 @@ import {
   challengesForRegion,
   resolveRegion,
   getChallengeById,
+  expectedBonusWeeks,
+  getTodayPT,
   logSets,
 } from '@/lib/challenges'
 import type {
@@ -55,12 +57,22 @@ export function toAchievementLog(log: DailyLog): AchievementLogInput {
   }
 }
 
-/** Best bonus-week completion across challenges (bonus-hunter is per challenge). */
-function bestBonusWeeks(bonusLogs: BonusLog[], regionId: string): { completed: number; total: number } | undefined {
+/**
+ * Best bonus-week completion across challenges (bonus-hunter is per challenge).
+ *
+ * The denominator is what the challenge is *expected* to end up with, not what
+ * has been announced so far — bonus rounds land mid-week, and counting only
+ * the declared ones handed out Bonus Hunter after round one.
+ */
+function bestBonusWeeks(
+  bonusLogs: BonusLog[],
+  regionId: string,
+  today: string,
+): { completed: number; total: number } | undefined {
   let best: { completed: number; total: number } | undefined
   for (const c of challengesForRegion(regionId)) {
-    const total = c.bonusChallenge?.weeks.length ?? 0
-    if (total === 0) continue
+    if (!c.bonusChallenge?.weeks.length) continue
+    const total = expectedBonusWeeks(c, today)
     const completed = bonusLogs.filter(b => b.challengeId === c.id).length
     if (!best || completed / total > best.completed / best.total) {
       best = { completed: Math.min(completed, total), total }
@@ -206,7 +218,7 @@ export function buildAchievementContext(
     longestStreak: Math.max(user.longestStreak ?? 0, user.currentStreak ?? 0),
     shoutoutsGiven: extras?.shoutoutsGiven ?? extras?.givenShoutouts?.length,
     shoutoutsReceived: extras?.shoutoutsReceived,
-    bonusWeeks: extras?.bonusLogs ? bestBonusWeeks(extras.bonusLogs, regionId) : undefined,
+    bonusWeeks: extras?.bonusLogs ? bestBonusWeeks(extras.bonusLogs, regionId, getTodayPT()) : undefined,
     firstFinisherDays: group?.firstFinisherDays,
     lastFinisherDays: group?.lastFinisherDays,
     photoFinishDays: group?.photoFinishDays,

@@ -496,6 +496,17 @@ export const CHALLENGES: ChallengeTemplate[] = [
             'Pull day delivered. @{name} knocked out 5×20 rows for Bonus Round 1. 🚣 {hashtag}',
           ],
         },
+        {
+          startDate: '2026-08-09',
+          endDate: '2026-08-15',
+          description: '5 sets of 20 tricep extensions. Overhead, skull crushers, kickbacks — dealer\'s choice. Work it in any time this week.',
+          feedPostTemplates: [
+            '@{name} pressed out 100 tricep extensions across 5 sets. Bonus Round 2 in the books. 💪 {hashtag}',
+            '5 sets of 20. @{name} handled the tricep extensions and earned Bonus Round 2. 🔥 {hashtag}',
+            '@{name} gave the biceps a rest and hit 100 tricep extensions. Bonus Round 2 done. 💪 {hashtag}',
+            'Back of the arm, front of the line. @{name} knocked out 5×20 tricep extensions for Bonus Round 2. 🏋️ {hashtag}',
+          ],
+        },
       ],
     },
     // The Bedrock Bicep runs the whole ladder — the band-app reaction emoji,
@@ -1388,6 +1399,31 @@ export function repsFractionLabel(fraction: number): string {
 /** Returns the active bonus challenge week for a given date, if any. */
 export function getCurrentBonusWeek(challenge: ChallengeTemplate, date: string): BonusChallengeWeek | undefined {
   return challenge.bonusChallenge?.weeks.find(w => date >= w.startDate && date <= w.endDate)
+}
+
+/**
+ * How many bonus weeks the challenge is expected to end up with — what
+ * "completed every bonus week" has to be measured against.
+ *
+ * A round is usually announced partway through the week it covers, so the
+ * declared list trails reality all month: counting it alone would call a PAX
+ * done after the very first one. Every week that hasn't ended yet is assumed
+ * to be getting a bonus, so the count only settles once the challenge is over
+ * — which is what keeps Bonus Hunter from landing in week one.
+ */
+export function expectedBonusWeeks(challenge: ChallengeTemplate, today: string): number {
+  if (!challenge.bonusChallenge) return 0
+  const declared = challenge.bonusChallenge.weeks
+  if (today > challenge.endDate) return declared.length
+  const weeks = getChallengeWeeks(challenge)
+  // A challenge with no week structure gives nothing to project from; assume
+  // at least one more round is coming while it's still running.
+  if (weeks.length === 0) return declared.length + 1
+  const uncovered = weeks.filter(w =>
+    w.endDate >= today
+    && !declared.some(b => b.startDate <= w.endDate && b.endDate >= w.startDate)
+  ).length
+  return declared.length + uncovered
 }
 
 /**

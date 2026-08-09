@@ -20,6 +20,7 @@ import {
   daysMissedBetween,
   completionContext,
   paxPassed,
+  expectedBonusWeeks,
 } from './challenges'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -668,5 +669,94 @@ describe('paxPassed', () => {
 
   it('handles passing the whole board', () => {
     expect(paxPassed(board, 'm', 0, 9999)).toHaveLength(4)
+  })
+})
+
+// ─── expectedBonusWeeks ───────────────────────────────────────────────────────
+
+// Weekly-cumulative month with a bonus announced for the first full week only —
+// the shape the real challenge has mid-month, since rounds get added late.
+const BONUS: ChallengeTemplate = {
+  id: 'bonus-2026',
+  name: 'Bonus Test',
+  hashtag: '#Bonus',
+  tagline: 'Test',
+  month: 8,
+  year: 2026,
+  type: 'weekly-cumulative',
+  startDate: '2026-08-01',
+  endDate: '2026-08-31',
+  weekStartsOn: 0,
+  exercises: [{ id: 'curl', name: 'Curl', shortName: 'Curl' }],
+  weeks: [
+    { startDate: '2026-08-01', endDate: '2026-08-01', target: 50 },
+    { startDate: '2026-08-02', endDate: '2026-08-08', target: 300 },
+    { startDate: '2026-08-09', endDate: '2026-08-15', target: 300 },
+    { startDate: '2026-08-16', endDate: '2026-08-22', target: 300 },
+    { startDate: '2026-08-23', endDate: '2026-08-29', target: 300 },
+    { startDate: '2026-08-30', endDate: '2026-08-31', target: 100 },
+  ],
+  bonusChallenge: {
+    name: 'Bonus Round',
+    weeks: [
+      { startDate: '2026-08-02', endDate: '2026-08-08', description: 'Rows' },
+    ],
+  },
+}
+
+const withBonusWeeks = (weeks: { startDate: string; endDate: string }[]): ChallengeTemplate => ({
+  ...BONUS,
+  bonusChallenge: {
+    name: 'Bonus Round',
+    weeks: weeks.map(w => ({ ...w, description: 'Test' })),
+  },
+})
+
+describe('expectedBonusWeeks', () => {
+  it('assumes a bonus for every week still to come', () => {
+    // Round 1 declared; the four weeks from Aug 9 on are assumed to get one
+    expect(expectedBonusWeeks(BONUS, '2026-08-09')).toBe(5)
+  })
+
+  it('does not double-count a week once its bonus is announced', () => {
+    const c = withBonusWeeks([
+      { startDate: '2026-08-02', endDate: '2026-08-08' },
+      { startDate: '2026-08-09', endDate: '2026-08-15' },
+    ])
+    expect(expectedBonusWeeks(c, '2026-08-09')).toBe(5)
+  })
+
+  it('settles on what was actually declared once the challenge ends', () => {
+    expect(expectedBonusWeeks(BONUS, '2026-09-01')).toBe(1)
+  })
+
+  it('still projects a round on the final day of the challenge', () => {
+    // Aug 30-31 has no bonus yet, so it is still assumed to be coming
+    expect(expectedBonusWeeks(BONUS, '2026-08-31')).toBe(2)
+  })
+
+  it('counts only the declared rounds when the last week already has one', () => {
+    const c = withBonusWeeks([
+      { startDate: '2026-08-02', endDate: '2026-08-08' },
+      { startDate: '2026-08-30', endDate: '2026-08-31' },
+    ])
+    expect(expectedBonusWeeks(c, '2026-08-30')).toBe(2)
+  })
+
+  it('assumes one more round for a running challenge with no weeks', () => {
+    const c: ChallengeTemplate = {
+      ...APR,
+      bonusChallenge: {
+        name: 'Bonus Round',
+        weeks: [{ startDate: '2026-04-06', endDate: '2026-04-12', description: 'Test' }],
+      },
+    }
+    expect(expectedBonusWeeks(c, '2026-04-15')).toBe(2)
+    expect(expectedBonusWeeks(c, '2026-05-01')).toBe(1)
+  })
+
+  it('is zero for a challenge that never had a bonus, running or not', () => {
+    expect(expectedBonusWeeks(FEB, '2026-02-10')).toBe(0)
+    expect(expectedBonusWeeks(FEB, '2026-03-01')).toBe(0)
   })
 })

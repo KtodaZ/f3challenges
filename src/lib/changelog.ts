@@ -18,6 +18,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-09',
+    changes: [
+      'Bonus Round 2 is live: **5 sets of 20 tricep extensions**. Overhead, skull crushers, kickbacks — your call. Reveal it on the home screen and tap **Mark Complete** any time before Saturday night.',
+      'Fixed: **Bonus Hunter** was unlocking after a single bonus round, because it only counted the rounds announced so far. It now assumes a bonus every week of the month, so it stays locked until you\'ve cleared the lot.',
+    ],
+  },
+  {
     date: '2026-08-08',
     changes: [
       'The **Admin** tag is out of the feed — no more tag on posts or on comments, just names. It still sits beside the name on a profile, so if you want to know who runs things, tap through.',
