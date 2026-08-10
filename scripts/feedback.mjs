@@ -55,14 +55,39 @@ function usage(msg) {
 
 // ── Credentials ──────────────────────────────────────────────────────────────
 
+/**
+ * Real environment first, then .env.local.
+ *
+ * The env-var path is what lets this run somewhere other than Kyle's laptop —
+ * a scheduled cloud agent gets a bare git checkout with no .env.local in it,
+ * so a file-only reader fails before it reads a single feedback item.
+ */
 function loadEnv() {
-  const raw = readFileSync(join(__dirname, '../.env.local'), 'utf8')
-  const get = key => raw.match(new RegExp(`^${key}=(.+)$`, 'm'))?.[1]?.trim().replace(/^["']|["']$/g, '')
+  let fromFile = {}
+  try {
+    const raw = readFileSync(join(__dirname, '../.env.local'), 'utf8')
+    const get = key => raw.match(new RegExp(`^${key}=(.+)$`, 'm'))?.[1]?.trim().replace(/^["']|["']$/g, '')
+    fromFile = {
+      FIREBASE_PROJECT_ID:   get('FIREBASE_PROJECT_ID'),
+      FIREBASE_CLIENT_EMAIL: get('FIREBASE_CLIENT_EMAIL'),
+      FIREBASE_PRIVATE_KEY:  get('FIREBASE_PRIVATE_KEY'),
+    }
+  } catch {
+    // No .env.local — expected off the laptop.
+  }
+
+  const get = key => process.env[key] || fromFile[key]
   const projectId   = get('FIREBASE_PROJECT_ID')
   const clientEmail = get('FIREBASE_CLIENT_EMAIL')
+  // Escaped newlines survive both a dotenv line and a secrets manager field.
   const privateKey  = get('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n')
+
   if (!projectId || !clientEmail || !privateKey) {
-    console.error('Missing FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY in .env.local')
+    console.error(
+      'Missing Firebase Admin credentials.\n' +
+      'Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY as\n' +
+      'environment variables, or put them in .env.local for local runs.'
+    )
     process.exit(1)
   }
   return { projectId, clientEmail, privateKey }
