@@ -20,6 +20,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-09',
     changes: [
+      'New in **Settings → Send Feedback**: report a bug or throw out an idea without tracking anyone down. Say what happened and hit send — the page you were on and your phone details ride along, so nobody has to interrogate you about it.',
       'Bonus Round 2 is live: **5 sets of 20 tricep extensions**. Overhead, skull crushers, kickbacks — your call. Reveal it on the home screen and tap **Mark Complete** any time before Saturday night.',
       'Fixed: **Bonus Hunter** was unlocking after a single bonus round, because it only counted the rounds announced so far. It now assumes a bonus every week of the month, so it stays locked until you\'ve cleared the lot.',
     ],

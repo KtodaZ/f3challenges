@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { FeedbackModal } from '@/components/settings/FeedbackModal'
 import { useUser } from '@/contexts/UserContext'
 import { useRegion } from '@/contexts/RegionContext'
 import { useAdminMode } from '@/contexts/AdminModeContext'
@@ -14,6 +15,7 @@ export default function SettingsPage() {
   const { isAdmin, role } = useAdminMode()
   const { regionId, viewingAs, setViewingAs } = useRegion()
   const router = useRouter()
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && !currentUser) router.replace('/onboarding')
@@ -99,6 +101,27 @@ export default function SettingsPage() {
           </svg>
         </Link>
 
+        {/* Feedback / bug report */}
+        <button
+          onClick={() => setFeedbackOpen(true)}
+          className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4 hover:border-zinc-700 transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-sky-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10.5h8m-8 4h5m5.25 6.25l-3.5-3.5H6.75A2.25 2.25 0 014.5 15V6.75A2.25 2.25 0 016.75 4.5h10.5a2.25 2.25 0 012.25 2.25V15a2.25 2.25 0 01-2.25 2.25h-.5v3.5z" />
+              </svg>
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-medium text-white">Send Feedback</p>
+              <p className="text-xs text-zinc-500">Report a bug or suggest something</p>
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+
         {/* Switch user */}
         <button
           onClick={handleSwitchUser}
@@ -177,6 +200,7 @@ export default function SettingsPage() {
         )}
       </div>
 
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   )
 }

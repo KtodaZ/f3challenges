@@ -31,6 +31,7 @@ import type {
   AppNotification,
   ChallengeParticipation,
   BonusLog,
+  FeedbackItem,
 } from '@/types'
 
 // ─── Ambient Region ───────────────────────────────────────────────────────────
@@ -128,6 +129,7 @@ export const dailyLogsCol     = () => collection(db, 'dailyLogs')
 export const feedCol          = () => collection(db, 'feed')
 export const participationCol = () => collection(db, 'participation')
 export const bonusLogsCol     = () => collection(db, 'bonusLogs')
+export const feedbackCol      = () => collection(db, 'feedback')
 export const notificationsCol = (userId: string) =>
   collection(db, 'notifications', userId, 'items')
 
@@ -586,4 +588,21 @@ export function subscribeToNotifications(
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => d.data() as AppNotification))
   })
+}
+
+// ─── Feedback ─────────────────────────────────────────────────────────────────
+
+/**
+ * Files a bug report or suggestion.
+ *
+ * Deliberately not guarded by `assertWritable()`: feedback counts toward
+ * nothing, so a superadmin previewing another region should still be able to
+ * report the bug they just hit there. The region stamp records where they saw
+ * it, which is the useful thing.
+ *
+ * There is no read helper — clients can't read the collection (see
+ * firestore.rules). Triage goes through `scripts/feedback.mjs`.
+ */
+export async function createFeedback(item: FeedbackItem): Promise<void> {
+  await setDoc(doc(feedbackCol(), item.id), stripUndefined(withRegion(item)))
 }

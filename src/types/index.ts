@@ -310,3 +310,43 @@ export type OnboardingStep =
   | 'notifications'
   | 'pwa-install'
   | 'done'
+
+// ─── Feedback ─────────────────────────────────────────────────────────────────
+
+export type FeedbackKind = 'bug' | 'idea' | 'other'
+
+/** Where triage has got to. Only `scripts/feedback.mjs` moves an item off
+ *  `new` — nothing in the app reads or writes status. */
+export type FeedbackStatus = 'new' | 'triaged' | 'done' | 'wontfix'
+
+/**
+ * A bug report or suggestion filed from Settings.
+ *
+ * Write-only from the client (see firestore.rules): PAX file them, triage
+ * happens with the Admin SDK. `context` is captured automatically because the
+ * details that make a bug reproducible are exactly the ones nobody types in.
+ */
+export interface FeedbackItem {
+  id: string
+  regionId?: string
+  userId: string
+  /** Denormalized — triage runs server-side with no roster to join against. */
+  userName: string
+  kind: FeedbackKind
+  message: string
+  status: FeedbackStatus
+  createdAt: string
+  /** Set by the triage script, never by the app. */
+  resolvedAt?: string
+  /** Free-text triage note, e.g. the PR that fixed it. */
+  triageNote?: string
+  context?: {
+    /** Route the PAX was on when they opened the modal. */
+    path?: string
+    userAgent?: string
+    /** Installed PWA vs browser tab — changes what push can do. */
+    standalone?: boolean
+    viewport?: string
+    appVersion?: string
+  }
+}
