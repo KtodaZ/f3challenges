@@ -125,6 +125,16 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Feedback: bug reports and suggestions filed from Settings. Write-only for
+    // clients — a PAX can file one but cannot read anyone's (feedback often
+    // names other people, and a gripe filed in confidence shouldn't be public).
+    // Triage reads and updates these with the Admin SDK, which bypasses rules.
+    match /feedback/{feedbackId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
     // Notification log: readable for debugging, written only by Cloud Functions
     match /notificationLog/{logId} {
       allow read: if true;
