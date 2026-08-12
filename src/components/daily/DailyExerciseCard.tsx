@@ -80,7 +80,13 @@ export function DailyExerciseCard({
   function handleFractionTap(fraction: number) {
     vibrate()
     const reps = Math.round(targetReps * fraction)
-    onChange(exerciseId, completedReps === reps ? 0 : reps)
+    // "Done ✓" is a toggle, so tapping it while already at *or past* the target
+    // clears the day. Matching only on equality would quietly trim an overshoot
+    // — 150 reps tapped back down to 100 — which is the opposite of the intent.
+    // The smaller fractions still set their amount, so they stay a way to
+    // adjust downward.
+    const clears = fraction === 1 ? completedReps >= reps : completedReps === reps
+    onChange(exerciseId, clears ? 0 : reps)
   }
 
   function handleQuickAdd(amount: number) {

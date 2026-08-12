@@ -18,6 +18,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-12',
+    changes: [
+      'Finished the day and kept going? The Quick Tap cards used to disappear the moment you hit the target, so there was nowhere to put the extra reps. A **+ Log more reps** button now sits under the day once it\'s done — tap it and the cards come back. Those extra reps count toward your badges and your rep totals.',
+      'Fixed: tapping **Done ✓** when you were already past the target quietly knocked you back down to it — 150 merkins became 100. It now clears the day like the button says, and the smaller fractions are still there if you need to dial a number down.',
+    ],
+  },
+  {
     date: '2026-08-09',
     changes: [
       'New in **Settings → Send Feedback**: report a bug or throw out an idea without tracking anyone down. Say what happened and hit send — the page you were on and your phone details ride along, so nobody has to interrogate you about it.',

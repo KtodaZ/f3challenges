@@ -66,6 +66,9 @@ export function DayLogCarousel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(slides.length - 1)
   const [jumpOpen, setJumpOpen] = useState(false)
+  // Reopens today's Quick Tap cards after the day is already complete, for reps
+  // banked past the target. Stays open for the rest of the visit.
+  const [logMoreOpen, setLogMoreOpen] = useState(false)
 
   // Optimistic reps for make-up days — kept in a ref so rapid taps across
   // different exercises never save a stale map back to Firestore.
@@ -214,10 +217,22 @@ export function DayLogCarousel({
           if (!target) return null
 
           if (isTodaySlide) {
+            // A finished day sheds its Quick Tap cards to stay clean — but the
+            // PAX who kept going past the target still needs somewhere to put
+            // those reps, so the cards come back behind one tap.
+            const showTodayCards = !isDayDone || logMoreOpen
             return (
               <div key={date} className="snap-center shrink-0 w-full px-0.5 space-y-2">
                 {todayHeader}
-                {!isDayDone && target.exercises.map(({ exercise, reps }) => (
+                {isDayDone && !logMoreOpen && (
+                  <button
+                    onClick={() => setLogMoreOpen(true)}
+                    className="w-full py-2.5 rounded-xl text-xs font-semibold text-zinc-400 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+                  >
+                    + Log more reps
+                  </button>
+                )}
+                {showTodayCards && target.exercises.map(({ exercise, reps }) => (
                   <DailyExerciseCard
                     key={exercise.id}
                     exerciseId={exercise.id}
