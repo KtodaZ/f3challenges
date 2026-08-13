@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-13',
+    changes: [
+      'Finished your day and kept going? There\'s a **Log extra reps** button under your status card now. Tap it, bank whatever you did on top — those reps count on the leaderboard like every other rep. It only ever adds, so nothing you log there can undo the day you already finished, and anything you add by mistake has an ✕ next to it while the box is open.',
+    ],
+  },
+  {
     date: '2026-08-09',
     changes: [
       'New in **Settings → Send Feedback**: report a bug or throw out an idea without tracking anyone down. Say what happened and hit send — the page you were on and your phone details ride along, so nobody has to interrogate you about it.',

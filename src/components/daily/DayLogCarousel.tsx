@@ -5,6 +5,7 @@ import { cn, formatDate } from '@/lib/utils'
 import { getDailyTarget, getDayNumber } from '@/lib/challenges'
 import { Modal } from '@/components/ui/Modal'
 import { DailyExerciseCard } from './DailyExerciseCard'
+import { ExtraRepsModal } from './ExtraRepsModal'
 import type { ChallengeTemplate, DailyLog, DailyTarget } from '@/types'
 
 interface DayLogCarouselProps {
@@ -66,6 +67,17 @@ export function DayLogCarousel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(slides.length - 1)
   const [jumpOpen, setJumpOpen] = useState(false)
+
+  // Extra reps on a day that's already done. The baseline is snapshotted when
+  // the modal opens rather than read live, so its undo can only ever take back
+  // what that sitting added — the reps that finished the day are untouchable.
+  const [extraOpen, setExtraOpen] = useState(false)
+  const [extraBaseline, setExtraBaseline] = useState<Record<string, number>>({})
+
+  const openExtraReps = useCallback(() => {
+    setExtraBaseline({ ...todayReps })
+    setExtraOpen(true)
+  }, [todayReps])
 
   // Optimistic reps for make-up days — kept in a ref so rapid taps across
   // different exercises never save a stale map back to Firestore.
@@ -217,18 +229,40 @@ export function DayLogCarousel({
             return (
               <div key={date} className="snap-center shrink-0 w-full px-0.5 space-y-2">
                 {todayHeader}
-                {!isDayDone && target.exercises.map(({ exercise, reps }) => (
-                  <DailyExerciseCard
-                    key={exercise.id}
-                    exerciseId={exercise.id}
-                    name={exercise.name}
-                    targetReps={reps}
-                    completedReps={todayReps[exercise.id] ?? 0}
-                    onChange={onTodayReps}
-                    disabled={todaySaving}
-                    unit={exercise.unit}
-                  />
-                ))}
+                {isDayDone ? (
+                  /* The cards are gone — the day is in. What's left is the PAX
+                     who kept going after the target, so they get one deliberate
+                     way back in rather than a live pad to fat-finger. */
+                  <button
+                    onClick={openExtraReps}
+                    className={cn(
+                      'w-full rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/60',
+                      'px-4 py-3 text-left transition-colors hover:border-orange-600/60 hover:bg-zinc-900',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500'
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-base" aria-hidden="true">➕</span>
+                      <span className="text-sm font-semibold text-zinc-300">Log extra reps</span>
+                    </span>
+                    <span className="mt-0.5 block text-xs text-zinc-500">
+                      Kept going after you finished? Bank it — it counts toward your reps.
+                    </span>
+                  </button>
+                ) : (
+                  target.exercises.map(({ exercise, reps }) => (
+                    <DailyExerciseCard
+                      key={exercise.id}
+                      exerciseId={exercise.id}
+                      name={exercise.name}
+                      targetReps={reps}
+                      completedReps={todayReps[exercise.id] ?? 0}
+                      onChange={onTodayReps}
+                      disabled={todaySaving}
+                      unit={exercise.unit}
+                    />
+                  ))
+                )}
               </div>
             )
           }
@@ -335,6 +369,16 @@ export function DayLogCarousel({
           })}
         </div>
       </Modal>
+
+      {/* ── Extra reps on an already-finished day ── */}
+      <ExtraRepsModal
+        open={extraOpen}
+        onClose={() => setExtraOpen(false)}
+        exercises={todayTarget.exercises}
+        baseline={extraBaseline}
+        onSetTotal={onTodayReps}
+        saving={todaySaving}
+      />
     </div>
   )
 }
