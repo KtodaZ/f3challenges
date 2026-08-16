@@ -507,6 +507,17 @@ export const CHALLENGES: ChallengeTemplate[] = [
             'Back of the arm, front of the line. @{name} knocked out 5×20 tricep extensions for Bonus Round 2. 🏋️ {hashtag}',
           ],
         },
+        {
+          startDate: '2026-08-16',
+          endDate: '2026-08-22',
+          description: 'No reps this week — a random act of kindness instead. Do something for your wife or another loved one: flowers, coffee, lunch, whatever fits. Get it done any time this week.',
+          feedPostTemplates: [
+            '@{name} took Bonus Round 3 outside the gym — a random act of kindness for someone they love. ❤️ {hashtag}',
+            'Strong arms, soft heart. @{name} knocked out Bonus Round 3 with an act of kindness this week. 💐 {hashtag}',
+            '@{name} made someone\'s day and earned Bonus Round 3 doing it. ☕ {hashtag}',
+            'Bonus Round 3 in the books — @{name} showed some love to someone who matters. ❤️ {hashtag}',
+          ],
+        },
       ],
     },
     // The Bedrock Bicep runs the whole ladder — the band-app reaction emoji,

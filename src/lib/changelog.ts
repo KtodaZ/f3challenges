@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-16',
+    changes: [
+      'Bonus Round 3 is live, and it\'s not about reps: a random act of kindness for your wife or another loved one — flowers, coffee, lunch, your call. Reveal it on the home screen and tap **Mark Complete** any time before Saturday night.',
+    ],
+  },
+  {
     date: '2026-08-13',
     changes: [
       'Finished your day and kept going? There\'s a **Log extra reps** button under your status card now. Tap it, bank whatever you did on top — those reps count on the leaderboard like every other rep. It only ever adds, so nothing you log there can undo the day you already finished, and anything you add by mistake has an ✕ next to it while the box is open.',
