@@ -518,6 +518,17 @@ export const CHALLENGES: ChallengeTemplate[] = [
             'Bonus Round 3 in the books — @{name} showed some love to someone who matters. ❤️ {hashtag}',
           ],
         },
+        {
+          startDate: '2026-08-23',
+          endDate: '2026-08-29',
+          description: 'No reps this week — five extra chores around the house instead. Something your wife wouldn\'t expect. Get it done any time this week.',
+          feedPostTemplates: [
+            '@{name} took Bonus Round 4 to the house — five extra chores their wife wasn\'t expecting. 🧹 {hashtag}',
+            'Strong arms, tidy house. @{name} knocked out Bonus Round 4 with five surprise chores. 🧽 {hashtag}',
+            '@{name} earned Bonus Round 4 the domestic way — five extra chores, no reps required. 🏠 {hashtag}',
+            'Bonus Round 4 in the books — @{name} handled five chores around the house before anyone asked. 🧹 {hashtag}',
+          ],
+        },
       ],
     },
     // The Bedrock Bicep runs the whole ladder — the band-app reaction emoji,

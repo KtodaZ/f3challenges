@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-26',
+    changes: [
+      'Bonus Round 4 is live, and it\'s not about reps: five extra chores around the house — something your wife wouldn\'t expect. Reveal it on the home screen and tap **Mark Complete** any time before Saturday night.',
+    ],
+  },
+  {
     date: '2026-08-16',
     changes: [
       'Bonus Round 3 is live, and it\'s not about reps: a random act of kindness for your wife or another loved one — flowers, coffee, lunch, your call. Reveal it on the home screen and tap **Mark Complete** any time before Saturday night.',
