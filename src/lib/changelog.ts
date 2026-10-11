@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-10-11',
+    changes: [
+      'The app is now open source. Find **Open Source** in Settings to see the code on GitHub, report a bug, or pitch in.',
+    ],
+  },
+  {
     date: '2026-08-26',
     changes: [
       'Bonus Round 4 is live, and it\'s not about reps: five extra chores around the house — something your wife wouldn\'t expect. Reveal it on the home screen and tap **Mark Complete** any time before Saturday night.',
