@@ -81,6 +81,7 @@ Trust-based, allow all reads/writes, except: `feed` blocks hard deletes (soft de
 ## Deployment
 
 - Prod: `https://f3challenges.com` (Vercel Hobby, apex, no `www`). Vercel auto-deploys on push to `main`; Functions + Firestore rules deploy via `.github/workflows/firebase-deploy.yml` on the same push — never deploy locally.
+- Repo: public at `github.com/KtodaZ/f3challenges` (MIT). History was rewritten to go public; the private `f3-bedrock-monthly-challenge-archive` holds the old SHAs and PRs #1–49 — never push anything from it here.
 - Legacy origin `f3-bedrock-monthly-challenge.vercel.app` still *serves* the app as an alias, deliberately not a 301 — a cross-origin redirect kicks installed PWAs out of standalone mode.
 - Env vars live in the Vercel dashboard (mirror of `.env.local`). Firebase project: `f3-bedrock-monthly-challenge`.
 - `functions/` is excluded from `pnpm-workspace.yaml` (own lockfile + empty workspace file so Firebase Cloud Build can install). `@f3-bedrock/shared` is *not* in `functions/package.json` and never installed on the server — esbuild aliases it; `functions/tsconfig.json` has a matching `paths` entry for local typecheck.
