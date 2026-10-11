@@ -50,3 +50,6 @@ firestore-debug.log
 
 # Agent worktrees (nested checkouts)
 .claude/worktrees/
+
+# local debug log receiver output
+.claude-debug/debug.log
